@@ -100,7 +100,7 @@ create_figure(opts);
 
 % set up a timer that reads from LSL
 th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,'StartDelay',0.2,'Tag',['lsl_' genvarname(opts.streamname) '_timer'],'Name','eeg_timer');
-start(th);
+% start(th);
 
 
 

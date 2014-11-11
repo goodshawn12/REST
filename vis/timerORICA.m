@@ -1,3 +1,5 @@
+% Initalize for ORICA GUI
+% function [pipeline, opts] = initializeORICA
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % REAL-TIME BCILAB-LSL DEMONSTRATION SCRIPT
 %
@@ -71,7 +73,7 @@ opts.calibEpoch = [0 1];
 % itself can be relative to bcilab root folder (i.e. data:/ is the userdata
 % folder in the bcilab root dir)
 % ..........................................................................
-opts.datapath = '/home/lpiontonachini/Dropbox/School/Research/VisEEG/data/';
+opts.datapath = 'D:\Matlab Coding\OnlineICA\P3_realtime\data\';
 % (required) calibration data set
 opts.TrainingDataFile = 'EmotivTrain_EyeClose_icainfo.set';%'Colin27_Biosemi_1010_0_norot.set'; %'Flanker_SH_cleaned_calib_testicainfo.set';%'sim_64ch_superlaplaceblink1sub7_800s.set';
 % (optional) file to "playback" if opts.runlsl = false
@@ -238,180 +240,180 @@ while true
     %   .MODEL      Model structure
     %
     % .....................................................................
-    
-    
-    if opts.dispBenchmark
-        % TODO: implement this as a figure
-        vis_benchmark(benchmarking);
-        
-        if plotconvergence
-            % plot ORICA convergence
-            if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'convergence')
-                if ~exist('bpfig','var') || isempty(bpfig) || ~ishandle(bpfig)
-                    CONVERGE_BUF = 60*eeg_chunk.srate; % size of convergence buffer
-                    bpfig = figure;
-                    bpaxes= axes('parent',bpfig);
-                    convergence = nan(1,CONVERGE_BUF);
-                    convergence(end-length(eeg_chunk.convergence)+1:end) = 10*log(eeg_chunk.convergence);
-                    h=plot(linspace(0,CONVERGE_BUF/eeg_chunk.srate,CONVERGE_BUF),convergence);
-                    set(bpfig,'userdata',h);
-                    ylabel('10*ln(Convergence)');
-                    xlabel('Time');
-                else
-                    blkpnts = length(eeg_chunk.convergence); %options.blockSize*(skipCount);
-                    convergence(:,1:end-blkpnts) = convergence(:,blkpnts+1:end);
-                    % insert new samples ...
-                    convergence(:,end-blkpnts+1:end) = 10*log(eeg_chunk.convergence);
-                    set(h,'ydata',convergence);
-                end
-            end
-        end
-        
-        if plotstatIdx
-            % plot ORICA convergence
-            if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'statIdx')
-                if ~exist('sifig','var') || isempty(sifig) || ~ishandle(sifig)
-                    CONVERGE_BUF_si = 60*eeg_chunk.srate; % size of convergence buffer
-                    sifig = figure;
-                    siaxes= axes('parent',sifig);
-                    statIdx = nan(1,CONVERGE_BUF_si);
-                    statIdx(end-length(eeg_chunk.statIdx)+1:end) = eeg_chunk.statIdx;
-                    hsi=plot(linspace(0,CONVERGE_BUF_si/eeg_chunk.srate,CONVERGE_BUF_si),statIdx);
-                    set(sifig,'userdata',hsi);
-                    ylabel('Stationary Idx');
-                    xlabel('Time');
-                else
-                    blkpnts = length(eeg_chunk.statIdx); %options.blockSize*(skipCount);
-                    statIdx(:,1:end-blkpnts) = statIdx(:,blkpnts+1:end);
-                    % insert new samples ...
-                    statIdx(:,end-blkpnts+1:end) = eeg_chunk.statIdx;
-                    set(hsi,'ydata',statIdx);
-                end
-            end
-        end
-        
-        
-        if plotmir
-            % plot ORICA convergence
-            if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'mir')
-                if ~exist('mirfig','var') || isempty(mirfig) || ~ishandle(mirfig)
-                    CONVERGE_BUF_mir = 60*eeg_chunk.srate; % size of convergence buffer
-                    mirfig = figure;
-                    miraxes= axes('parent',mirfig);
-                    mir = nan(1,CONVERGE_BUF_mir);
-                    mir(end-length(eeg_chunk.mir)+1:end) = eeg_chunk.mir;
-                    hmir=plot(linspace(0,CONVERGE_BUF_mir/eeg_chunk.srate,CONVERGE_BUF_mir),mir);
-                    set(mirfig,'userdata',hmir);
-                    ylabel('MIR');
-                    xlabel('Time');
-                else
-                    blkpnts = length(eeg_chunk.mir); %options.blockSize*(skipCount);
-                    mir(:,1:end-blkpnts) = mir(:,blkpnts+1:end);
-                    % insert new samples ...
-                    mir(:,end-blkpnts+1:end) = eeg_chunk.mir;
-                    set(hmir,'ydata',mir);
-                end
-            end
-        end
-        
-        
-        if ploticaact
-            % plot ORICA ica activation
-            if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'icaact')
-                if ~isempty(eeg_chunk.icaact)
-                    if ~exist('srcfig','var') || isempty(srcfig) || ~ishandle(srcfig)
-                        SRCPOT_BUF = 10*eeg_chunk.srate; % size of convergence buffer
-                        srcfig = figure;
-                        srcaxes= axes('parent',srcfig);
-                        plotdata = nan(eeg_chunk.nbchan,SRCPOT_BUF);
-                        plotdata(:,end-size(eeg_chunk.icaact,2)+1:end) = eeg_chunk.icaact;
-                        keyboard;
-                        % zero-mean
-                        plotdata = bsxfun(@minus, plotdata, mean(plotdata,2));
-                        
-                        % arrange for plotting
-                        plotoffsets = (0:size(plotdata,1)-1); %*stream.opts.datascale;
-                        plotdata = bsxfun(@plus, plotdata, plotoffsets');
-                        plottime = linspace(0,SRCPOT_BUF/eeg_chunk.srate,size(plotdata,2));
-                        % === actual drawing ===
-                        
-                        % draw the block contents...
-                        if ~isempty(plotdata)
-                            if ~exist('lines','var') || isempty(lines)
-                                lines = plot(srcaxes,plottime,plotdata);
-                                title(srcaxes,'EEG icaact');
-                                xlabel(srcaxes,'Time (sec)','FontSize',12);
-                                ylabel(srcaxes,'Activation','FontSize',12);
-                            else
-                                for k=1:length(lines)
-                                    set(lines(k),'Ydata',plotdata(:,k));
-                                    set(lines(k),'Xdata',plottime);
-                                end
-                            end
-                            
-                            % update the axis limit and tickmarks
-                            %                             axis(srcaxes,[stream.xmin stream.xmax -stream.opts.datascale size(plotdata,2)*stream.opts.datascale + stream.opts.datascale]);
-                            set(srcaxes, 'YTick',plotoffsets, 'YTickLabel',{eeg_chunk.chanlocs(1:eeg_chunk.nbchan).labels});
-                        end
-                        
-                        drawnow;
-                        
-                        %                         hsrc=plot(linspace(0,SRCPOT_BUF/eeg_chunk.srate,SRCPOT_BUF),srcpot);
-                        %                         set(srcfig,'userdata',hsrc);
-                        %                         ylabel('10*ln(Convergence)');
-                        %                         xlabel('Time');
-                    else
-                        blkpnts = size(eeg_chunk.icaact,2); %options.blockSize*(skipCount);
-                        plotdata(:,1:end-blkpnts) = plotdata(:,blkpnts+1:end);
-                        % insert new samples ...
-                        plotdata(:,end-blkpnts+1:end) = eeg_chunk.icaact;
-                        %                         set(lines,'ydata',plotdata);
-                        for k=1:length(lines)
-                            set(lines(k),'Ydata',plotdata(:,k));
-                            set(lines(k),'Xdata',plottime);
-                        end
-                        
-                    end
-                end
-            end
-        end
-        
-        
-        updateTime = updateTime + size(eeg_chunk.data,2) / eeg_chunk.srate; % sec
-        
-        if plotcomponent && updateTime > 0.2
-            if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'icaweights') && isfield(eeg_chunk,'icasphere')
-                if ~isempty(eeg_chunk.icaweights)
-                    eeg_chunk.icawinv = inv(eeg_chunk.icaweights*eeg_chunk.icasphere);
-                    if ~exist('compfig','var') % || isempty(bpfig) || ~ishandle(bpfig)
-                        compfig = figure;
-                    end
-                    
-                    compID = 1:14;
-                    for plotIdx = 1:length(compID)
-                        subplot(4,4,plotIdx);
-                        if flag
-                            topoplot( eeg_chunk.icawinv(:, compID(plotIdx)), eeg_chunk.chanlocs, ...
-                                'style', 'map', 'electrodes', 'off', 'verbose', 'off','gridscale',32);
-                            if plotIdx == length(compID);flag = 0; end
-                        else
-                            handleComp = get(gca,'children');
-                            handleComp = handleComp(end);
-                            [Zi,amax,amin] = topoplot_easy( eeg_chunk.icawinv(:, compID(plotIdx)), eeg_chunk.chanlocs, ...
-                                'style', 'map', 'electrodes', 'off', 'verbose', 'off', 'gridscale',32);
-                            set(handleComp,'cdata',Zi);
-                            caxis([amin,amax]);
-                        end
-                    end
-                end
-            end
-            updateTime = 0;
-        end
-        
-    end
-    
-    % (optionally) give Matlab a little break...
-    pause(0.01);
+%     
+%     
+%     if opts.dispBenchmark
+%         % TODO: implement this as a figure
+%         vis_benchmark(benchmarking);
+%         
+%         if plotconvergence
+%             % plot ORICA convergence
+%             if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'convergence')
+%                 if ~exist('bpfig','var') || isempty(bpfig) || ~ishandle(bpfig)
+%                     CONVERGE_BUF = 60*eeg_chunk.srate; % size of convergence buffer
+%                     bpfig = figure;
+%                     bpaxes= axes('parent',bpfig);
+%                     convergence = nan(1,CONVERGE_BUF);
+%                     convergence(end-length(eeg_chunk.convergence)+1:end) = 10*log(eeg_chunk.convergence);
+%                     h=plot(linspace(0,CONVERGE_BUF/eeg_chunk.srate,CONVERGE_BUF),convergence);
+%                     set(bpfig,'userdata',h);
+%                     ylabel('10*ln(Convergence)');
+%                     xlabel('Time');
+%                 else
+%                     blkpnts = length(eeg_chunk.convergence); %options.blockSize*(skipCount);
+%                     convergence(:,1:end-blkpnts) = convergence(:,blkpnts+1:end);
+%                     % insert new samples ...
+%                     convergence(:,end-blkpnts+1:end) = 10*log(eeg_chunk.convergence);
+%                     set(h,'ydata',convergence);
+%                 end
+%             end
+%         end
+%         
+%         if plotstatIdx
+%             % plot ORICA convergence
+%             if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'statIdx')
+%                 if ~exist('sifig','var') || isempty(sifig) || ~ishandle(sifig)
+%                     CONVERGE_BUF_si = 60*eeg_chunk.srate; % size of convergence buffer
+%                     sifig = figure;
+%                     siaxes= axes('parent',sifig);
+%                     statIdx = nan(1,CONVERGE_BUF_si);
+%                     statIdx(end-length(eeg_chunk.statIdx)+1:end) = eeg_chunk.statIdx;
+%                     hsi=plot(linspace(0,CONVERGE_BUF_si/eeg_chunk.srate,CONVERGE_BUF_si),statIdx);
+%                     set(sifig,'userdata',hsi);
+%                     ylabel('Stationary Idx');
+%                     xlabel('Time');
+%                 else
+%                     blkpnts = length(eeg_chunk.statIdx); %options.blockSize*(skipCount);
+%                     statIdx(:,1:end-blkpnts) = statIdx(:,blkpnts+1:end);
+%                     % insert new samples ...
+%                     statIdx(:,end-blkpnts+1:end) = eeg_chunk.statIdx;
+%                     set(hsi,'ydata',statIdx);
+%                 end
+%             end
+%         end
+%         
+%         
+%         if plotmir
+%             % plot ORICA convergence
+%             if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'mir')
+%                 if ~exist('mirfig','var') || isempty(mirfig) || ~ishandle(mirfig)
+%                     CONVERGE_BUF_mir = 60*eeg_chunk.srate; % size of convergence buffer
+%                     mirfig = figure;
+%                     miraxes= axes('parent',mirfig);
+%                     mir = nan(1,CONVERGE_BUF_mir);
+%                     mir(end-length(eeg_chunk.mir)+1:end) = eeg_chunk.mir;
+%                     hmir=plot(linspace(0,CONVERGE_BUF_mir/eeg_chunk.srate,CONVERGE_BUF_mir),mir);
+%                     set(mirfig,'userdata',hmir);
+%                     ylabel('MIR');
+%                     xlabel('Time');
+%                 else
+%                     blkpnts = length(eeg_chunk.mir); %options.blockSize*(skipCount);
+%                     mir(:,1:end-blkpnts) = mir(:,blkpnts+1:end);
+%                     % insert new samples ...
+%                     mir(:,end-blkpnts+1:end) = eeg_chunk.mir;
+%                     set(hmir,'ydata',mir);
+%                 end
+%             end
+%         end
+%         
+%         
+%         if ploticaact
+%             % plot ORICA ica activation
+%             if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'icaact')
+%                 if ~isempty(eeg_chunk.icaact)
+%                     if ~exist('srcfig','var') || isempty(srcfig) || ~ishandle(srcfig)
+%                         SRCPOT_BUF = 10*eeg_chunk.srate; % size of convergence buffer
+%                         srcfig = figure;
+%                         srcaxes= axes('parent',srcfig);
+%                         plotdata = nan(eeg_chunk.nbchan,SRCPOT_BUF);
+%                         plotdata(:,end-size(eeg_chunk.icaact,2)+1:end) = eeg_chunk.icaact;
+%                         keyboard;
+%                         % zero-mean
+%                         plotdata = bsxfun(@minus, plotdata, mean(plotdata,2));
+%                         
+%                         % arrange for plotting
+%                         plotoffsets = (0:size(plotdata,1)-1); %*stream.opts.datascale;
+%                         plotdata = bsxfun(@plus, plotdata, plotoffsets');
+%                         plottime = linspace(0,SRCPOT_BUF/eeg_chunk.srate,size(plotdata,2));
+%                         % === actual drawing ===
+%                         
+%                         % draw the block contents...
+%                         if ~isempty(plotdata)
+%                             if ~exist('lines','var') || isempty(lines)
+%                                 lines = plot(srcaxes,plottime,plotdata);
+%                                 title(srcaxes,'EEG icaact');
+%                                 xlabel(srcaxes,'Time (sec)','FontSize',12);
+%                                 ylabel(srcaxes,'Activation','FontSize',12);
+%                             else
+%                                 for k=1:length(lines)
+%                                     set(lines(k),'Ydata',plotdata(:,k));
+%                                     set(lines(k),'Xdata',plottime);
+%                                 end
+%                             end
+%                             
+%                             % update the axis limit and tickmarks
+%                             %                             axis(srcaxes,[stream.xmin stream.xmax -stream.opts.datascale size(plotdata,2)*stream.opts.datascale + stream.opts.datascale]);
+%                             set(srcaxes, 'YTick',plotoffsets, 'YTickLabel',{eeg_chunk.chanlocs(1:eeg_chunk.nbchan).labels});
+%                         end
+%                         
+%                         drawnow;
+%                         
+%                         %                         hsrc=plot(linspace(0,SRCPOT_BUF/eeg_chunk.srate,SRCPOT_BUF),srcpot);
+%                         %                         set(srcfig,'userdata',hsrc);
+%                         %                         ylabel('10*ln(Convergence)');
+%                         %                         xlabel('Time');
+%                     else
+%                         blkpnts = size(eeg_chunk.icaact,2); %options.blockSize*(skipCount);
+%                         plotdata(:,1:end-blkpnts) = plotdata(:,blkpnts+1:end);
+%                         % insert new samples ...
+%                         plotdata(:,end-blkpnts+1:end) = eeg_chunk.icaact;
+%                         %                         set(lines,'ydata',plotdata);
+%                         for k=1:length(lines)
+%                             set(lines(k),'Ydata',plotdata(:,k));
+%                             set(lines(k),'Xdata',plottime);
+%                         end
+%                         
+%                     end
+%                 end
+%             end
+%         end
+%         
+%         
+%         updateTime = updateTime + size(eeg_chunk.data,2) / eeg_chunk.srate; % sec
+%         
+%         if plotcomponent && updateTime > 0.2
+%             if fltPipCfg.porica.arg_selection && isfield(eeg_chunk,'icaweights') && isfield(eeg_chunk,'icasphere')
+%                 if ~isempty(eeg_chunk.icaweights)
+%                     eeg_chunk.icawinv = inv(eeg_chunk.icaweights*eeg_chunk.icasphere);
+%                     if ~exist('compfig','var') % || isempty(bpfig) || ~ishandle(bpfig)
+%                         compfig = figure;
+%                     end
+%                     
+%                     compID = 1:14;
+%                     for plotIdx = 1:length(compID)
+%                         subplot(4,4,plotIdx);
+%                         if flag
+%                             topoplot( eeg_chunk.icawinv(:, compID(plotIdx)), eeg_chunk.chanlocs, ...
+%                                 'style', 'map', 'electrodes', 'off', 'verbose', 'off','gridscale',32);
+%                             if plotIdx == length(compID);flag = 0; end
+%                         else
+%                             handleComp = get(gca,'children');
+%                             handleComp = handleComp(end);
+%                             [Zi,amax,amin] = topoplot_easy( eeg_chunk.icawinv(:, compID(plotIdx)), eeg_chunk.chanlocs, ...
+%                                 'style', 'map', 'electrodes', 'off', 'verbose', 'off', 'gridscale',32);
+%                             set(handleComp,'cdata',Zi);
+%                             caxis([amin,amax]);
+%                         end
+%                     end
+%                 end
+%             end
+%             updateTime = 0;
+%         end
+%         
+%     end
+%     
+%     % (optionally) give Matlab a little break...
+%     pause(0.01);
     
 end
 

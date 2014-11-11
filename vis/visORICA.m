@@ -22,7 +22,7 @@ function varargout = visORICA(varargin)
 
 % Edit the above text to modify the response to help visORICA
 
-% Last Modified by GUIDE v2.5 05-Nov-2014 17:08:55
+% Last Modified by GUIDE v2.5 07-Nov-2014 15:41:46
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -51,11 +51,49 @@ function visORICA_OpeningFcn(hObject, eventdata, handles, varargin)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to visORICA (see VARARGIN)
+%   1: channel locations
 
+
+% Parse varargsin 
+handles.ntopo = 8;
+handles.ics = 1:8;
+
+% Start EEG stream
 inlet = vis_stream_ORICA('StreamName','EEGLAB','figurehandles',handles.figure1,'axishandles',handles.axisEEG);
-1;
+% handles.chanlocs = evalin('base','lsl_EEGLAB_stream');
+% handles.chanlocs = handles.chanlocs.chanlocs;
+handles.chanlocs = evalin('base','chanlocs');
+
+% Intialize ORICA
+
+
+% Start ORICA calculations
+
+
+% Populate scalp maps
+for it = 1:handles.ntopo
+%     set(figure_handle, 'CurrentHandle', ax_handle)
+    axes(handles.(['axesIC' int2str(it)]));
+    topoplot(rand(size(handles.chanlocs)), handles.chanlocs,'electrodes','off','gridscale',32,'style','map');
+end
+
+% Start scalp map updates;
+topoTimer = timer('Period',1/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,handles},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
+
+oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_orica,pipeline},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');
+
+    [eeg_chunk,pipeline] = onl_filtered(pipeline, chunk_len, opts.silence);
+
+
+
 eegTimer = timerfind;
 eegTimer = eegTimer(strcmp(eegTimer.Name,'eeg_timer'));
+
+start(eegTimer);
+start(topoTimer);
+
+
+
 % if switch to components, change eegTimer.TimerFcn and add that fcn to
 % vis_stream_ORICA
 
