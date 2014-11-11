@@ -13,7 +13,7 @@ if ~exp_beginfun('filter') return; end
 
 %% define input arguments
 % has its own highpass filter, sometimes applied on re-referenced data
-declare_properties('name','ORICA', 'experimental',true,'precedes',{'flt_fir','flt_iir','flt_rls_whitening'}, 'follows',{'flt_reref'}, 'independent_trials',false, 'independent_channels',false);
+declare_properties('name','ORICA', 'experimental',true,'precedes',{'flt_fir','flt_iir'}, 'follows',{'flt_reref'}, 'independent_trials',false, 'independent_channels',false);
 
 arg_define([0 1],varargin,...
     arg_norep({'signal','Signal'}), ...

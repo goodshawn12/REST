@@ -57,39 +57,39 @@ function visORICA_OpeningFcn(hObject, eventdata, handles, varargin)
 % Parse varargsin 
 handles.ntopo = 8;
 handles.ics = 1:8;
-
-% Start EEG stream
-inlet = vis_stream_ORICA('StreamName','EEGLAB','figurehandles',handles.figure1,'axishandles',handles.axisEEG);
-% handles.chanlocs = evalin('base','lsl_EEGLAB_stream');
-% handles.chanlocs = handles.chanlocs.chanlocs;
-handles.chanlocs = evalin('base','chanlocs');
+handles.streamName = 'EEGLAB';
+calibData = varargin{1};
 
 % Intialize ORICA
+initializeORICA(handles,calibData);
 
+% Create ORICA timer
+oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,1},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');
 
-% Start ORICA calculations
-
+% Start EEG stream
+inlet = vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
+handles.chanlocs = evalin('base','chanlocs');
+eegTimer = timerfind;
+eegTimer = eegTimer(strcmp(eegTimer.Name,'eeg_timer'));
 
 % Populate scalp maps
 for it = 1:handles.ntopo
+%     set(figure_handle, 'CurrentHandle', ax_handle)
     axes(handles.(['axesIC' int2str(it)]));
-    topoplot(rand(size(handles.chanlocs)), handles.chanlocs,'electrodes','off','gridscale',32);
+    topoplot(rand(size(handles.chanlocs)), handles.chanlocs,'electrodes','off','gridscale',32,'style','map');
 end
 
-% Start scalp map updates;
-topoTimer = timer('Period', 1,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,handles},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
+% Create scalp map timer
+topoTimer = timer('Period',1/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,handles},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
+
+
+% Start timers
+start(oricaTimer);
+start(eegTimer);
+start(topoTimer);
 
 
 
-
-
-
-
-
-
-
-eegTimer = timerfind;
-eegTimer = eegTimer(strcmp(eegTimer.Name,'eeg_timer'));
 % if switch to components, change eegTimer.TimerFcn and add that fcn to
 % vis_stream_ORICA
 
@@ -105,6 +105,47 @@ guidata(hObject, handles);
 % UIWAIT makes visORICA wait for user response (see UIRESUME)
 % uiwait(handles.figure1);
 
+function initializeORICA(handles,calibData)
+
+if ~exist('env_translatepath','file')
+    % standalone case
+    lib = lsl_loadlib();
+else
+    % if we're within BCILAB we want to make sure that the library is also found if the toolbox is compiled
+    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
+end
+
+% look for the desired device
+result = {};
+disp(['Looking for a stream with name=' handles.streamName ' ...']);
+while isempty(result)
+    result = lsl_resolve_byprop(lib,'name',handles.streamName); end
+% create a new inlet
+disp('Opening an inlet...');
+inlet = lsl_inlet(result{1},360);
+assignin('base',handles.streamName,inlet);
+
+run_readlsl('MatlabStream',handles.streamName,                 ...
+    'SelectionProperty',opts.lsl.SelectionProperty,     ...
+    'SelectionValue',opts.lsl.SelectionValue);
+
+
+opts.lsl.StreamName = handles.streamName;
+opts.BCILAB_PipelineConfigFile = 'ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
+
+% define the pipeline configuration
+try    fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));
+catch, disp('-- no existing pipeline --'); fltPipCfg = {}; end
+fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
+    'Parameters',[{'signal',calibData} fltPipCfg], ...
+    'PanelOnly',false);
+
+% run pipline on calibration data
+cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));
+
+% initialize the pipeline for streaming data
+pipeline     = onl_newpipeline(cleaned_data,opts.lsl.StreamName);
+assignin('base','pipeline',pipeline);
 
 % --- Outputs from this function are returned to the command line.
 function varargout = visORICA_OutputFcn(hObject, eventdata, handles) 

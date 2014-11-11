@@ -184,8 +184,7 @@ else
 end
 
 % initialize the pipeline for streaming data
-pipeline     = onl_newpipeline(cleaned_data,opts.lsl.StreamName);
-
+ 
 % render a panel for viewing streams
 gui_vis_filtered;
 

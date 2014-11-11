@@ -3,8 +3,8 @@ function vis_topo(varargin)
 % handles.ics(1-8) has which ICs to plot
 
 % get the updated stream buffer
-Winv = evalin('base','Winv');
-Winv = Winv + rand(size(Winv));
+W = evalin('base','W');
+Winv = inv(W);
 handles = varargin{3};
 
 it = mod(get(varargin{1},'TasksExecuted')-1,8)+1;
