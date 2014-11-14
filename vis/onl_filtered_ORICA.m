@@ -49,6 +49,9 @@ function onl_filtered_ORICA(p,desired_length,suppress_output,set_online_scope)
 %                                Christian Kothe, Swartz Center for Computational Neuroscience, UCSD
 %                                2012-05-13
 
+nargin = 1;
+p = evalin('base','pipeline');
+
 % check inputs
 if nargin < 4
     set_online_scope = true;
@@ -60,7 +63,6 @@ if nargin < 4
         suppress_output = true; end
 end
 
-p = evalin('base','pipeline');
 
 % run update_pipeline() with appropriate options
 if suppress_output
@@ -92,9 +94,10 @@ if desired_length && ~isstruct(chunk.epoch)
     end
     chunk = p.buffer;
     
-    assignin('base','p',pipeline);
-    assignin('base','W',chunk.icaweights);
 end
+assignin('base','pipeline',p);
+assignin('base','W',chunk.icaweights);
+assignin('base','sphere',chunk.icasphere);
 
 
 function [chunk,p] = update_pipeline(p)

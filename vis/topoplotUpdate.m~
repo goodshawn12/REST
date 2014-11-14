@@ -574,8 +574,8 @@ if nargs > 2
                 % if max(abs(plotchans))>max(Values) | max(abs(plotchans))>length(Values) -sm ???
             case {'whitebk','whiteback','forprint'}
                 whitebk = Value;
-%             case 'handle'
-%                 cmaphand = Value;
+            case 'axis'
+                cmapax = Value;
             otherwise
                 error(['Unknown input parameter ''' Param ''' ???'])
         end
@@ -585,8 +585,8 @@ if strcmpi(whitebk, 'on')
     BACKCOLOR = [ 1 1 1 ];
 end;
 
-% cmap = get(cmaphand,'Colormap');
-% cmaplen = size(cmap,1);
+cmap = colormap(cmaphand);
+cmaplen = size(cmap,1);
 
 if strcmp(STYLE,'blank')    % else if Values holds numbers of channels to mark
     if length(Values) < length(loc_file)
@@ -1038,8 +1038,8 @@ if ~strcmpi(STYLE,'blank') % if draw interpolated scalp map
   %%%%%%%%%%%%%%%%%%%%%%%%%% Scale the axes %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   %
   %cla  % clear current axis
-%   hold on
-%   h = gca; % uses current axes
+  hold on
+  h = gca; % uses current axes
 
                           % instead of default larger AXHEADFAC 
   if squeezefac<0.92 & plotrad-headrad > 0.05  % (size of head in axes)
@@ -1047,7 +1047,7 @@ if ~strcmpi(STYLE,'blank') % if draw interpolated scalp map
                           % shrunk enough by the 'skirt' option
   end
 
-%   set(gca,'Xlim',[-rmax rmax]*AXHEADFAC,'Ylim',[-rmax rmax]*AXHEADFAC);
+  set(gca,'Xlim',[-rmax rmax]*AXHEADFAC,'Ylim',[-rmax rmax]*AXHEADFAC);
                           % specify size of head axes in gca
 
   unsh = (GRID_SCALE+1)/GRID_SCALE; % un-shrink the effects of 'interp' SHADING
@@ -1085,7 +1085,6 @@ if ~strcmpi(STYLE,'blank') % if draw interpolated scalp map
     end
   end
 end
-
     %
     %%%%%%%%%%% reset color limits for grid plot %%%%%%%%%%%%%%%%%%%%%%%%%
     %

@@ -4,12 +4,13 @@ function vis_topo(varargin)
 
 % get the updated stream buffer
 W = evalin('base','W');
-Winv = inv(W);
+sphere = evalin('base','sphere');
+Winv = inv(W*sphere);
 handles = varargin{3};
 
 it = mod(get(varargin{1},'TasksExecuted')-1,8)+1;
 hstr = ['axesIC' int2str(it)];
-[map, cmin, cmax] = topoplotUpdate(Winv(:,handles.ics(it)), handles.chanlocs,'electrodes','off','gridscale',32);
 hand = get(handles.(hstr),'children');
+[map, cmin, cmax] = topoplotUpdate(Winv(:,handles.ics(it)), handles.chanlocs,'electrodes','off','gridscale',32);
 set(hand(end),'CData',map);
 set(handles.(hstr),'CLim',[cmin cmax]);

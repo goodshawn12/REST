@@ -1,4 +1,4 @@
-function [inlet] = vis_stream_ORICA(varargin)
+function [inlet,,@on_timer_comp] = vis_stream_ORICA(varargin)
 % Display an LSL stream.
 %
 % Keyboard shortcuts:
@@ -99,10 +99,9 @@ assignin('base', buffername, create_streambuffer(opts,inlet.info()));
 create_figure(opts);
 
 % set up a timer that reads from LSL
-th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,...
-    'StartDelay',0.2,'Tag',['lsl_' genvarname(opts.streamname) '_timer'],...
-    'Name','eegTimer','UserData',0);
+th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer_chan,'StartDelay',0.2,'Tag',['lsl_' genvarname(opts.streamname) '_timer'],'Name','eegTimer');
 % start(th);
+
 
 
     % === nested functions (sharing some handles with each other) ===
@@ -126,7 +125,102 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
         end
     end
 
-    function on_timer(varargin)
+    function on_timer_chan(varargin)
+        try 
+            % check if the buffer is still there
+            if evalin('base',['exist(''' buffername ''',''var'')'])
+                
+                
+                % === update buffer contents (happens in the base workspace) ===
+                
+                % pull a new chunk from LSL
+                assignin('base',chunkname,inlet.pull_chunk());
+                
+                % append it to the stream buffer
+                evalin('base',['[' buffername '.smax,' buffername '.data(:,1+mod(' buffername '.smax:' buffername '.smax+size(' chunkname ',2)-1,' buffername '.pnts))] = deal(' buffername '.smax + size(' chunkname ',2),' chunkname ');']);
+                
+                % get the updated stream buffer
+                stream = evalin('base',buffername);
+                
+                % reformat the stream buffer to contain only the current block that should be displayed
+                samples_to_get = min(stream.pnts, round(stream.srate*stream.opts.timerange));
+                stream.data = stream.data(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
+                [stream.nbchan,stream.pnts,stream.trials] = size(stream.data);
+                stream.xmax = stream.smax/stream.srate;
+                stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
+                
+                
+                % === data post-processing for plotting ===
+                
+                % determine channels and samples to display
+                plotchans = stream.opts.channelrange + stream.opts.pageoffset*length(stream.opts.channelrange);
+                if isempty(plotchans)
+                    plotchans = 1:stream.nbchan;
+                else
+                    plotchans = intersect(1:stream.nbchan,plotchans);
+                end
+                plotdata = stream.data(plotchans, round(1 : stream.srate/stream.opts.samplingrate : end));
+                plottime = linspace(stream.xmin,stream.xmax,size(plotdata,2));
+                
+                % re-reference
+                if stream.opts.reref
+                    plotdata = bsxfun(@minus,plotdata,mean(plotdata)); end
+                                
+                % zero-mean
+                plotdata = bsxfun(@minus, plotdata, mean(plotdata,2));
+                
+                % arrange for plotting
+                plotoffsets = (0:size(plotdata,1)-1)*stream.opts.datascale;
+                plotdata = bsxfun(@plus, plotdata', plotoffsets);
+                
+                
+                % === actual drawing ===
+                
+                % draw the block contents...
+                if ~isempty(plotdata)
+                    if ~exist('lines','var') || isempty(lines)                        
+                        lines = plot(ax,plottime,plotdata);
+                        title(ax,opts.streamname);
+                        xlabel(ax,'Time (sec)','FontSize',12);
+                        ylabel(ax,'Activation','FontSize',12);
+                    else
+                        for k=1:length(lines)
+                            set(lines(k),'Ydata',plotdata(:,k));
+                            set(lines(k),'Xdata',plottime);
+                        end
+                    end
+                
+                    % update the axis limit and tickmarks
+                    axis(ax,[stream.xmin stream.xmax -stream.opts.datascale size(plotdata,2)*stream.opts.datascale + stream.opts.datascale]);
+                    set(ax, 'YTick',plotoffsets, 'YTickLabel',{stream.chanlocs(plotchans).labels});
+                end
+                
+                drawnow;
+            else
+                try 
+                    disp(['Deleting timer ' get(th,'Tag') '.']);
+                catch e
+                    disp('Deleting timer.');
+                end
+                % delete the timer
+                warning off MATLAB:timer:deleterunning
+                th = timerfindall;
+                delete(th);
+            end
+        catch e
+            if isempty(findobj('Tag',['Fig' buffername]))
+                disp('Figure was closed.');
+            else
+                disp('An error occurred during the stream viewer update: ');
+                hlp_handleerror(e);
+            end
+            warning off MATLAB:timer:deleterunning
+            th = timerfindall;
+            delete(th);
+        end
+    end
+
+    function on_timer_comp(varargin)
         try 
             % check if the buffer is still there
             if evalin('base',['exist(''' buffername ''',''var'')'])
@@ -154,6 +248,8 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 % === data post-processing for plotting ===
                 
                 % grab W and sphereing matrix from base workspace
+                W = evalin('base','W');
+                sphere = evalin('base','sphere');
                 
                 % determine channels and samples to display
                 plotchans = stream.opts.channelrange + stream.opts.pageoffset*length(stream.opts.channelrange);
@@ -163,6 +259,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                     plotchans = intersect(1:stream.nbchan,plotchans);
                 end
                 plotdata = stream.data(plotchans, round(1 : stream.srate/stream.opts.samplingrate : end));
+                plotdata = W*(sphere*plotdata);
                 plottime = linspace(stream.xmin,stream.xmax,size(plotdata,2));
                 
                 % re-reference
@@ -171,13 +268,6 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                                 
                 % zero-mean
                 plotdata = bsxfun(@minus, plotdata, mean(plotdata,2));
-                
-                % conditionally calculate components
-                if get(varargin{1},'userdata')
-                    W = evalin('base','W');
-                    sphere = evalin('base','sphere');
-                    plotdata = W*(sphere*plotdata)/sum(sum(W*sphere));
-                end
                 
                 % arrange for plotting
                 plotoffsets = (0:size(plotdata,1)-1)*stream.opts.datascale;
@@ -202,11 +292,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 
                     % update the axis limit and tickmarks
                     axis(ax,[stream.xmin stream.xmax -stream.opts.datascale size(plotdata,2)*stream.opts.datascale + stream.opts.datascale]);
-                    if get(varargin{1},'userdata')
-                        set(ax, 'YTick',plotoffsets, 'YTickLabel',cellstr(int2str(plotchans')));
-                    else
-                        set(ax, 'YTick',plotoffsets, 'YTickLabel',{stream.chanlocs(plotchans).labels});
-                    end
+                    set(ax, 'YTick',plotoffsets, 'YTickLabel',cellstr(int2str(plotchans')));
                 end
                 
                 drawnow;
