@@ -153,8 +153,6 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 
                 % === data post-processing for plotting ===
                 
-                % grab W and sphereing matrix from base workspace
-                
                 % determine channels and samples to display
                 plotchans = stream.opts.channelrange + stream.opts.pageoffset*length(stream.opts.channelrange);
                 if isempty(plotchans)
