@@ -70,7 +70,9 @@ opts = arg_define(varargin, ...
     arg_nogui({'position','Position'},[],[],'Figure position. Allows to script the position at which the figures should appear.'), ...
     arg_nogui({'figurehandles','FigureHandle'},[],[],'Handle to the desired figure.'), ...
     arg_nogui({'axishandles','AxisHandle'},[],[],'Handle to the desired axis.'));
-    
+%     arg({'property','SelectionProperty'}, 'type',[],'Selection property. The selection criterion by which the desired device is identified on the net. This is a property that the desired device must have (e.g., name, type, desc/manufacturer, etc.'), ...
+%     arg({'value','SelectionValue'}, 'EEG',[],'Selection value. This is the value that the desired device must have for the selected property (e.g., EEG if searching by type, or Biosemi if searching by manufacturer).'), ...
+
 % no arguments were passed? bring up GUI dialog
 if isempty(varargin)
     opts = arg_guidialog;    
@@ -86,8 +88,10 @@ opts.bufferrange = max(opts.bufferrange,opts.timerange);
 
 % choose variable names to hold the stream's data (in the base workspace)
 taken = evalin('base','whos(''lsl*'')');
-chunkname = genvarname(['lsl_' opts.streamname '_chunk'],{taken.name});
-buffername = genvarname(['lsl_' opts.streamname '_stream'],{taken.name});
+chunkname = genvarname(['lsl_visORICA_chunk'],{taken.name});
+buffername = genvarname(['lsl_visORICA_stream'],{taken.name});
+% chunkname = genvarname(['lsl_' opts.streamname '_chunk'],{taken.name});
+% buffername = genvarname(['lsl_' opts.streamname '_stream'],{taken.name});
 
 % create a stream inlet
 inlet = create_inlet(opts);
@@ -100,8 +104,12 @@ create_figure(opts);
 
 % set up a timer that reads from LSL
 th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,...
-    'StartDelay',0.2,'Tag',['lsl_' genvarname(opts.streamname) '_timer'],...
+    'StartDelay',0.2,'Tag','lsl_visORICA_timer',...
     'Name','eegTimer','UserData',0);
+
+% th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,...
+%     'StartDelay',0.2,'Tag',['lsl_' genvarname(opts.streamname) '_timer'],...
+%     'Name','eegTimer','UserData',0);
 % start(th);
 
 
@@ -277,7 +285,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
         result = {};
         disp(['Looking for a stream with name=' opts.streamname ' ...']);
         while isempty(result)
-            result = lsl_resolve_byprop(lib,'name',opts.streamname); end
+            result = lsl_resolve_byprop(lib,'name',opts.streamname); end % lsl_resolve_byprop(lib,opts.property,opts.value); 
         % create a new inlet
         disp('Opening an inlet...');
         inlet = lsl_inlet(result{1},opts.bufferrange);

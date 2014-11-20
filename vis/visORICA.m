@@ -64,7 +64,8 @@ handles.curIC = 1;
 calibData = varargin{1};
 
 % Start EEG stream
-vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
+vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG);
+% vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
 eegTimer = timerfind('Name','eegTimer');
 
 % Intialize ORICA
@@ -114,7 +115,7 @@ guidata(hObject, handles);
 function initializeORICA(handles,calibData)
 
 run_readlsl('MatlabStream',handles.streamName, ...
-    'SelectionProperty','type','SelectionValue','EEG');
+    'SelectionProperty','type','SelectionValue','EEG', 'MarkerStreamQuery',[]);
 
 opts.lsl.StreamName = handles.streamName;
 opts.BCILAB_PipelineConfigFile = 'ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
@@ -125,6 +126,12 @@ catch, disp('-- no existing pipeline --'); fltPipCfg = {}; end
 fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
     'Parameters',[{'signal',calibData} fltPipCfg], ...
     'PanelOnly',false);
+
+if ~isempty(fltPipCfg)
+    if isfield(fltPipCfg,'signal'); fltPipCfg = rmfield(fltPipCfg,'signal'); end
+    save(env_translatepath(['data/' opts.BCILAB_PipelineConfigFile]),...
+        '-struct','fltPipCfg');
+end
 
 % run pipline on calibration data
 cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));
@@ -137,40 +144,42 @@ assignin('base','pipeline',pipeline);
 function icPS(varargin)
 secs2samp = 5; % seconds
 
-W = evalin('base','W');
-sphere = evalin('base','sphere');
-handles = guidata(varargin{3});
-
-set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
-
-srate = evalin('base','lsl_EEGLAB_stream.srate');
-data = evalin('base','lsl_EEGLAB_stream.data');
-if all(data(:,end)==0)
-    mark=1;
-    while true
-        ind = find(data(1,mark:end)==0,1);
-        mark = mark+ind;
-        if all(data(:,mark+ind-1)==0)
-            break; end
+try
+    W = evalin('base','W');
+    sphere = evalin('base','sphere');
+    handles = guidata(varargin{3});
+    
+    set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
+    
+    srate = evalin('base','lsl_visORICA_stream.srate');
+    data = evalin('base','lsl_visORICA_stream.data');
+    if all(data(:,end)==0)
+        mark=1;
+        while true
+            ind = find(data(1,mark:end)==0,1);
+            mark = mark+ind;
+            if all(data(:,mark+ind-1)==0)
+                break; end
+        end
+        data = data(:,max(1,mark-srate*secs2samp+1):mark);
+    else
+        data = data(:,end-srate*secs2samp+1:end);
     end
-    data = data(:,max(1,mark-srate*secs2samp+1):mark);
-else
-    data = data(:,end-srate*secs2samp+1:end);
+    
+    data = bsxfun(@minus,data,mean(data,2));
+    data = W*sphere*data;
+    data = data(handles.curIC,:);
+    
+    [data,f] = pwelch(data,[],[],[],srate);
+    
+    plot(handles.axisInfo,f,db(data))
+    grid(handles.axisInfo,'on');
+    xlabel(handles.axisInfo,'Frequency (Hz)')
+    ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
+    % axis(handles.axisInfo,[0 srate/2 -60 40])
+    axis(handles.axisInfo,'tight')
+    set(handles.axisInfo,'XTick',[0 10:10:f(end)])
 end
-
-data = bsxfun(@minus,data,mean(data,2));
-data = W*sphere*data;
-data = data(handles.curIC,:);
-
-[data,f] = pwelch(data,[],[],[],srate);
-
-plot(handles.axisInfo,f,db(data))
-grid(handles.axisInfo,'on');
-xlabel(handles.axisInfo,'Frequency (Hz)')
-ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
-% axis(handles.axisInfo,[0 srate/2 -60 40])
-axis(handles.axisInfo,'tight')
-set(handles.axisInfo,'XTick',[0 10:10:f(end)])
 
 function vis_topo(varargin)
 % get the updated stream buffer
