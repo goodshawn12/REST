@@ -22,7 +22,7 @@ function varargout = visORICA(varargin)
 
 % Edit the above text to modify the response to help visORICA
 
-% Last Modified by GUIDE v2.5 20-Nov-2014 13:50:54
+% Last Modified by GUIDE v2.5 17-Nov-2014 19:20:22
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -88,11 +88,11 @@ topoTimer = timer('Period',2/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn
 infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@icPS,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
 
 % Set panel and button colors
-names = fieldnames(handles);
-ind = find(any([strncmpi(names,'panel',5),strncmpi(names,'toggle',6),strncmpi(names,'push',4),strncmpi(names,'popup',5)],2));
-for it = 1:length(ind)
-set(handles.(names{ind(it)}),'BackgroundColor',get(handles.figure1,'Color'))
-end
+% names = fieldnames(handles);
+% ind = find(any([strncmpi(names,'panel',5),strncmpi(names,'toggle',6),strncmpi(names,'push',4),strncmpi(names,'popup',5)],2));
+% for it = 1:length(ind)
+% set(handles.(names{ind(it)}),'BackgroundColor',get(handles.figure1,'Color'))
+% end
 
 % Start timers
 start(oricaTimer);
@@ -264,8 +264,7 @@ end
 
 
 function genICSelectGUI(hObject,handles)
-temp = get(handles.figure1,'Position');
-fhandle = figure('toolbar','none','Menubar','none','Name','IC Select','position',[1 1 temp(3:4)],'DeleteFcn',{@closeFigIC,hObject});
+fhandle = figure('toolbar','none','Menubar','none','Name','IC Select','position',[1 1 990 990],'DeleteFcn',{@closeFigIC,hObject});
 W = evalin('base','W');
 
 rowcols(2) = ceil(sqrt(handles.nic));
@@ -336,7 +335,7 @@ if get(button,'Value') % turned exclude on
             set(handles.figIC.buttonLock(ic),'Value',0); end
     end
 else % turned exclude off
-    handles.exclude(handles.exclude==ic) = [];
+    handles.exclude(handles.lock==ic) = [];
 end
 % save handles
 guidata(hObject,handles);
