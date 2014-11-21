@@ -141,7 +141,6 @@ function icPS(varargin)
 secs2samp = 5; % seconds
 
 W = evalin('base','W');
-% if isempty(W), W = evalin('base','Wn'); end
 sphere = evalin('base','sphere');
 handles = guidata(varargin{3});
 
@@ -154,10 +153,9 @@ if all(data(:,end)==0)
     while true
         ind = find(data(1,mark:end)==0,1);
         mark = mark+ind;
-        if all(data(:,mark-1)==0)
+        if all(data(:,mark+ind-1)==0)
             break; end
     end
-    mark = mark - 2;
     data = data(:,max(1,mark-srate*secs2samp+1):mark);
 else
     data = data(:,max(1,end-srate*secs2samp+1):end);
@@ -184,9 +182,9 @@ function vis_topo(varargin)
 % get the updated stream buffer
 W = evalin('base','W');
 
-% if isempty(W)
-%     W = evalin('base','Wn');
-% end
+if isempty(W)
+    W = evalin('base','Wn');
+end
 handles = guidata(varargin{3});
 
 % update topo plot
@@ -276,8 +274,6 @@ end
 function genICSelectGUI(hObject,handles)
 fhandle = figure('toolbar','none','Menubar','none','Name','IC Select','Resize','on','DeleteFcn',{@closeFigIC,hObject});
 W = evalin('base','W');
-sphere = evalin('base','sphere');
-Winv = inv(W*sphere);
 
 rowcols(2) = ceil(sqrt(handles.nic));
 rowcols(1) = ceil(handles.nic/rowcols(2));
@@ -288,7 +284,7 @@ for it = 1:handles.nic
     h(it) = subaxis(rowcols(1),rowcols(2),it,'MR',.025,'ML',.025,'MT',.025,'MB',.025,'SH',0,'SV',0.02);
     tempPos = get(h(it),'Position');
     set(h(it),'position',get(h(it),'position')*scaleMatTopo)
-    topoplotFast(Winv(:,it),handles.chanlocs);
+    topoplotFast(W(:,it),handles.chanlocs);
     title(['IC' int2str(it)])
     
     buttonLock(it) = uicontrol('Style', 'togglebutton', 'String', 'Lock','Units','normalize','Position', tempPos.*[1 1 .5-buttonGap/2 .2],'Callback', {@lockIC,hObject,it},'Value',any(handles.lock==it));

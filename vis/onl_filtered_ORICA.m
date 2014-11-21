@@ -79,6 +79,10 @@ else
     end
 end
 
+if isempty(chunk.data)
+    return
+end
+
 % if a desired length was specified and the chunk is not epoched
 if desired_length && ~isstruct(chunk.epoch)    
     try
