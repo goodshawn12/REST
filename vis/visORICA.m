@@ -534,6 +534,14 @@ function togglebuttonLock1_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(1))
 
+% --- Executes on mouse press over axes background.
+function axesIC1_ButtonDownFcn(hObject, eventdata, handles)
+% hObject    handle to axesIC2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+handles.curIC = handles.ics(1);
+% Update handles structure
+guidata(hObject, handles);
 
 % --- Executes on mouse press over axes background.
 function axesIC2_ButtonDownFcn(hObject, eventdata, handles)
