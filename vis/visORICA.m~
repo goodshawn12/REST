@@ -59,7 +59,7 @@ handles.chanlocs = evalin('base','chanlocs');
 handles.ntopo = 8;
 handles.nic = length(handles.chanlocs);
 handles.ics = 1:handles.ntopo;
-handles.streamName = 'visORICAst'; %'EEGLAB'; %
+handles.streamName = 'visORICA'; %'EEGLAB'; %
 handles.curIC = 1;
 handles.lock = [];
 handles.exclude = [];
@@ -83,7 +83,7 @@ for it = 1:handles.ntopo
 end
 
 % Create scalp map timer
-topoTimer = timer('Period',1/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
+topoTimer = timer('Period',2/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
 infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@icPS,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
@@ -98,7 +98,7 @@ end
 % Save timers
 handles.pauseTimers = [eegTimer,topoTimer,infoTimer];
 
-% Choose default command line output for visORICA
+% Choose default command line output for visORICAs
 handles.output = hObject;
 
 % Update handles structure
@@ -149,8 +149,8 @@ handles = guidata(varargin{3});
 
 set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
 
-srate = evalin('base',['lsl_' handles.streamName '_stream.srate']);
-data = evalin('base',['lsl_' handles.streamName '_stream.data']);
+srate = evalin('base','lsl_visORICA_stream.srate');
+data = evalin('base','lsl_visORICA_stream.data');
 if all(data(:,end)==0)
     mark=1;
     while true
@@ -633,7 +633,6 @@ function figure1_DeleteFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 temp = timerfindall;
-warning off MATLAB:timer:deleterunning
 delete(temp)
 
 if isfield(handles,'figIC')

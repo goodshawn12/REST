@@ -185,8 +185,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 if get(varargin{1},'userdata')
                     W = evalin('base','W');
                     sphere = evalin('base','sphere');
-                    plotdata = W*(sphere*plotdata);
-                    stream.opts.datascale = stream.opts.datascale*abs(max(W*sphere*ones(length(sphere),1)));
+                    plotdata = W*(sphere*plotdata)/abs(sum(sum(W*sphere)));
                 end
                 
                 % arrange for plotting
