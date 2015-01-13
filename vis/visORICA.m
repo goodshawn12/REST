@@ -128,6 +128,18 @@ fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
     'Parameters',[{'signal',calibData} fltPipCfg], ...
     'PanelOnly',false);
 
+% save the configuration
+% if ~isempty(fltPipCfg)
+%     if isfield(fltPipCfg,'signal'); fltPipCfg = rmfield(fltPipCfg,'signal'); end
+%     save(env_translatepath(opts.BCILAB_PipelineConfigFile),...
+%         '-struct','fltPipCfg');
+% end
+
+
+% grab calib data from online stream
+%pause(30); % uh oh!
+%calibData = onl_peek(opts.lsl.StreamName,30,'seconds');
+
 % run pipline on calibration data
 cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));
 
