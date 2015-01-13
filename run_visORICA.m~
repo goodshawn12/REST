@@ -18,12 +18,17 @@
 % load 64-ch Cognionics Calibration Data
 calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20141216_calib.set', ...
     'markerchannel',{'remove_eventchns',false}));
+<<<<<<< HEAD
+% calibData = exp_eval_optimized(io_loadset('data/EmotivTrain_EyeOpen.set', ...
+%     'markerchannel',{'remove_eventchns',false}));
+=======
 
 
-% calibData.event = [];
-% chanlocs = calibData.chanlocs;
+calibData.event = [];
+chanlocs = calibData.chanlocs;
 
 % [filename, pathname] = uigetfile('*.set');
+>>>>>>> 3e6ed4ba86570d72a986853208a37cad97167d0a
 
 % select data
 % calibData = set_selinterval(calibData, opts.calibEpoch);

@@ -83,7 +83,7 @@ for it = 1:handles.ntopo
 end
 
 % Create scalp map timer
-topoTimer = timer('Period',1/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
+topoTimer = timer('Period',.5/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
 infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@icPS,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');

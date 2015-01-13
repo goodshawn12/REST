@@ -163,6 +163,14 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 
                 
                 % === data post-processing for plotting ===
+                % conditionally calculate components
+                plotdata = stream.data(:, round(1 : stream.srate/stream.opts.samplingrate : end));
+                if get(varargin{1},'userdata')
+                    W = evalin('base','W');
+                    sphere = evalin('base','sphere');
+                    plotdata = W*(sphere*plotdata);
+                    stream.opts.datascale = stream.opts.datascale*mean(abs(W*sphere*ones(length(sphere),1)));
+                end
                 
                 % determine channels and samples to display
                 plotchans = stream.opts.channelrange + stream.opts.pageoffset*length(stream.opts.channelrange);
@@ -171,7 +179,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 else
                     plotchans = intersect(1:stream.nbchan,plotchans);
                 end
-                plotdata = stream.data(plotchans, round(1 : stream.srate/stream.opts.samplingrate : end));
+                plotdata = plotdata(plotchans,:);
                 plottime = linspace(stream.xmin,stream.xmax,size(plotdata,2));
                 
                 % re-reference
@@ -181,13 +189,6 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 % zero-mean
                 plotdata = bsxfun(@minus, plotdata, mean(plotdata,2));
                 
-                % conditionally calculate components
-                if get(varargin{1},'userdata')
-                    W = evalin('base','W');
-                    sphere = evalin('base','sphere');
-                    plotdata = W*(sphere*plotdata);
-                    stream.opts.datascale = stream.opts.datascale*abs(max(W*sphere*ones(length(sphere),1)));
-                end
                 
                 % arrange for plotting
                 plotoffsets = (0:size(plotdata,1)-1)*stream.opts.datascale;
