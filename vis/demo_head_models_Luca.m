@@ -59,7 +59,7 @@ x = cos(2*pi*10*t);
 n = size(surfData(3).vertices,1);
 ind = setdiff(1:n,rmIndices);
 
-addpath /home/lpiontonachini/Desktop/eeglab/plugins/mobilab/dependency/
+addpath(genpath('/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/dependency/'))
 
 
 %%
