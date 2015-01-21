@@ -1,11 +1,22 @@
 %% Run visGUI
+Emotiv = 1;
+Cognionics = 0;
 
 % load channel locations
-% load vis/chanlocs14
+if Emotiv
+    load vis/chanlocs14
+else
+    load data/chanlocs64
+end
 
 % load calibration data
-% calibData = exp_eval_optimized(io_loadset('data/EmotivTrain_EyeClose_icainfo.set', ...
-%     'markerchannel',{'remove_eventchns',false}));
+if Emotiv
+    calibData = exp_eval_optimized(io_loadset('data/EmotivTrain_EyeClose_icainfo.set', ...
+        'markerchannel',{'remove_eventchns',false}));
+else
+    calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20150115_Calibration.set', ...
+        'markerchannel',{'remove_eventchns',false}));
+end
 
 % load 61-ch Flanker Task dataset
 % calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\OnlineICA\BCILAB\userdata\Flanker_SH_cleaned_test_icainfo.set', ...
@@ -16,8 +27,8 @@
 %     'markerchannel',{'remove_eventchns',false}));
 
 % load 64-ch Cognionics Calibration Data
-calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20141216_calib.set', ...
-    'markerchannel',{'remove_eventchns',false}));
+% calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20141216_calib.set', ...
+%     'markerchannel',{'remove_eventchns',false}));
 
 
 % calibData.event = [];
