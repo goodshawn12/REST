@@ -22,7 +22,7 @@ function varargout = visORICA(varargin)
 
 % Edit the above text to modify the response to help visORICA
 
-% Last Modified by GUIDE v2.5 20-Jan-2015 16:18:20
+% Last Modified by GUIDE v2.5 20-Jan-2015 17:20:25
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -67,7 +67,34 @@ calibData = varargin{1};
 
 % Check if localization is possible and adjust GUI accordingly
 if ~isfield(calibData,'headModel') || isempty(calibData.headModel)
-    set(handles.pushbuttonLocalize,'HitTest',0,'visible',0)
+    set(handles.pushbuttonLocalize,'HitTest','off','visible','off')
+else
+    handles.headModel = calibData.headModel;
+    % if calibData does not contain field 'localization' with lead field
+    % matrix, laplacian matrix, number of vertices in cortex model, and
+    % valid vertex indeces, then calulate them. (takes a while).
+    if ~isfield(calibData.localization,'nVertices')
+        temp = load(handles.headModel.surfaces);
+        handles.nVertices = size(temp.surfData(3).vertices,1);
+    else
+        handles.nVertices = calibData.localization.nVertices;
+    end
+    if ~isfield(calibData,'localization') || ...
+            ~isfield(calibData.localization,'K') || ...
+            ~isfield(calibData.localization,'L') || ...
+            ( ~isfield(calibData.localization,'ind') && ~isfield(calibData.localization,'rmIndices') )
+        [~,handles.K,handles.L,rmIndices] = ...
+            getSourceSpace4PEB(handles.headModel);
+        handles.ind = setdiff(1:handles.nVertices,rmIndices);
+    else
+        handles.K = calibData.localization.K;
+        handles.L = calibData.localization.L;
+        try
+            handles.hmInd = calibData.localization.ind;
+        catch
+            handles.hmInd = setdiff(1:handles.nVertices,calibData.localization.rmIndices);
+        end
+    end
 end
     
 
@@ -271,6 +298,95 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
+
+% --- Executes on button press in pushbuttonLocalize.
+function pushbuttonLocalize_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbuttonLocalize (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+if isfield(handles,'figLoc')
+    figure(handles.figLoc.handle.hFigure)
+    return
+end
+
+if strcmpi(get(handles.pushbuttonPause,'string'),'Resume')
+    genFigLoc(hObject,handles)
+else
+    stop(handles.pauseTimers)
+    genFigLoc(hObject,handles)
+    start(handles.pauseTimers)
+end
+
+
+function genFigLoc(hObject,handles)
+% get ica decomposition
+W = evalin('base','W');
+sphere = evalin('base','sphere');
+Winv = inv(W*sphere);
+
+% run dynamicLoreta once to generate state and initial localization
+signal = eeg_emptyset;
+signal.data = Winv(:,handles.curIC);
+[out,state] = hlp_scope({'disable_expressions',true},@flt_loreta,'signal',signal,'K',handles.K,'L',handles.L);
+assignin('base','stateLocalization',state);
+
+% create headModel plot
+Jest = zeros(handles.nVertices,3);
+Jest(handles.hmInd,:) = reshape(out.srcpot,[],3);
+fhandle = handles.headModel.plotOnModel(Jest,Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
+set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject});
+
+% create timer
+locTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
+
+% save headModel plot and timer to handlesh
+handles.pauseTimers = [handles.pauseTimers,locTimer];
+handles.figLoc.handle = fhandle;
+guidata(hObject,handles);
+
+% start the localization update timer
+start(locTimer)
+
+
+function updateLoc(varargin)
+% get ica decomposition
+W = evalin('base','W');
+sphere = evalin('base','sphere');
+Winv = inv(W*sphere);
+
+% parse inputs
+handles = guidata(varargin{3});
+
+% run dynamicLoreta
+state = evalin('base','stateLocalization');
+signal = eeg_emptyset;
+signal.data = Winv(:,handles.curIC)*cos(0:.1:2*pi);
+[out,state] = hlp_scope({'disable_expressions',true},@flt_loreta,'signal',signal,'K',handles.K,'L',handles.L,'state',state);
+assignin('base','stateLocalization',state);
+
+% update figure and related object
+Jest = zeros(handles.nVertices,3);
+Jest(handles.hmInd,:) = reshape(out.srcpot(:,1),[],3);
+handles.figLoc.handle.sourceOrientation = Jest;
+handles.figLoc.handle.sourceMagnitud = squeeze(sqrt(sum(Jest.^2,2)));
+set(handles.figLoc.handle.hVector,'udata',Jest(:,1),'vdata',Jest(:,2),'wdata',Jest(:,3))
+set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
+
+
+function closeFigLoc(varargin)
+hObject = varargin{3};
+% load handles
+handles = guidata(hObject);
+% delete figure handle from handles
+if isfield(handles,'figLoc')
+    handles = rmfield(handles,'figLoc'); end
+% delete timer and remove from pauseTimers
+locTimerInd = strcmp(get(handles.pauseTimers,'Name'),'locTimer');
+delete(handles.pauseTimers(locTimerInd));
+handles.pauseTimers(locTimerInd) = [];
+% save handles
+guidata(hObject,handles);
 
 % --- Executes on button press in pushbuttonIC.
 function pushbuttonIC_Callback(hObject, eventdata, handles)
@@ -656,12 +772,5 @@ delete(temp)
 
 if isfield(handles,'figIC')
     close(handles.figIC.handle); end
-
-
-% --- Executes on button press in pushbutton3.
-function pushbutton3_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton3 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
 
 
