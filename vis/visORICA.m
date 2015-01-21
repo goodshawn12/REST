@@ -22,7 +22,7 @@ function varargout = visORICA(varargin)
 
 % Edit the above text to modify the response to help visORICA
 
-% Last Modified by GUIDE v2.5 20-Nov-2014 13:50:54
+% Last Modified by GUIDE v2.5 20-Jan-2015 16:18:20
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -64,6 +64,12 @@ handles.curIC = 1;
 handles.lock = [];
 handles.exclude = [];
 calibData = varargin{1};
+
+% Check if localization is possible and adjust GUI accordingly
+if ~isfield(calibData,'headModel') || isempty(calibData.headModel)
+    set(handles.pushbuttonLocalize,'HitTest',0,'visible',0)
+end
+    
 
 % Start EEG stream
 vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
@@ -650,3 +656,12 @@ delete(temp)
 
 if isfield(handles,'figIC')
     close(handles.figIC.handle); end
+
+
+% --- Executes on button press in pushbutton3.
+function pushbutton3_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+

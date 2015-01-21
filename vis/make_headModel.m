@@ -41,6 +41,7 @@ hmObj.computeLeadFieldBEM(conductivity,normal2surface);
 % L: Laplaciian operator
 % rmIndices: indices to be removed (the Thalamus)
 % surfData(3).vertices: source space
+addpath(genpath('/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/dependency/'))
 
 [sourceSpace,K,L,rmIndices] = getSourceSpace4PEB(hmObj);
 
@@ -56,7 +57,6 @@ x = cos(2*pi*10*t);
 n = size(surfData(3).vertices,1);
 ind = setdiff(1:n,rmIndices);
 
-addpath(genpath('/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/dependency/'))
 
 
 %%

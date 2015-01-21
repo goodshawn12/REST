@@ -102,6 +102,7 @@ end
 assignin('base','pipeline',p);
 assignin('base','W',chunk.icaweights);
 assignin('base','sphere',chunk.icasphere);
+% assignin('base','convIdx',chunk.convIdx);
 
 
 function [chunk,p] = update_pipeline(p)
