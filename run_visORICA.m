@@ -1,6 +1,7 @@
 %% Run visGUI
 
 addpath(genpath('dependencies'))
+addpath(genpath('utility'))
 
 Emotiv = 1;
 Cognionics = 0;
