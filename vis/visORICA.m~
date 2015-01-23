@@ -42,6 +42,7 @@ else
     gui_mainfcn(gui_State, varargin{:});
 end
 % End initialization code - DO NOT EDIT
+end
 
 
 % --- Executes just before visORICA is made visible.
@@ -96,10 +97,10 @@ else
         end
     end
 end
-    
+
 
 % Start EEG stream
-vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
+[~, handles.buffername] = vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
 % vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG); % assume only one stream existed (FIXME: multiple streams case)
 eegTimer = timerfind('Name','eegTimer');
 
@@ -119,13 +120,13 @@ end
 topoTimer = timer('Period',.5/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
-infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@icPS,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
+infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
 
 % Set panel and button colors
 names = fieldnames(handles);
 ind = find(any([strncmpi(names,'panel',5),strncmpi(names,'toggle',6),strncmpi(names,'push',4),strncmpi(names,'popup',5)],2));
 for it = 1:length(ind)
-set(handles.(names{ind(it)}),'BackgroundColor',get(handles.figure1,'Color'))
+    set(handles.(names{ind(it)}),'BackgroundColor',get(handles.figure1,'Color'))
 end
 
 % Save timers
@@ -142,12 +143,18 @@ start(oricaTimer);
 start(eegTimer);
 start(topoTimer);
 start(infoTimer);
+end
 
 % UIWAIT makes visORICA wait for user response (see UIRESUME)
 % uiwait(handles.figure1);
 
 
 function initializeORICA(handles,calibData)
+
+% create/refresh convergence buffers
+bufflen = 60; % seconds
+assignin('base','conv_statIdx',zeros(1,bufflen*calibData.srate));
+assignin('base','conv_mir',zeros(1,bufflen*calibData.srate));
 
 run_readlsl_ORICA('MatlabStream',handles.streamName,'MarkerStreamQuery', []);
 
@@ -162,11 +169,11 @@ fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
     'PanelOnly',false);
 
 % save the configuration
-% if ~isempty(fltPipCfg)
-%     if isfield(fltPipCfg,'signal'); fltPipCfg = rmfield(fltPipCfg,'signal'); end
-%     save(env_translatepath(opts.BCILAB_PipelineConfigFile),...
-%         '-struct','fltPipCfg');
-% end
+if ~isempty(fltPipCfg)
+    if isfield(fltPipCfg,'signal'); fltPipCfg = rmfield(fltPipCfg,'signal'); end
+    save(env_translatepath(opts.BCILAB_PipelineConfigFile),...
+        '-struct','fltPipCfg');
+end
 
 
 % grab calib data from online stream
@@ -179,41 +186,42 @@ cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));
 % initialize the pipeline for streaming data
 pipeline     = onl_newpipeline(cleaned_data,opts.lsl.StreamName);
 assignin('base','pipeline',pipeline);
+end
 
 
-function icPS(varargin)
+function infoPSD(varargin)
 
 % plot PSD of selected IC
 try
-secs2samp = 5; % seconds
-
-W = evalin('base','W');
-% if isempty(W), W = evalin('base','Wn'); end
-sphere = evalin('base','sphere');
-handles = guidata(varargin{3});
-
-set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
-
-srate = evalin('base',['lsl_' handles.streamName '_stream.srate']);
-data = evalin('base',['lsl_' handles.streamName '_stream.data']);
-if all(data(:,end)==0)
-    mark=1;
-    while true
-        ind = find(data(1,mark:end)==0,1);
-        mark = mark+ind;
-        if all(data(:,mark-1)==0)
-            break; end
+    secs2samp = 5; % seconds
+    
+    W = evalin('base','W');
+    % if isempty(W), W = evalin('base','Wn'); end
+    sphere = evalin('base','sphere');
+    handles = guidata(varargin{3});
+    
+    set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
+    
+    srate = evalin('base',['lsl_' handles.streamName '_stream.srate']);
+    data = evalin('base',['lsl_' handles.streamName '_stream.data']);
+    if all(data(:,end)==0)
+        mark=1;
+        while true
+            ind = find(data(1,mark:end)==0,1);
+            mark = mark+ind;
+            if all(data(:,mark-1)==0)
+                break; end
+        end
+        mark = mark-2;
+        data = data(:,max(1,mark-srate*secs2samp+1):mark);
+    else
+        data = data(:,max(1,end-srate*secs2samp+1):end);
     end
-    mark = mark-2;
-    data = data(:,max(1,mark-srate*secs2samp+1):mark);
-else
-    data = data(:,max(1,end-srate*secs2samp+1):end);
-end
-
-data = bsxfun(@minus,data,mean(data,2));
-data = W*sphere*data;
-data = data(handles.curIC,:);
-
+    
+    data = bsxfun(@minus,data,mean(data,2));
+    data = W*sphere*data;
+    data = data(handles.curIC,:);
+    
     [data,f] = pwelch(data,[],[],[],srate);
     
     plot(handles.axisInfo,f,db(data))
@@ -223,6 +231,26 @@ data = data(handles.curIC,:);
     % axis(handles.axisInfo,[0 srate/2 -60 40])
     axis(handles.axisInfo,'tight')
     set(handles.axisInfo,'XTick',[0 10:10:f(end)])
+end
+end
+
+
+function infoConverge(varargin)
+
+% plot convergence statistics
+
+% parse inputs
+handle_statIdx = varargin{3};
+handle_mir = varargin{4};
+
+% load convergence statistics
+conv_statIdx = evalin('base','conv_statIdx');
+conv_mir = evalin('base','conv_mir');
+
+% update plots
+set(handles_statIdx,'XData',conv_statIdx)
+set(handles_mir,'XData',conv_mir)
+
 end
 
 
@@ -255,6 +283,7 @@ end
 set(handles.(['panelIC' int2str(it)]),'Title',['IC' int2str(handles.ics(it))])
 set(handles.(['togglebuttonLock' int2str(it)]),'Value',any(handles.lock==handles.ics(it)))
 set(handles.(['togglebuttonExclude' int2str(it)]),'Value',any(handles.exclude==handles.ics(it)))
+end
 
 
 % --- Outputs from this function are returned to the command line.
@@ -266,6 +295,7 @@ function varargout = visORICA_OutputFcn(hObject, eventdata, handles)
 
 % Get default command line output from handles structure
 varargout{1} = handles.output;
+end
 
 
 % --- Executes on selection change in popupmenuEEG.
@@ -281,9 +311,9 @@ else
     set(eegTimer,'UserData',1);
 end
 start(eegTimer)
-
 % Hints: contents = cellstr(get(hObject,'String')) returns popupmenuEEG contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from popupmenuEEG
+end
 
 
 % --- Executes during object creation, after setting all properties.
@@ -296,6 +326,7 @@ function popupmenuEEG_CreateFcn(hObject, eventdata, handles)
 %       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
+end
 end
 
 
@@ -317,6 +348,7 @@ else
     genFigLoc(hObject,handles)
     start(handles.pauseTimers)
 end
+end
 
 
 function genFigLoc(hObject,handles)
@@ -334,11 +366,11 @@ assignin('base','stateLocalization',state);
 % create headModel plot
 Jest = zeros(handles.nVertices,3);
 Jest(handles.hmInd,:) = reshape(out.srcpot,[],3);
-fhandle = handles.headModel.plotOnModel(Jest,[],sprintf('IC %d Localization (LORETA)',handles.curIC));
+fhandle = handles.headModel.plotOnModel(Jest,Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
 set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject});
 
 % create timer
-locTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
+locTimer = timer('Period',5,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
 
 % save headModel plot and timer to handlesh
 handles.pauseTimers = [handles.pauseTimers,locTimer];
@@ -347,6 +379,7 @@ guidata(hObject,handles);
 
 % start the localization update timer
 start(locTimer)
+end
 
 
 function updateLoc(varargin)
@@ -361,17 +394,18 @@ handles = guidata(varargin{3});
 % run dynamicLoreta
 state = evalin('base','stateLocalization');
 signal = eeg_emptyset;
-signal.data = Winv(:,handles.curIC);
+signal.data = Winv(:,handles.curIC)*cos(0:.1:2*pi);
 [out,state] = hlp_scope({'disable_expressions',true},@flt_loreta,'signal',signal,'K',handles.K,'L',handles.L,'state',state);
 assignin('base','stateLocalization',state);
 
 % update figure and related object
 Jest = zeros(handles.nVertices,3);
-Jest(handles.hmInd,:) = reshape(out.srcpot,[],3);
+Jest(handles.hmInd,:) = reshape(out.srcpot(:,1),[],3);
 handles.figLoc.handle.sourceOrientation = Jest;
 handles.figLoc.handle.sourceMagnitud = squeeze(sqrt(sum(Jest.^2,2)));
 set(handles.figLoc.handle.hVector,'udata',Jest(:,1),'vdata',Jest(:,2),'wdata',Jest(:,3))
 set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
+end
 
 
 function closeFigLoc(varargin)
@@ -387,6 +421,7 @@ delete(handles.pauseTimers(locTimerInd));
 handles.pauseTimers(locTimerInd) = [];
 % save handles
 guidata(hObject,handles);
+end
 
 % --- Executes on button press in pushbuttonIC.
 function pushbuttonIC_Callback(hObject, eventdata, handles)
@@ -405,6 +440,7 @@ else
     stop(handles.pauseTimers)
     genICSelectGUI(hObject,handles)
     start(handles.pauseTimers)
+end
 end
 
 
@@ -434,6 +470,7 @@ handles.figIC.buttonLock = buttonLock;
 handles.figIC.buttonExclude = buttonExclude;
 handles.figIC.handle = fhandle;
 guidata(hObject,handles);
+end
 
 
 function closeFigIC(varargin)
@@ -443,6 +480,7 @@ handles = guidata(hObject);
 if isfield(handles,'figIC')
     handles = rmfield(handles,'figIC'); end
 guidata(hObject,handles);
+end
 
 
 function lockIC(varargin)
@@ -466,6 +504,7 @@ end
 guidata(hObject,handles);
 % update ics to plot
 updateICs(hObject)
+end
 
 
 function excludeIC(varargin)
@@ -489,6 +528,7 @@ end
 guidata(hObject,handles);
 % update ics to plot
 updateICs(hObject)
+end
 
 
 function updateICs(hObject)
@@ -496,6 +536,7 @@ handles = guidata(hObject);
 temp = [handles.lock setdiff(1:handles.nic,[handles.lock,handles.exclude]) handles.exclude];
 handles.ics = temp(1:handles.ntopo);
 guidata(hObject,handles);
+end
 
 
 % function updateButtons(handles,ic,onFlag,lockFlag)
@@ -524,8 +565,47 @@ function popupmenuInfo_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+infoTimer = timerfind('name','infoTimer');
+timerFcn = subsref(get(infoTimer,'TimerFcn'), substruct('{}',{1}));
+
+contents = get(hObject,'String');
+switch contents{get(handles.popupmenuInfo,'Value')}
+    case 'Power Spectrum'
+        % changed?
+        if isequal(timerFcn,@infoPSD)
+            return
+        end
+        % if so...
+        stop(infoTimer)
+        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,handles.figure1},'StartDelay',0);
+        handles.axisInfo = handles.axisInfo(1);
+        start(infoTimer)
+    case 'Convergence'
+        % changed?
+        if isequal(timerFcn,@infoConverge)
+            return
+        end
+        % if so...
+        stop(infoTimer)
+        conv_statIdx = evalin('base','conv_statIdx');
+        conv_mir = evalin('base','conv_mir');
+        srate = evalin('base','visORICAst.srate');
+        x = -(length(conv_mir)-1)/srate:1/srate:0;
+        axes(handles.axisInfo)
+        [handles.axisInfo,line1,line2] = plotyy(x,conv_statIdx,x,conv_mir);
+        set(ht(handles.axisInfo(1),'XLabel'),'String','Time (seconds)'),'YLabel','Convergence Index')
+        set(handles.axisInfo(1),'XLabel','Time (seconds)','YLabel','Convergence Index')
+        set(handles.axisInfo(2),'YLabel','Mutual Information Reduction')
+        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoConverge,line1,line2},'StartDelay',0);
+        start(infoTimer)
+    otherwise
+        warning('visORICA: popupmenuInfo recieved a strange input')
+end
+
+
 % Hints: contents = cellstr(get(hObject,'String')) returns popupmenuInfo contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from popupmenuInfo
+end
 
 
 % --- Executes during object creation, after setting all properties.
@@ -539,6 +619,7 @@ function popupmenuInfo_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+end
 
 
 % --- Executes on button press in togglebuttonExclude8.
@@ -547,6 +628,7 @@ function togglebuttonExclude8_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 excludeIC(hObject,[],hObject,handles.ics(8))
+end
 
 
 % --- Executes on button press in togglebuttonLock8.
@@ -555,6 +637,7 @@ function togglebuttonLock8_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(8))
+end
 
 
 % --- Executes on button press in togglebuttonExclude7.
@@ -563,6 +646,7 @@ function togglebuttonExclude7_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 excludeIC(hObject,[],hObject,handles.ics(7))
+end
 
 
 % --- Executes on button press in togglebuttonLock7.
@@ -571,6 +655,7 @@ function togglebuttonLock7_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(7))
+end
 
 
 % --- Executes on button press in togglebuttonExclude6.
@@ -579,6 +664,7 @@ function togglebuttonExclude6_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 excludeIC(hObject,[],hObject,handles.ics(6))
+end
 
 
 % --- Executes on button press in togglebuttonLock6.
@@ -587,6 +673,7 @@ function togglebuttonLock6_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(6))
+end
 
 
 % --- Executes on button press in togglebuttonExclude5.
@@ -595,6 +682,7 @@ function togglebuttonExclude5_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 excludeIC(hObject,[],hObject,handles.ics(5))
+end
 
 
 % --- Executes on button press in togglebuttonLock5.
@@ -603,6 +691,7 @@ function togglebuttonLock5_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(5))
+end
 
 
 % --- Executes on button press in togglebuttonExclude4.
@@ -611,6 +700,7 @@ function togglebuttonExclude4_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 excludeIC(hObject,[],hObject,handles.ics(4))
+end
 
 
 % --- Executes on button press in togglebuttonLock4.
@@ -619,6 +709,7 @@ function togglebuttonLock4_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(4))
+end
 
 
 % --- Executes on button press in togglebuttonExclude3.
@@ -627,6 +718,7 @@ function togglebuttonExclude3_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 excludeIC(hObject,[],hObject,handles.ics(3))
+end
 
 
 % --- Executes on button press in togglebuttonLock3.
@@ -635,6 +727,7 @@ function togglebuttonLock3_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(3))
+end
 
 
 % --- Executes on button press in togglebuttonExclude2.
@@ -643,6 +736,7 @@ function togglebuttonExclude2_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 excludeIC(hObject,[],hObject,handles.ics(2))
+end
 
 
 % --- Executes on button press in togglebuttonLock2.
@@ -651,6 +745,7 @@ function togglebuttonLock2_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(2))
+end
 
 
 % --- Executes on button press in togglebuttonExclude1.
@@ -659,6 +754,7 @@ function togglebuttonExclude1_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 excludeIC(hObject,[],hObject,handles.ics(1))
+end
 
 
 % --- Executes on button press in togglebuttonLock1.
@@ -667,6 +763,7 @@ function togglebuttonLock1_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],hObject,handles.ics(1))
+end
 
 % --- Executes on mouse press over axes background.
 function axesIC1_ButtonDownFcn(hObject, eventdata, handles)
@@ -676,6 +773,7 @@ function axesIC1_ButtonDownFcn(hObject, eventdata, handles)
 handles.curIC = handles.ics(1);
 % Update handles structure
 guidata(hObject, handles);
+end
 
 % --- Executes on mouse press over axes background.
 function axesIC2_ButtonDownFcn(hObject, eventdata, handles)
@@ -685,6 +783,7 @@ function axesIC2_ButtonDownFcn(hObject, eventdata, handles)
 handles.curIC = handles.ics(2);
 % Update handles structure
 guidata(hObject, handles);
+end
 
 
 % --- Executes on mouse press over axes background.
@@ -695,6 +794,7 @@ function axesIC3_ButtonDownFcn(hObject, eventdata, handles)
 handles.curIC = handles.ics(3);
 % Update handles structure
 guidata(hObject, handles);
+end
 
 
 % --- Executes on mouse press over axes background.
@@ -705,6 +805,7 @@ function axesIC4_ButtonDownFcn(hObject, eventdata, handles)
 handles.curIC = handles.ics(4);
 % Update handles structure
 guidata(hObject, handles);
+end
 
 
 % --- Executes on mouse press over axes background.
@@ -715,6 +816,7 @@ function axesIC5_ButtonDownFcn(hObject, eventdata, handles)
 handles.curIC = handles.ics(5);
 % Update handles structure
 guidata(hObject, handles);
+end
 
 
 % --- Executes on mouse press over axes background.
@@ -725,6 +827,7 @@ function axesIC6_ButtonDownFcn(hObject, eventdata, handles)
 handles.curIC = handles.ics(6);
 % Update handles structure
 guidata(hObject, handles);
+end
 
 
 % --- Executes on mouse press over axes background.
@@ -735,6 +838,7 @@ function axesIC7_ButtonDownFcn(hObject, eventdata, handles)
 handles.curIC = handles.ics(7);
 % Update handles structure
 guidata(hObject, handles);
+end
 
 
 % --- Executes on mouse press over axes background.
@@ -745,6 +849,7 @@ function axesIC8_ButtonDownFcn(hObject, eventdata, handles)
 handles.curIC = handles.ics(8);
 % Update handles structure
 guidata(hObject, handles);
+end
 
 
 % --- Executes on button press in pushbuttonPause.
@@ -759,6 +864,7 @@ else
     set(handles.pushbuttonPause,'string','Pause');
     start(handles.pauseTimers);
 end
+end
 
 
 % --- Executes during object deletion, before destroying properties.
@@ -772,5 +878,6 @@ delete(temp)
 
 if isfield(handles,'figIC')
     close(handles.figIC.handle); end
+end
 
 

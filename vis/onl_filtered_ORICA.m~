@@ -102,11 +102,16 @@ end
 assignin('base','pipeline',p);
 assignin('base','W',chunk.icaweights);
 assignin('base','sphere',chunk.icasphere);
-len = length(chunk.statIdx);
-conv_statIdx = evalin('base','conv_statIdx');
-assignin('base','conv_statIdx',[conv_statIdx(len+1:end) chunk.statIdx]);
-conv_mir = evalin('base','conv_mir');
-assignin('base','conv_mir',[conv_mir(len+1:end) chunk.mir]);
+try
+    evalin('base','conv_statIdx',chunk.statIdx);
+    evalin('base','conv_mir',chunk.mir);
+catch
+    bufflen = 60; % seconds
+    assignin('base','conv_statIdx',zeros(1,bufflen*chunk.srate-length(chunk.statIdx)));
+    assignin('base','conv_mir',zeros(1,bufflen*srate));
+    evalin('base','conv_statIdx',chunk.statIdx);
+    evalin('base','conv_mir',chunk.mir);
+end
 
 
 function [chunk,p] = update_pipeline(p)

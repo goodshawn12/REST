@@ -1,4 +1,4 @@
-function [inlet] = vis_stream_ORICA(varargin)
+function [inlet, buffername] = vis_stream_ORICA(varargin)
 % Display an LSL stream.
 %
 % Keyboard shortcuts:

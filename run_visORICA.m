@@ -9,7 +9,7 @@ Cognionics = 0;
 % load channel locations
 if Emotiv
     load data/chanlocs14
-else
+elseif Cognionics %#ok<*UNRCH>
     load data/chanlocs64
 end
 
@@ -21,7 +21,7 @@ if Emotiv
     hmLoc = load('vis/emotivLFMDerivatives');
     calibData.headModel = hmObj.emotivHeadModel;
     calibData.localization = hmLoc;
-else
+elseif Cognionics
     calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20150115_Calibration.set', ...
         'markerchannel',{'remove_eventchns',false}));
 %     calibData = exp_eval_optimized(io_loadset('data/EmotivTrain_EyeClose_icainfo.set', ...
