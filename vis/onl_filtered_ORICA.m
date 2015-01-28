@@ -102,12 +102,13 @@ end
 assignin('base','pipeline',p);
 assignin('base','W',chunk.icaweights);
 assignin('base','sphere',chunk.icasphere);
-len = length(chunk.statIdx);
 conv_statIdx = evalin('base','conv_statIdx');
-assignin('base','conv_statIdx',[conv_statIdx(len+1:end) chunk.statIdx]);
 conv_mir = evalin('base','conv_mir');
-assignin('base','conv_mir',[conv_mir(len+1:end) chunk.mir]);
-
+if isfield(chunk,'statIdx')
+    len = length(chunk.statIdx);
+    assignin('base','conv_statIdx',[conv_statIdx(len+1:end) chunk.statIdx]);
+    assignin('base','conv_mir',[conv_mir(len+1:end) chunk.mir]);
+end
 
 function [chunk,p] = update_pipeline(p)
 % Update the given filter pipeline and get a chunk of the newly appended output

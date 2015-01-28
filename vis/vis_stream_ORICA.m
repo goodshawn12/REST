@@ -58,7 +58,14 @@ end
 % handle input arguments
 streamnames = find_streams;
 
-% if more than 2 (EEG) streams, pop up a GUI to select one.
+if length(streamnames) == 1
+    assignin('base','streamname',streamnames); % save stream name in base workspace
+else
+    % if more than 2 (EEG) streams, pop up a GUI to select one.
+    selStream(streamnames); % result 'streamname' is saved in base workspace 
+    streamnames = evalin('base','streamname');
+end
+
 
 opts = arg_define(varargin, ...
     arg({'streamname','StreamName'},streamnames{1},streamnames,'LSL stream that should be displayed. The name of the stream that you would like to display.'), ...
@@ -286,9 +293,10 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
     function inlet = create_inlet(opts)
         % look for the desired device
         result = {};
-        disp(['Looking for a stream with name=' streamnames{1} ' ...']);
+        disp(['Looking for a stream with name = ' opts.streamname ' ...']);
         while isempty(result)
-            result = lsl_resolve_byprop(lib,opts.property,opts.value);end %  result = lsl_resolve_byprop(lib,'name',opts.streamname); 
+            result = lsl_resolve_byprop(lib,'name',opts.streamname); end
+%             result = lsl_resolve_byprop(lib,opts.property,opts.value);end 
         % create a new inlet
         disp('Opening an inlet...');
         inlet = lsl_inlet(result{1},opts.bufferrange);

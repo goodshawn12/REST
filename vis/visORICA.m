@@ -100,7 +100,8 @@ end
 
 
 % Start EEG stream
-[~, handles.buffername] = vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
+[~, handles.buffername] = vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG);
+% [~, handles.buffername] = vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
 % vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG); % assume only one stream existed (FIXME: multiple streams case)
 eegTimer = timerfind('Name','eegTimer');
 
@@ -157,6 +158,7 @@ assignin('base','conv_statIdx',zeros(1,bufflen*calibData.srate));
 assignin('base','conv_mir',zeros(1,bufflen*calibData.srate));
 
 run_readlsl_ORICA('MatlabStream',handles.streamName,'MarkerStreamQuery', []);
+% run_readlsl_ORICA('MarkerStreamQuery', []);
 
 opts.lsl.StreamName = handles.streamName;
 opts.BCILAB_PipelineConfigFile = 'ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
