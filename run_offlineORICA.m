@@ -1,9 +1,9 @@
 
 % define parameters
 opts.datapath = 'D:\Matlab Coding\VisEEG\data\';
-opts.TrainingDataFile = '20150115_Calibration.set'; % Calibration
-opts.PlaybackDataFile = '20150115_Experiment_raw_icainfo.set'; % Testing
-opts.calibEpoch = [0 1]; % use 0-1 second calibration data
+opts.TrainingDataFile = '20150115_Experiment_rmBadCH_AMICA.set'; % Calibration
+opts.PlaybackDataFile = '20150115_Experiment_rmBadCH_AMICA.set'; % Testing
+opts.calibEpoch = [0 60]; % use 0-1 second calibration data
 opts.winlen = 0; % If winlen=0, pull the most recent (variable length) chunk
 
 opts.BCILAB_PipelineConfigFile = 'ORICA_pipeline_offine_cfg.mat'; % make sure this file doesn't have 'signal' entry
@@ -66,13 +66,13 @@ while data_len < playbackLength
 
     data_len = data_len + eeg_chunk.pnts;
     
-    if storeIdx < floor(data_len/playbackSrate)
+    if storeIdx < floor(data_len/playbackSrate) && ~isempty(eeg_chunk.icaweights)
         results(end+1).time = data_len; % sec
-        results(end+1).icaweights = eeg_chunk.icaweights;
-        results(end+1).icasphere = eeg_chunk.icasphere;
-        results(end+1).statIdx = eeg_chunk.statIdx(1);
-        results(end+1).mir = eeg_chunk.mir(1);
-        results(end+1).lambda = eeg_chunk.lambda_k(1);
+        results(end).icaweights = eeg_chunk.icaweights;
+        results(end).icasphere = eeg_chunk.icasphere;
+        results(end).statIdx = eeg_chunk.statIdx(1);
+        results(end).mir = eeg_chunk.mir(1);
+        results(end).lambda = eeg_chunk.lambda_k(1);
         fprintf([num2str(storeIdx+1),' ']);
         storeIdx = storeIdx + storeInterval;
     end
@@ -85,9 +85,9 @@ while data_len < playbackLength
 end
 disp('Done');
 
-eeg_chunk.icawinv = inv(eeg_chunk.icaweights * eeg_chunk.icasphere);
+% eeg_chunk.icawinv = inv(eeg_chunk.icaweights * eeg_chunk.icasphere);
 % pop_topoplot(eeg_chunk,0);
-save([opts.datapath '20150115_result_decayW8B8_turbo2.mat'],'eeg_chunk')
+save([opts.datapath '20150203_result_rmBadCH_AMICA.mat'],'results')
 
 %% visualize results
 
