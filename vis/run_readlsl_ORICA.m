@@ -76,11 +76,11 @@ function run_readlsl_ORICA(varargin)
 
     % declare the name of this component (shown in the menu)
     declare_properties('name','Lab streaming layer');
-
+    
     % read options
     opts = arg_define(varargin, ...
-        arg({'new_stream','MatlabStream'}, 'laststream',[],'New Stream to create. This is the name of the stream within the MATLAB environment.'), ...
-        arg({'data_query','DataStreamQuery','DataQuery'}, 'type=''EEG''',[],'Data stream query. Allows to select a data stream to read from (e.g., by setting it to type=''EEG'' or name=''BioSemi'').'), ...
+        arg({'new_stream','MatlabStream'},'laststream',[],'New Stream to create. This is the name of the stream within the MATLAB environment.'), ...
+        arg({'data_query','DataStreamQuery','DataQuery'}, 'type = ''EEG''',[],'Data stream query. Allows to select a data stream to read from (e.g., by setting it to type=''EEG'' or name=''BioSemi'').'), ...
         arg({'marker_query','MarkerStreamQuery','MarkerQuery'},'type=''Markers''',[],'Marker stream query. Allows to select a marker stream to read from (e.g., by setting it to type=''Markers''). Leave it empty to ignore markers.','shape','row','type','char'), ...
         arg({'always_double','ConvertToDouble'},true,[],'Convert to double. Always convert the signal to double precision.'), ...
         arg({'update_freq','UpdateFrequency'},20,[],'Update frequency. New data is polled at this rate, in Hz.'), ...
@@ -94,6 +94,7 @@ function run_readlsl_ORICA(varargin)
         arg_deprecated({'property','SelectionProperty'}, '',[],'Selection property. The selection criterion by which the desired device is identified on the net. This is a property that the desired device must have (e.g., name, type, desc/manufacturer, etc.'), ...
         arg_deprecated({'value','SelectionValue'}, '',[],'Selection value. This is the value that the desired device must have for the selected property (e.g., EEG if searching by type, or Biosemi if searching by manufacturer).'));
 
+
     % get a library handle (here with an explicit path because we want it to work if the toolbox is compiled, too)
     if isempty(lib)
         lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin')); end
@@ -102,10 +103,22 @@ function run_readlsl_ORICA(varargin)
         opts.data_query = [opts.property '=''' opts.value '''']; end
 
     % look for the desired device
-    disp(['Looking for a device with ' opts.data_query ' ...']);
     result = {};
-    while isempty(result)
-        result = lsl_resolve_bypred(lib,opts.data_query); end
+
+    if evalin('base','exist(''streamname'')') == 1 % streamname exists in base workspace
+        % if streamname is specified in base workspace, load stream with name
+        new_stream = evalin('base','streamname');
+        new_stream = new_stream{1};
+        disp(['Looking for a device with name = ' new_stream ' ...']);
+        while isempty(result)
+            result = lsl_resolve_byprop(lib,'name',new_stream); end
+    else
+        % if streamname is not specified, load stream with type EEG
+        disp(['Looking for a device with ' opts.data_query ' ...']);
+        while isempty(result)
+            result = lsl_resolve_bypred(lib,opts.data_query); end 
+    end
+
     
     % create a new inlet & query stream info
     disp('Opening an inlet...');
