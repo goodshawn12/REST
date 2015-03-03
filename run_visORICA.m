@@ -1,6 +1,6 @@
 %% Run visGUI
 
-addpath(genpath('dependencies'))
+% addpath(genpath('dependencies'))
 addpath(genpath('utility'))
 addpath('vis')
 

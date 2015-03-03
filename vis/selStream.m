@@ -82,7 +82,7 @@ function varargout = selStream_OutputFcn(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Get default command line output from handles structure
-varargout{1} = handles.output;
+% varargout{1} = handles.output;
 
 
 % --- Executes on selection change in popupmenu1.
@@ -94,11 +94,11 @@ function popupmenu1_Callback(hObject, eventdata, handles)
 % Hints: contents = cellstr(get(hObject,'String')) returns popupmenu1 contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from popupmenu1
 
-items = get(hObject,'String');
-idx_sel = get(hObject,'Value');
-item_sel = items(idx_sel);
-
-assignin('base','streamname',item_sel);
+% items = get(hObject,'String');
+% idx_sel = get(hObject,'Value');
+% item_sel = items(idx_sel);
+% 
+% assignin('base','streamname',item_sel);
 
 
 % --- Executes during object creation, after setting all properties.
@@ -120,12 +120,16 @@ function figure1_CloseRequestFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+items = get(handles.popupmenu1,'String');
+idx_sel = get(handles.popupmenu1,'Value');
+item_sel = items(idx_sel);
+assignin('base','streamname',item_sel);
+
 % Hint: delete(hObject) closes the figure
 if isequal(get(hObject, 'waitstatus'), 'waiting')
     % The GUI is still in UIWAIT, us UIRESUME
     uiresume(hObject);
-    guidata(hObject,handles);
-else
-    delete(hObject);
+%     guidata(hObject,handles);
 end
+delete(hObject);
 

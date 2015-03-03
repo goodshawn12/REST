@@ -62,7 +62,8 @@ if length(streamnames) == 1
     assignin('base','streamname',streamnames); % save stream name in base workspace
 else
     % if more than 2 (EEG) streams, pop up a GUI to select one.
-    selStream(streamnames); % result 'streamname' is saved in base workspace 
+    selStream(streamnames); % result 'streamname' is saved in base workspace
+%     delete(h)
     streamnames = evalin('base','streamname');
 end
 
@@ -149,6 +150,8 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
             % check if the buffer is still there
             if evalin('base',['exist(''' buffername ''',''var'')'])
                 
+                % check if plotting components
+                plotICs = get(varargin{1},'userdata');
                 
                 % === update buffer contents (happens in the base workspace) ===
                 
@@ -168,11 +171,11 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 stream.xmax = stream.smax/stream.srate;
                 stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
                 
-                
+                                              
                 % === data post-processing for plotting ===
                 % conditionally calculate components
                 plotdata = stream.data(:, round(1 : stream.srate/stream.opts.samplingrate : end));
-                if get(varargin{1},'userdata')
+                if plotICs
                     W = evalin('base','W');
                     sphere = evalin('base','sphere');
                     plotdata = W*(sphere*plotdata);
@@ -220,7 +223,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 
                     % update the axis limit and tickmarks
                     axis(ax,[stream.xmin stream.xmax -stream.opts.datascale size(plotdata,2)*stream.opts.datascale + stream.opts.datascale]);
-                    if get(varargin{1},'userdata')
+                    if plotICs
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',cellstr(int2str(plotchans')));
                     else
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',{stream.chanlocs(plotchans).labels});
@@ -269,10 +272,12 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 stream.opts.timerange = stream.opts.timerange*0.9;                
             case 'pagedown'
                 % shift display page offset down
-                stream.opts.pageoffset = stream.opts.pageoffset+1;                
+                stream.opts.pageoffset = mod(stream.opts.pageoffset+1, ...
+                    ceil(stream.nbchan/length(stream.opts.channelrange)));               
             case 'pageup'
                 % shift display page offset up
-                stream.opts.pageoffset = stream.opts.pageoffset-1;
+                stream.opts.pageoffset = mod(stream.opts.pageoffset-1, ...
+                    ceil(stream.nbchan/length(stream.opts.channelrange)));
         end
         assignin('base',buffername,stream);
     end

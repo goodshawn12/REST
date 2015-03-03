@@ -63,7 +63,9 @@ handles.ics = 1:handles.ntopo;
 handles.streamName = 'visORICAst'; %'EEGLAB'; %
 handles.curIC = 1;
 handles.lock = [];
+handles.color_lock = [0.5 1 0.5];
 handles.exclude = [];
+handles.color_exclude = [1 0.5 0.5];
 calibData = varargin{1};
 
 % Check if localization is possible and adjust GUI accordingly
@@ -124,10 +126,11 @@ topoTimer = timer('Period',.5/handles.ntopo,'ExecutionMode','fixedRate','TimerFc
 infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
 
 % Set panel and button colors
+handles.color_bg = get(handles.figure1,'Color');
 names = fieldnames(handles);
 ind = find(any([strncmpi(names,'panel',5),strncmpi(names,'toggle',6),strncmpi(names,'push',4),strncmpi(names,'popup',5)],2));
 for it = 1:length(ind)
-    set(handles.(names{ind(it)}),'BackgroundColor',get(handles.figure1,'Color'))
+    set(handles.(names{ind(it)}),'BackgroundColor',handles.color_bg)
 end
 
 % Save timers
@@ -260,9 +263,7 @@ function vis_topo(varargin)
 % get the updated stream buffer
 W = evalin('base','W');
 
-% if isempty(W)
-%     W = evalin('base','Wn');
-% end
+% get handles
 handles = guidata(varargin{3});
 
 % update topo plot
@@ -280,11 +281,13 @@ try
 end
 
 % update name and buttons
-% old = get(handles.(['panelIC' int2str(it)]),'Title');
-% old = str2num(old(regexp(old,'[\d]+'):end));
+lock = any(handles.lock==handles.ics(it));
+exclude = any(handles.exclude==handles.ics(it));
 set(handles.(['panelIC' int2str(it)]),'Title',['IC' int2str(handles.ics(it))])
-set(handles.(['togglebuttonLock' int2str(it)]),'Value',any(handles.lock==handles.ics(it)))
-set(handles.(['togglebuttonExclude' int2str(it)]),'Value',any(handles.exclude==handles.ics(it)))
+set(handles.(['togglebuttonLock' int2str(it)]),'Value',lock,...
+    'BackgroundColor',handles.color_lock*lock + handles.color_bg*(1-lock))
+set(handles.(['togglebuttonExclude' int2str(it)]),'Value',exclude,...
+    'BackgroundColor',handles.color_exclude*exclude + handles.color_bg*(1-exclude))
 end
 
 
@@ -465,8 +468,16 @@ for it = 1:handles.nic
     topoplotFast(Winv(:,it),handles.chanlocs);
     title(['IC' int2str(it)])
     
-    buttonLock(it) = uicontrol('Style', 'togglebutton', 'String', 'Lock','Units','normalize','Position', tempPos.*[1 1 .5-buttonGap/2 .2],'Callback', {@lockIC,hObject,it},'Value',any(handles.lock==it));
-    buttonExclude(it) = uicontrol('Style', 'togglebutton', 'String', 'Exclude','Units','normalize','Position', tempPos*scaleMatExclude,'Callback', {@excludeIC,hObject,it},'Value',any(handles.exclude==it));
+    lock = any(handles.lock==it);
+    exclude = any(handles.exclude==it);
+    buttonLock(it) = uicontrol('Style', 'togglebutton', 'String', 'Lock',...
+        'Units','normalize','Position', tempPos.*[1 1 .5-buttonGap/2 .2],...
+        'Callback', {@lockIC,it,hObject},'Value',lock,...
+        'BackgroundColor',handles.color_lock*lock + handles.color_bg*(1-lock));
+    buttonExclude(it) = uicontrol('Style', 'togglebutton', 'String', 'Exclude',...
+        'Units','normalize','Position', tempPos*scaleMatExclude,...
+        'Callback', {@excludeIC,it,hObject},'Value',exclude,...
+        'BackgroundColor',handles.color_exclude*exclude + handles.color_bg*(1-exclude));
 end
 handles.figIC.buttonLock = buttonLock;
 handles.figIC.buttonExclude = buttonExclude;
@@ -486,21 +497,32 @@ end
 
 
 function lockIC(varargin)
-hObject = varargin{3};
-ic = varargin{4};
+ic = varargin{3};
 button = varargin{1};
 % load handles
+if numel(varargin)>3
+    hObject = varargin{4};
+else
+    hObject = get(button,'parent');
+end
 handles = guidata(hObject);
 if get(button,'Value') % turned lock on
     handles.lock = sort([handles.lock ic]);
+%     set(button,'BackgroundColor',[0.5 1 0.5])
+    if isfield(handles,'figIC')
+        set(handles.figIC.buttonLock(ic),'Value',1,'BackgroundColor',handles.color_lock); end
     if any(handles.exclude==ic)
         handles.exclude(handles.exclude==ic) = [];
         % update fig
         if isfield(handles,'figIC')
-            set(handles.figIC.buttonExclude(ic),'Value',0); end
+            set(handles.figIC.buttonExclude(ic),'Value',0,...
+                'BackgroundColor',handles.color_bg);
+        end
     end
 else % turned lock off
     handles.lock(handles.lock==ic) = [];
+    if isfield(handles,'figIC')
+        set(handles.figIC.buttonLock(ic),'value',0,'BackgroundColor',handles.color_bg); end
 end
 % save handles
 guidata(hObject,handles);
@@ -510,21 +532,32 @@ end
 
 
 function excludeIC(varargin)
-hObject = varargin{3};
-ic = varargin{4};
+ic = varargin{3};
 button = varargin{1};
 % load handles
+if numel(varargin)>3
+    hObject = varargin{4};
+else
+    hObject = get(button,'parent');
+end
 handles = guidata(hObject);
 if get(button,'Value') % turned exclude on
     handles.exclude = sort([handles.exclude ic]);
+%     set(button,'BackgroundColor',[1 0.5 0.5])
+    if isfield(handles,'figIC')
+        set(handles.figIC.buttonExclude(ic),'Value',1,'BackgroundColor',handles.color_exclude); end
     if any(handles.lock==ic)
         handles.lock(handles.lock==ic) = [];
         % update fig
         if isfield(handles,'figIC')
-            set(handles.figIC.buttonLock(ic),'Value',0); end
+            set(handles.figIC.buttonLock(ic),'Value',0,...
+                'BackgroundColor',handles.color_bg);
+        end
     end
 else % turned exclude off
     handles.exclude(handles.exclude==ic) = [];
+    if isfield(handles,'figIC')
+        set(handles.figIC.buttonExclude(ic),'value',0,'BackgroundColor',handles.color_bg); end
 end
 % save handles
 guidata(hObject,handles);
@@ -629,7 +662,7 @@ function togglebuttonExclude8_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonExclude8 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],hObject,handles.ics(8))
+excludeIC(hObject,[],handles.ics(8))
 end
 
 
@@ -638,7 +671,7 @@ function togglebuttonLock8_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock8 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],hObject,handles.ics(8))
+lockIC(hObject,[],handles.ics(8))
 end
 
 
@@ -647,7 +680,7 @@ function togglebuttonExclude7_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonExclude7 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],hObject,handles.ics(7))
+excludeIC(hObject,[],handles.ics(7))
 end
 
 
@@ -656,7 +689,7 @@ function togglebuttonLock7_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock7 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],hObject,handles.ics(7))
+lockIC(hObject,[],handles.ics(7))
 end
 
 
@@ -665,7 +698,7 @@ function togglebuttonExclude6_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonExclude6 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],hObject,handles.ics(6))
+excludeIC(hObject,[],handles.ics(6))
 end
 
 
@@ -674,7 +707,7 @@ function togglebuttonLock6_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock6 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],hObject,handles.ics(6))
+lockIC(hObject,[],handles.ics(6))
 end
 
 
@@ -683,7 +716,7 @@ function togglebuttonExclude5_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonExclude5 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],hObject,handles.ics(5))
+excludeIC(hObject,[],handles.ics(5))
 end
 
 
@@ -692,7 +725,7 @@ function togglebuttonLock5_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock5 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],hObject,handles.ics(5))
+lockIC(hObject,[],handles.ics(5))
 end
 
 
@@ -701,7 +734,7 @@ function togglebuttonExclude4_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonExclude4 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],hObject,handles.ics(4))
+excludeIC(hObject,[],handles.ics(4))
 end
 
 
@@ -710,7 +743,7 @@ function togglebuttonLock4_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock4 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],hObject,handles.ics(4))
+lockIC(hObject,[],handles.ics(4))
 end
 
 
@@ -719,7 +752,7 @@ function togglebuttonExclude3_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonExclude3 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],hObject,handles.ics(3))
+excludeIC(hObject,[],handles.ics(3))
 end
 
 
@@ -728,7 +761,7 @@ function togglebuttonLock3_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock3 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],hObject,handles.ics(3))
+lockIC(hObject,[],handles.ics(3))
 end
 
 
@@ -737,7 +770,7 @@ function togglebuttonExclude2_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonExclude2 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],hObject,handles.ics(2))
+excludeIC(hObject,[],handles.ics(2))
 end
 
 
@@ -746,7 +779,7 @@ function togglebuttonLock2_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock2 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],hObject,handles.ics(2))
+lockIC(hObject,[],handles.ics(2))
 end
 
 
@@ -755,7 +788,7 @@ function togglebuttonExclude1_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonExclude1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],hObject,handles.ics(1))
+excludeIC(hObject,[],handles.ics(1))
 end
 
 
@@ -764,7 +797,7 @@ function togglebuttonLock1_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],hObject,handles.ics(1))
+lockIC(hObject,[],handles.ics(1))
 end
 
 % --- Executes on mouse press over axes background.
