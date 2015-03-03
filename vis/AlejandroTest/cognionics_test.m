@@ -5,7 +5,7 @@ hmObj.surfaces = '/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/data/head_
 hmObj.computeLeadFieldBEM();
 
 % Save the head model as an object
-hmObj.saveToFile('headmodel_Luca_64.mat')
+% hmObj.saveToFile('headmodel_Luca_64.mat')
 
 % Load the head model as an object
 hmObj = headModel.loadFromFile('headmodel_Luca_64.mat');

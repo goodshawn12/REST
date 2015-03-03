@@ -2,9 +2,10 @@
 
 addpath(genpath('dependencies'))
 addpath(genpath('utility'))
+addpath('vis')
 
-Emotiv = 1;
-Cognionics = 0;
+Emotiv = 0;
+Cognionics = 1;
 
 % load channel locations
 if Emotiv
@@ -22,10 +23,10 @@ if Emotiv
     calibData.headModel = hmObj.emotivHeadModel;
     calibData.localization = hmLoc;
 elseif Cognionics
-    calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20150115_Calibration.set', ...
-        'markerchannel',{'remove_eventchns',false}));
-%     calibData = exp_eval_optimized(io_loadset('data/EmotivTrain_EyeClose_icainfo.set', ...
+%     calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20150115_Calibration.set', ...
 %         'markerchannel',{'remove_eventchns',false}));
+    calibData = exp_eval_optimized(io_loadset('/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Calibration.set', ...
+        'markerchannel',{'remove_eventchns',false}));
     hmObj = load('vis/cognionicsHeadModel');
     hmLoc = load('vis/cognionicssLORETA');
     calibData.headModel = hmObj.cognionicsHeadModel;

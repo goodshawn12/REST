@@ -366,11 +366,11 @@ assignin('base','stateLocalization',state);
 % create headModel plot
 Jest = zeros(handles.nVertices,3);
 Jest(handles.hmInd,:) = reshape(out.srcpot,[],3);
-fhandle = handles.headModel.plotOnModel(Jest,Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
+fhandle = handles.headModel.plotOnModel(Jest(:),Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
 set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject});
 
 % create timer
-locTimer = timer('Period',5,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
+locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
 
 % save headModel plot and timer to handlesh
 handles.pauseTimers = [handles.pauseTimers,locTimer];
