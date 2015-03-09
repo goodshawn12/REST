@@ -5,13 +5,16 @@ addpath(genpath('utility'))
 addpath('vis')
 
 Emotiv = 0;
-Cognionics = 1;
+Cognionics = 0;
+test16 = 1;
 
 % load channel locations
 if Emotiv
     load data/chanlocs14
 elseif Cognionics %#ok<*UNRCH>
     load data/chanlocs64
+elseif test16
+    load vis/artificial_data_16/chanlocs_test16.mat
 end
 
 % load calibration data
@@ -30,6 +33,13 @@ elseif Cognionics
     hmObj = load('vis/cognionicsHeadModel');
     hmLoc = load('vis/cognionicssLORETA');
     calibData.headModel = hmObj.cognionicsHeadModel;
+    calibData.localization = hmLoc;
+elseif test16
+    calibData = exp_eval_optimized(io_loadset('vis/artificial_data_16/SIM_NSTAT_3sess_16ch_3min.set', ...
+        'markerchannel',{'remove_eventchns',false}));
+    hmObj = load('vis/artificial_data_16/hmTest16.mat');
+    hmLoc = load('vis/artificial_data_16/test16LORETA.mat');
+    calibData.headModel = hmObj.hmTest;
     calibData.localization = hmLoc;
 end
 

@@ -1,18 +1,22 @@
 % To build the head model from the files you have
-T = load('../cognionicsHeadModel.mat')
-hmObj = T.cognionicsHeadModel
-hmObj.surfaces = '/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/data/head_modelColin27_4825.mat';%mobilab.preferences.eeg.headModel
-hmObj.computeLeadFieldBEM();
+% T = load('../cognionicsHeadModel.mat')
+% hmObj = T.cognionicsHeadModel
+% hmObj.surfaces = '/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/data/head_modelColin27_4825.mat';%mobilab.preferences.eeg.headModel
+% hmObj.computeLeadFieldBEM();
+% 
+% % Save the head model as an object
+% % hmObj.saveToFile('headmodel_Luca_64.mat')
+% 
+% % Load the head model as an object
+% hmObj = headModel.loadFromFile('headmodel_Luca_64.mat');
+% hmObj.leadFieldFile = [hmObj.leadFieldFile '.mat']
+% 
+% 
+% [sourceSpace,K,L,rmIndices] = getSourceSpace4PEB(hmObj);
 
-% Save the head model as an object
-% hmObj.saveToFile('headmodel_Luca_64.mat')
-
-% Load the head model as an object
-hmObj = headModel.loadFromFile('headmodel_Luca_64.mat');
-hmObj.leadFieldFile = [hmObj.leadFieldFile '.mat']
-
-
-[sourceSpace,K,L,rmIndices] = getSourceSpace4PEB(hmObj);
+load cognionicsHeadModel
+load cognionicssLORETA
+hmObj = cognionicsHeadModel;
 
 [U,S,V] = svd(K/L,'econ');
 Ut = U';
@@ -24,11 +28,12 @@ t = (0:512-1)/512;
 x = cos(2*pi*10*t);
 n = size(surfData(3).vertices,1);
 ind = setdiff(1:n,rmIndices);
+ind_stack = [ind,ind+n,ind+2*n];
 
 
 %%   This is your code
 % simulating a Gaussian sources
-I = strfind(hmObj.atlas.label,'Precuneus');
+I = strfind(hmObj.atlas.label,'Frontal_Mid_L');
 I = ~cellfun(@isempty,I);
 roi = find(I);
 hmObj.atlas.label(roi)
@@ -45,8 +50,10 @@ Jest = J;
 Jtrue(ind,:) = gSource;
 
 %-- Create a Jtrue as Nsources X 3
-K_full = load(hmObj.leadFieldFile,'K');
-K_full = K_full.K;
+% K_full = load(hmObj.leadFieldFile,'K');
+% K_full = K_full.K;
+K_full = zeros(size(K,1),3*n);
+K_full(:,ind_stack) = K;
 Jtrue = [Jtrue;Jtrue;Jtrue];
 Jest  = 0*Jtrue;
 Vtrue = K_full*Jtrue;
@@ -68,8 +75,8 @@ hmObj.plotOnModel(Jest,Vest,'Estimated source (Loreta)');
 Vest = K*Jest(ind,:);
 hmObj.plotOnModel(Jest,Vest,'Estimated source (varDynLoreta)');
 
-[Jest(ind,:),alpha,beta] = dynamicLoreta(Ut,Vtrue,s2,iLV,L);
-Vest = K*Jest(ind,:);
+[Jest(ind_stack,:),alpha,beta] = dynamicLoreta(Vtrue,Ut,s2,iLV);
+Vest = K*Jest(ind_stack,:);
 hmObj.plotOnModel(Jest,Vest,'Estimated source (varDynLoreta)');
 %--
 

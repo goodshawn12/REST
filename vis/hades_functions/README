@@ -1,0 +1,12 @@
+Hades is a Matlab toolbox for MEG and EEG analysis that is being developed by Cristina Campi, Annalisa Pascarella, Michele Piana and Alberto Sorrentino at the Dipartimento di Matematica, Universita' degli Studi di Genova.
+
+Caution: Hades is a toolbox written and released for neuroimaging research purposes only with no guarantee of suitability for any particular purpose. Hades, or data obtained from Hades, should not under any circumstances be used for clinical purposes.
+
+For more information please visit http://hades.dima.unige.it
+Report a bug or contribute a coding suggestion to hades@dima.unige.it
+
+The Hades software is free but copyrighted software, distributed under the terms of the GNU General Public Licence as published by the Free Software Foundation (either version 2, or at your option any later version). See the file COPYING for more details.
+
+The functions in this toolbox are copyrighted by their authors:
+
+Copyright (C) 2010, Cristina Campi, Annalisa Pascarella, Michele Piana, Alberto Sorrentino

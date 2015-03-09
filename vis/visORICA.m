@@ -69,37 +69,7 @@ handles.color_exclude = [1 0.5 0.5];
 calibData = varargin{1};
 
 % Check if localization is possible and adjust GUI accordingly
-if ~isfield(calibData,'headModel') || isempty(calibData.headModel)
-    set(handles.pushbuttonLocalize,'HitTest','off','visible','off')
-else
-    handles.headModel = calibData.headModel;
-    % if calibData does not contain field 'localization' with lead field
-    % matrix, laplacian matrix, number of vertices in cortex model, and
-    % valid vertex indeces, then calulate them. (takes a while).
-    if ~isfield(calibData.localization,'nVertices')
-        temp = load(handles.headModel.surfaces);
-        handles.nVertices = size(temp.surfData(3).vertices,1);
-    else
-        handles.nVertices = calibData.localization.nVertices;
-    end
-    if ~isfield(calibData,'localization') || ...
-            ~isfield(calibData.localization,'K') || ...
-            ~isfield(calibData.localization,'L') || ...
-            ( ~isfield(calibData.localization,'ind') && ~isfield(calibData.localization,'rmIndices') )
-        [~,handles.K,handles.L,rmIndices] = ...
-            getSourceSpace4PEB(handles.headModel);
-        handles.ind = setdiff(1:handles.nVertices,rmIndices);
-    else
-        handles.K = calibData.localization.K;
-        handles.L = calibData.localization.L;
-        try
-            handles.hmInd = calibData.localization.ind;
-        catch
-            handles.hmInd = setdiff(1:handles.nVertices,calibData.localization.rmIndices);
-        end
-    end
-end
-
+handles = check_localization(handles,calibData);
 
 % Start EEG stream
 [~, handles.buffername] = vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG);
@@ -152,6 +122,48 @@ end
 % UIWAIT makes visORICA wait for user response (see UIRESUME)
 % uiwait(handles.figure1);
 
+
+function handles = check_localization(handles,calibData)
+
+if ~isfield(calibData,'headModel') || isempty(calibData.headModel)
+    set(handles.pushbuttonLocalize,'HitTest','off','visible','off')
+else
+    handles.headModel = calibData.headModel;
+    % if calibData does not contain field 'localization' with lead field
+    % matrix, laplacian matrix, number of vertices in cortex model, and
+    % valid vertex indeces, then calulate them. (takes a while).
+    if ~isfield(calibData.localization,'nVertices')
+        if ischar(handles.headModel.surfaces)
+            temp = load(handles.headModel.surfaces);
+            handles.nVertices = size(temp.surfData(3).vertices,1);
+        else
+            handles.nVertices = size(handles.headModel.surfaces(3).vertices,1);
+        end
+    else
+        handles.nVertices = calibData.localization.nVertices;
+    end
+    if ~isfield(calibData,'localization') || ...
+            ~isfield(calibData.localization,'K') || ...
+            ~isfield(calibData.localization,'L')
+            
+        [~,handles.K,handles.L,rmIndices] = ...
+            getSourceSpace4PEB(handles.headModel);
+        handles.ind = setdiff(1:handles.nVertices,rmIndices);
+    else
+        handles.K = calibData.localization.K;
+        handles.L = calibData.localization.L;
+        if isfield(calibData.localization,'ind') || isfield(calibData.localization,'rmIndices')
+            try
+                handles.hmInd = calibData.localization.ind;
+            catch
+                handles.hmInd = setdiff(1:handles.nVertices,calibData.localization.rmIndices);
+            end
+        else
+            handles.hmInd = 1:handles.nVertices;
+        end
+    end
+end
+end
 
 function initializeORICA(handles,calibData)
 
@@ -363,6 +375,36 @@ sphere = evalin('base','sphere');
 Winv = inv(W*sphere);
 
 % run dynamicLoreta once to generate state and initial localization
+[U,S,V] = svd(handles.K/handles.L,'econ');
+Ut = U';
+s2 = diag(S).^2;
+iLV = handles.L\V;
+options = struct('maxTol',1e-3,'maxIter',100,'gridSize',100,'verbose',false,'history',true,'useGPU',false,'initNoiseFactor',0.001);
+[J,sigma2,tau2] = dynamicLoreta(Winv(:,handles.curIC), Ut, s2,iLV,[],[], options);
+
+% create headModel plot
+Jest = zeros(handles.nVertices,3);
+Jest(handles.hmInd,:) = reshape(J,[],3);
+fhandle = handles.headModel.plotOnModel(Jest(:),Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
+set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject});
+
+% create timer
+locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
+
+% save headModel plot, timer, and dynamicLoreta parameters to handles
+handles.pauseTimers = [handles.pauseTimers,locTimer];
+handles.figLoc.handle = fhandle;
+handles.figLoc.IC = handles.curIC;
+handles.figLoc.Ut = Ut;
+handles.figLoc.s2 = s2;
+handles.figLoc.iLV = iLV;
+handles.figLoc.tau2 = tau2;
+handles.figLoc.sigma2 = sigma2;
+handles.figLoc.options = options;
+guidata(hObject,handles);
+
+% run dynamicLoreta once to generate state and initial localization using bcilab
+%{ 
 signal = eeg_emptyset;
 signal.data = Winv(:,handles.curIC);
 [out,state] = hlp_scope({'disable_expressions',true},@flt_loreta,'signal',signal,'K',handles.K,'L',handles.L);
@@ -377,13 +419,14 @@ set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject});
 % create timer
 locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
 
-% save headModel plot and timer to handlesh
+% save headModel plot and timer to handles
 handles.pauseTimers = [handles.pauseTimers,locTimer];
 handles.figLoc.handle = fhandle;
 guidata(hObject,handles);
 
 % start the localization update timer
 start(locTimer)
+%} 
 end
 
 
@@ -397,9 +440,34 @@ Winv = inv(W*sphere);
 handles = guidata(varargin{3});
 
 % run dynamicLoreta
+
+Ut = handles.figLoc.Ut;
+s2 = handles.figLoc.s2;
+iLV = handles.figLoc.iLV;
+tau2 = handles.figLoc.tau2;
+sigma2 = handles.figLoc.sigma2;
+options = handles.figLoc.options;
+[J,sigma2,tau2] = dynamicLoreta(Winv(:,handles.figLoc.IC), Ut, s2,iLV,sigma2,tau2, options);
+
+% update figure and related object
+Jest = zeros(handles.nVertices,3);
+Jest(handles.hmInd,:) = reshape(J,[],3);
+handles.figLoc.handle.sourceOrientation = Jest;
+handles.figLoc.handle.sourceMagnitud = squeeze(sqrt(sum(Jest.^2,2)));
+set(handles.figLoc.handle.hVector,'udata',Jest(:,1),'vdata',Jest(:,2),'wdata',Jest(:,3))
+set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
+
+% save dynamicLoreta parameters to handles
+handles.figLoc.tau2 = tau2;
+handles.figLoc.sigma2 = sigma2;
+guidata(hObject,handles);
+
+
+%{
+% run dynamicLoreta with bcilab
 state = evalin('base','stateLocalization');
 signal = eeg_emptyset;
-signal.data = Winv(:,handles.curIC)*cos(0:.1:2*pi);
+signal.data = Winv(:,handles.curIC);%cos(0:.1:2*pi);
 [out,state] = hlp_scope({'disable_expressions',true},@flt_loreta,'signal',signal,'K',handles.K,'L',handles.L,'state',state);
 assignin('base','stateLocalization',state);
 
@@ -410,6 +478,7 @@ handles.figLoc.handle.sourceOrientation = Jest;
 handles.figLoc.handle.sourceMagnitud = squeeze(sqrt(sum(Jest.^2,2)));
 set(handles.figLoc.handle.hVector,'udata',Jest(:,1),'vdata',Jest(:,2),'wdata',Jest(:,3))
 set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
+%}
 end
 
 
