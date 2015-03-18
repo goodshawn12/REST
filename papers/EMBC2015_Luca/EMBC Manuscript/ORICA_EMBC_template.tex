@@ -1,0 +1,251 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%2345678901234567890123456789012345678901234567890123456789012345678901234567890
+%        1         2         3         4         5         6         7         8
+
+\documentclass[letterpaper, 10 pt, conference]{ieeeconf}  % Comment this line out
+                                                          % if you need a4paper
+%\documentclass[a4paper, 10pt, conference]{ieeeconf}      % Use this line for a4
+                                                          % paper
+
+\IEEEoverridecommandlockouts                              % This command is only
+                                                          % needed if you want to
+                                                          % use the \thanks command
+\overrideIEEEmargins
+% See the \addtolength command later in the file to balance the column lengths
+% on the last page of the document
+
+
+
+% The following packages can be found on http:\\www.ctan.org
+\usepackage{graphics} % for pdf, bitmapped graphics files
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{verbatim}
+\usepackage{multirow}
+\usepackage{threeparttable}
+%\usepackage{mathptmx} % assumes new font selection scheme installed
+%\usepackage{times} % assumes new font selection scheme installed
+%\usepackage{amsmath} % assumes amsmath package installed
+%\usepackage{amssymb}  % assumes amsmath package installed
+
+\makeatletter
+\def\hlinewd#1{%
+\noalign{\ifnum0=`}\fi\hrule \@height #1 %
+\futurelet\reserved@a\@xhline}
+\makeatother
+
+
+\title{\LARGE \bf
+Detecting and Tracking Nonstationary EEG Data using Adaptive Recursive Independent Component Analysis
+}
+
+%\author{ \parbox{3 in}{\centering Huibert Kwakernaak*
+%         \thanks{*Use the $\backslash$thanks command to put information here}\\
+%         Faculty of Electrical Engineering, Mathematics and Computer Science\\
+%         University of Twente\\
+%         7500 AE Enschede, The Netherlands\\
+%         {\tt\small h.kwakernaak@autsubmit.com}}
+%         \hspace*{ 0.5 in}
+%         \parbox{3 in}{ \centering Pradeep Misra**
+%         \thanks{**The footnote marks may be inserted manually}\\
+%        Department of Electrical Engineering \\
+%         Wright State University\\
+%         Dayton, OH 45435, USA\\
+%         {\tt\small pmisra@cs.wright.edu}}
+%} 
+\author{
+	\thanks{This work was in part by a gift by the Swartz Foundation (Old Field, NY), by the Army Research Laboratory under Cooperative Agreement Number W911NF-10-2-0022, by NIH grant 1R01MH084819-03 and NSF EFRI-M3C 1137279.}
+	Sheng-Hsiou Hsu,~\IEEEmembership{Student Member,~IEEE,}
+	\thanks{S.-H. Hsu (shh078@ucsd.edu) is with Dept. of Bioengineering (BIOE), Swartz Center for Computational Neuroscience (SCCN), and Institute for Neural Computation (INC) of University of California, San Diego (UCSD).}
+	Luca Pion-Tonachini,~\IEEEmembership{Student Member,~IEEE,}
+	\thanks{L. Pion-Tonachini (lpionton@ucsd.edu) is with Dept. of Electrical and Computer Engineering and SCCN of UCSD.}
+	Tzyy-Ping Jung,\\~\IEEEmembership{Senior Member,~IEEE,}
+	\thanks{T.-P. Jung (tpjung@ucsd.edu) is with BIOE, SCCN and INC of UCSD.}
+	and Gert Cauwenberghs,~\IEEEmembership{Fellow,~IEEE}
+	\thanks{G. Cauwenberghs (gert@ucsd.edu) is with BIOE and INC of UCSD.}    
+}
+% add IEEE member
+
+\begin{document}
+
+
+
+\maketitle
+\thispagestyle{empty}
+\pagestyle{empty}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Prepare figures, write result, design of experiments first. 
+% Depend on the remaining space, determine the length of introduction and method.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{abstract}
+Online Independent Component Analysis (ICA) algorithms have recently seen increasing development and application across a range of fields, including communications, biosignal processing, and brain-computer interfaces. However, prior work in this domain has primarily focused on algorithmic proofs of convergence, with application limited to small `toy' examples or to relatively low channel density EEG datasets. Furthermore, there is limited availability of computationally efficient online ICA implementations, suitable for real-time application. This study describes an optimized online recursive ICA algorithm (ORICA), with online recursive least squares (RLS) whitening, for blind source separation of high-density EEG data. It is implemented as an online-capable plugin within the open-source BCILAB (EEGLAB) framework. We further derive and evaluate a block-update modification to the ORICA learning rule. 
+We demonstrate the algorithm's suitability for accurate and efficient source identification in high density (64-channel) realistically-simulated EEG data, as well as real 61-channel EEG data recorded by a dry and wearable EEG system in a cognitive experiment.
+
+\end{abstract}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{INTRODUCTION}
+% ICA general application (focus on EEG)
+Independent Component Analysis (ICA), as a means for blind source separation, has enjoyed great success in biosignal processing and communications \cite{AapoICABook}.  
+In biomedical applications, such as electroencephalography (EEG), the application of ICA is justified by the reasonable assumption that multi-channel scalp EEG signals arise as a mixture of weakly dependent non-Gaussian sources  \cite{delorme2012independent}.
+In particular, offline ICA methods have been widely used for separating artifacts such as eye blinks and muscle activity \cite{jung2000removing}, as well as used to extract and study activity generated within the brain \cite{makeig2002dynamic}. However, for many real-world applications, including real-time functional neuroimaging and brain-computer interfaces (BCI) \cite{wang2013improving}, online source separation methods are needed. Desirable properties include fast convergence and real-time computational performance.
+
+% Modified Intro
+Several online ICA algorithms have been proposed. Amongst the most promising candidates are recursive-least-squares (RLS) type algorithms, extended from iterative natural gradient optimization of independence-maximizing objective functions \cite{giannakopoulos1999experimental}\cite{zhu2004natural}. Akhtar et al \cite{akhtar2012recursive} proposed an RLS-type Online Recursive ICA algorithm (ORICA), derived as a fixed-point solution to the widely-used natural gradient Infomax ICA learning rule. Infomax ICA has been shown to outperform most alternative ICA algorithms, in terms of maximizing independence and biological plausibility of EEG sources \cite{delorme2012independent}. ORICA builds on an iterative inversion formula, yielding faster convergence and lower computational load than the alternatives. % such as online extended NG Infomax with incremental weight updates.
+However, as with other RLS-type algorithms, stability, convergence speed, and computational load are important practical factors to consider. 
+
+% Our contribution
+This study utilizes two approaches to improve performance. We combine an optimized implementation of ORICA with the online RLS whitening filter of \cite{zhu2004natural}. We also derive a multiple measurement vector (MMV) block-update rule to increase processing speed without sacrificing performance. The proposed online ICA pipeline is implemented in MATLAB as a BCILAB plugin \cite{kothe2013bcilab}. Real-time performance capability, accuracy, convergence speed, and scalability of the pipeline is analyzed on a realistic simulation of 64-channel EEG data. Finally, we demonstrate real-world applicability of the pipeline for online source separation, with quantitative and qualitative comparison to EEGLAB's ``gold standard'' implementation of Extended Infomax ICA \cite{lee1999independent}, using 61-channel dry, wearable EEG data recorded from a subject performing an Eriksen Flanker task.
+
+
+
+\section{Methods}
+% Describe ICA problem
+We assume the standard ICA generative model $x=As$, where $x$ are scalp EEG observations, $s$ are unknown sources, and $A$ is an unknown $N$-by-$N$ mixing matrix. The objective is to learn an unmixing (weight) matrix $W=A^{-1}$ such that the sources are recovered by $y=Wx$.
+
+% Goal: enable readers replicate the whole experiment by reading your paper
+\subsection{Online recursive-least-squares (RLS) whitening}
+Whitening (decorrelating) the data reduces the number of independent parameters ICA must learn, and can improve convergence \cite{AapoICABook}. In order to fit in the online pipeline with online RLS-type ICA, we use the similar online RLS whitening algorithm proposed by \cite{zhu2004natural}:
+\begin{equation} \label{rls_whitening}
+M_{n+1}=\frac{1}{1-\lambda_n}[I-\frac{v_n v^T_n}{\frac{1-\lambda_n}{\lambda_n} + v_n^T v_n}]M_n
+\end{equation}
+where $M_n$ is the whitening matrix, $v_n = M_n x_n$ is the whitened data, and $\lambda_n$ is the forgetting factor.  
+
+As shown in \cite{zhu2004natural}, the RLS-type filter converges faster than a least-mean-squares type filter, e.g. running average of covariance matrix. Also, since online RLS whitening and ORICA have a similar recursive form and adaptation property, e.g. forgetting rate, they can be easily combined.
+
+\subsection{Online recursive ICA (ORICA)}
+% Put derivation details in appendix
+The ORICA algorithm derives from the general incremental update form of the well-known natural gradient learning rule for Infomax ICA:
+\[W_{n+1}=W_n+\eta [I-f(y_n)\cdot y^T_n]W_n \]
+where $y_n=W_n x_n$, $\eta$ is the learning rate, and $f(\cdot)$ is a nonlinear projection function. In the limit of a small $\eta$ and assuming a fixed $f$, the convergence criterion $\langle f(y)\cdot y^T\rangle=I$ leads to a fixed-point solution in an iterative inversion form:
+\begin{equation} \label{orica_A_update}
+A_{n+1}=(1-\lambda_n)A_n+\lambda_n x_n\cdot f^T_n
+\end{equation}
+where $A_n$ is the pseudo-inverse of $W_n$ and $\lambda_n$ is the forgetting factor for an exponentially weighted series of updates (note that $\lambda_n$ differs from $\eta$, which is the step size for stochastic gradient optimization).
+
+Applying the Sherman-Morrison matrix inversion formula to Eq. \ref{orica_A_update}, the final online recursive learning rule becomes \cite{akhtar2012recursive}:
+\begin{equation} \label{orica}
+W_{n+1}=\frac{1}{1-\lambda_n}\Big[ I-\frac{y_n \cdot f^T(y_n)}{\frac{1-\lambda_n}{\lambda_n} + f^T(y_n)\cdot y_n}\Big] W_n
+\end{equation}
+Eq.~\ref{orica} of ORICA is similar to Eq.~\ref{rls_whitening} of online RLS whitening, albeit with nonlinear projection $f(\cdot)$ ensuring independence of sources. %higher-order statistical decorrelation (i.e. independence) of sources. 
+ORICA can thus be understood as a nonlinear form of online RLS whitening. 
+
+Following \cite{akhtar2012recursive}, component-wise nonlinear functions are $f(y)=-2\tanh(y)$ for super-Gaussian sources and $f(y)=\tanh(y)-y$ for sub-Gaussian sources. Also, the heuristic time-varying forgetting factor is used:
+\[\lambda_n=\frac{\lambda_0}{n^{\gamma}}\]
+where $\lambda_0$ is an initial forgetting factor and $\gamma$ determines the exponential decay rate of $\lambda$. 
+
+\subsubsection{Number of sub- and super-Gaussian sources}
+% The precise form of $f(y)$ is generally unknown, and must be learned from the data or assumed \emph{a priori}. 
+While approaches for adaptively selecting $f$ within ORICA have been proposed \cite{akhtar2012recursive}, these are heuristic and presently lack convergence proofs. %Changes in $f$ require computationally expensive corrective updates to $W_{n+1}$ in Eq. \ref{orica}, the stability of which remains a concern  \cite{akhtar2012recursive}. 
+In practice, we find that both convergence and run-time performance are improved by preassuming a fixed number of sub- and super-Gaussian sources. A more extensive characterization of the performance of ORICA with heterogeneous source distributions is beyond the scope of this report, and will be the subject of a forthcoming paper.
+
+\subsubsection{Block-update rule}
+Performing updates for each sample can be costly. To reduce the computational load and ensure consistent real-time performance, we update the weight matrix for a short block of samples at once. To achieve this without loss of accuracy, we solve Eq.~\ref{orica} for time index $l=n$ to $l=n+L-1$, assuming $y_l$ is approximated as $W_n x_l$ and $\lambda_l$ is small. This leads to a block-update rule:
+\begin{equation} \label{block}
+W_{n+L} \approx \big( \prod_{l=n}^{n+L-1}\frac{1}{1-\lambda_l}\big) \cdot \Big[ I - \sum_{l=n}^{n+L-1} \frac{y_l\cdot f^T(y_l)} {\frac{1-\lambda_l}{\lambda_l} + f^T(y_l)\cdot y_l} \Big] W_n
+\end{equation}
+
+In this form, the sequence of updates can be vectorized for fast MATLAB computation. Note that Eq. \ref{block} appropriately accounts for the decaying forgetting factor at each time point. This keeps the approximation error to a minimum.
+
+
+
+
+\section{Materials} \label{materials}
+% Summarize parameters symbols, meanings, value ranges in a table.
+\subsection{Data collection}
+\subsubsection{Simulated EEG data}
+We used the SIFT EEG simulation module, with an approach similar to \cite{Haufe2010}. We generated 64 super-Gaussian independent source time-series from stationary and random-coefficient order-3 autoregressive models (300Hz sampling rate, 10-min), assigned each source a random cortical dipole location, and projected these through a zero-noise 3-layer BEM forward model (MNI ``Colin27''), yielding 64-channel EEG data.
+
+\subsubsection{Real EEG data}
+Two sessions of high-density EEG data were collected from a 24 year-old right-handed male subject using a 64-channel wearable wireless dry EEG headset (Cognionics, Inc). The first session was a 10-min resting session. In the second session, the subject performed a modified Eriksen Flanker task \cite{mcloughlin2009performance} with a 133 ms delay between flanker and target presentation for 20 minutes. Flanker tasks are known to produce robust error-related negativity (ERN, Ne) at frontal-central electrode sites. Our goal was to extract these ERP components from high-density EEG data in a real-world setting using the proposed online ICA pipeline.
+% Three bad channels were removed based on electrodes' impedance monitoring, a feature provided by the headset. 
+
+\subsection{Online ICA pipeline}
+Simulated and real EEG data were streamed into MATLAB and analyzed in a simulated online environment using BCILAB, an open source MATLAB toolbox designed for BCI research \cite{kothe2013bcilab}\cite{mullen2013real}. The pipeline for simulated data consisted of three filters: a Butterworth IIR high-pass filter, an online RLS whitening filter, and an ORICA filter. The high-pass filter removes trend and low-frequency drift, ensuring the zero-mean criterion for ICA is satisfied. For both datasets, we chose block size $L=16$ to demonstrate the accuracy of block-update. We set the number of sub-Gaussian sources to zero for simulated EEG data and one for real EEG data, allowing for 60Hz line noise. Table~\ref{table1} summarizes the parameters of the three filters.
+
+\begin{table}
+\scalebox{0.9}{
+\begin{threeparttable}
+\caption{List of parameters for the online pipeline: (A) IIR high-pass filter, (B) online RLS whitening filter , and (C) online recursive ICA filter.}
+\begin{center}
+\begin{tabular}{c|c|c|c}
+\textbf{Filters} 	& \textbf{Parameters}	  &		\textbf{Values}  &	\textbf{Description}  \\ 
+\hlinewd{1.5pt} A					& 	BW				&  	0.2$-$2 Hz	 &		Transition band\\ 
+\hline \multirow{3}{*}{B,C}	&	$\lambda_0$ 	&	0.995		 &  	Initial forgetting factor\\ 
+									&	$\gamma$ 		& 	0.60		 & 		Decay rate of forgetting factor \\ 
+% \hline $\tau_{ss}$ 	&	5$-$60  	 & 		exponential folding time at steady state \\ 
+									&	$L$ 			& 	16		 & 		Block-update size \\ 
+\hline	\multirow{2}{*}{C}			&	\multirow{2}{*}{$n_{sub}$} 		&  	0 (Sim. EEG)	 & 		\multirow{2}{*}{Number of subgaussian sources} \\
+	&	& 	1 (Real EEG) 	& 	 
+ 
+\end{tabular} 
+\end{center}
+\label{table1}
+
+\end{threeparttable}
+}
+\end{table}
+
+\subsection{Processing of real EEG data}
+For Flanker task EEG data, we applied additional processing steps and techniques. Firstly, an automatic removal of bad (e.g. flatlined or abnormally correlated) channels was applied prior to the online pipeline, using BCILAB routines, removing 3 channels. Secondly, we warm-started (initialized) all filters using the first 3 minutes EEG data in the resting session. This step (offline) costs little computation time and used no data from the separate Flanker task session, while accelerating ORICA convergence. Following application of the pipeline, response-locked event-related potentials (ERPs) were analyzed offline in EEGLAB \cite{delorme2011eeglab}. IC time-series (20-minute session) were epoched around responses in a -400 to 600 ms window, yielding 693 epochs (104 error trials, 589 correct). Error trials were then averaged to produce ERPs.
+
+
+
+\section{Results}
+% This part appears in journal; summary goes to abstract.
+
+\subsection{Simulated 64-ch stationary EEG data}
+% Another section organizations: (1) Characterization of convergence speed (2) Evalutation of steady-state performance (3) Analysis of computational load.
+
+\subsubsection{Evaluation of the decomposed components}
+
+\begin{comment}
+\begin{figure}
+     \centering
+     \includegraphics[scale=0.5]{fig2-time.png}
+     \caption{Source dynamics and the corresponding component maps of four randomly selected components reconstructed by ORICA at the end of the time series (blue) superimposed on ground truth (red) with error, i.e. difference, (green) on simulated EEG data.}
+     \label{fig2}
+\end{figure}
+\end{comment}
+
+% Fig.~\ref{fig2} shows a 1-sec segment of reconstructed ORICA IC time-series (at convergence) superimposed on ground truth. The error is close to zero.
+
+
+\subsubsection{Computational load}
+
+\subsection{Real 61-ch EEG data from the Flanker task}
+
+
+
+\section{Conclusions}
+This study proposed two procedures to achieve fast convergence and real-time application of online ICA: (1) combining an optimized implementation of ORICA with online RLS whitening, and (2) an MMV block-update. Application to simulated 64-ch and real 61-ch EEG data characterized the convergence speed, steady state performance, and computational load of the algorithm. A subsequent paper will examine the impact of non-stationarity, source kurtosis, and forgetting factor on ORICA performance. The described pipeline is integrated in the BCILAB toolbox \cite{kothe2013bcilab} with utility for future applications in high-density source separation, artifact rejection, and BCI \cite{mullen2013real}.
+
+
+
+\addtolength{\textheight}{-12cm}   % This command serves to balance the column lengths
+                                  % on the last page of the document manually. It shortens
+                                  % the textheight of the last page by a suitable amount.
+                                  % This command does not take effect until the next page
+                                  % so it should come on the page before the last. Make
+                                  % sure that you do not shorten the textheight too much.
+
+
+% \section*{APPENDIX}
+% \subsection{Quantitative evaluation methods}
+% \section*{ACKNOWLEDGMENT}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\bibliographystyle{IEEEtran}
+\bibliography{IEEEabrv,oricabibabrv}
+
+
+\end{document}

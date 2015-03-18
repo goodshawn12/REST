@@ -1,0 +1,25 @@
+#!/bin/csh
+
+if ( $# < 9 ) then
+	echo
+	echo usage:
+	echo "qCC1 filtfile weightfile tempfileprefix ftype lofrq hifrq nfft len step [options]"
+	echo
+	exit
+endif
+
+set cco=0
+set compfiles= ( `ls comps/*.txt` )
+
+foreach kk ( $compfiles )
+	
+	@ cco +=1
+	echo \#\!\/bin/csh > cc$cco.csh
+	echo 'hostname' >> cc$cco.csh
+	echo 'source $HOME/scripts/myMatlabSetup.csh' >> cc$cco.csh
+	echo "$HOME/bin/`arch`/sccohere1 $1 $2 $kk $argv[4-] savevirt /scratch/$USER/$3_$cco" >> cc$cco.csh
+		
+	chmod +x cc$cco.csh
+	qsub -d . -l nodes=1 -q batch -l walltime=20:00:00 cc$cco.csh
+	
+end

@@ -1,0 +1,26 @@
+#!/bin/csh
+
+
+if ( $# < 3 ) then
+	echo
+	echo usage:
+	echo "qPLI31 filtfile weightfile tempfileprefix [filtoptions]"
+	echo
+	exit
+endif
+
+set cco=0
+set compfiles= ( `ls comps/*.txt` )
+
+foreach kk ( $compfiles )
+	
+	@ cco +=1
+	echo \#\!\/bin/csh > pli$cco.csh
+	echo 'hostname' >> pli$cco.csh
+	echo 'source $HOME/scripts/myMatlabSetup.csh' >> pli$cco.csh
+	echo "$HOME/bin/`arch`/spli31 $1 $2 $kk savevirt /scratch/$USER/$3_$cco $argv[4-]" >> pli$cco.csh
+		
+	chmod +x pli$cco.csh
+	qsub -d . -l nodes=1 -q batch -l walltime=30:00:00 pli$cco.csh
+	
+end

@@ -1,0 +1,16 @@
+#!/bin/csh
+# distibutes time-frequency beamforming chunks across grid
+# Usage: qTFBF sessionfile
+# Note that "firlsbp200cn" is a paramater file that contains filter settings, in this case
+# a 200th-order FIRLS digital filter. If you know what that means, and want to change it, feel
+# free to create your own parameter file and create a new version of this script that calls it.
+# Currently, SAM is the recommended algorithm for routine analyses; others are in development if
+# you're the adventurous type.
+
+#qsub -t 1-8 /data/research_meg/tfbf/bin/qTFBF.csh $1 /data/research_meg/tfbf/params/firlsbp200cn SAM
+
+#3/13/2007 AMF modified this so that there are no paths in the command, which seems to work better.
+#Also, these jobs will have a qsub priority of -500.
+
+qsub -p -500 -t 1-8 qTFBF.csh $1 firlsbp200cn SAM
+

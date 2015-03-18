@@ -100,8 +100,8 @@ if desired_length && ~isstruct(chunk.epoch)
     
 end
 assignin('base','pipeline',p);
-assignin('base','W',chunk.icaweights);
-assignin('base','sphere',chunk.icasphere);
+% assignin('base','W',chunk.icaweights);
+% assignin('base','sphere',chunk.icasphere);
 conv_statIdx = evalin('base','conv_statIdx');
 conv_mir = evalin('base','conv_mir');
 if isfield(chunk,'statIdx')

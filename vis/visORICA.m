@@ -90,7 +90,7 @@ for it = 1:handles.ntopo
 end
 
 % Create scalp map timer
-topoTimer = timer('Period',.5/handles.ntopo,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
+topoTimer = timer('Period',round(.5/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
 infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
@@ -212,9 +212,9 @@ function infoPSD(varargin)
 try
     secs2samp = 5; % seconds
     
-    W = evalin('base','W');
+    W = evalin('base','pipeline.state.icaweights');
     % if isempty(W), W = evalin('base','Wn'); end
-    sphere = evalin('base','sphere');
+    sphere = evalin('base','pipeline.state.icasphere');
     handles = guidata(varargin{3});
     
     set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
@@ -273,7 +273,7 @@ end
 
 function vis_topo(varargin)
 % get the updated stream buffer
-W = evalin('base','W');
+W = evalin('base','pipeline.state.icaweights');
 
 % get handles
 handles = guidata(varargin{3});
@@ -284,7 +284,7 @@ hstr = ['axesIC' int2str(it)];
 hand = get(handles.(hstr),'children');
 
 try
-    sphere = evalin('base','sphere');
+    sphere = evalin('base','pipeline.state.icasphere');
     Winv = inv(W*sphere);
     
     [map, cmin, cmax] = topoplotUpdate(Winv(:,handles.ics(it)), handles.chanlocs,'electrodes','off','gridscale',32);
@@ -353,25 +353,38 @@ function pushbuttonLocalize_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+% if it already exists then just focus on it
 if isfield(handles,'figLoc')
     figure(handles.figLoc.handle.hFigure)
     return
 end
 
-if strcmpi(get(handles.pushbuttonPause,'string'),'Resume')
-    genFigLoc(hObject,handles)
-else
-    stop(handles.pauseTimers)
-    genFigLoc(hObject,handles)
-    start(handles.pauseTimers)
+% otherwise pause if necessary and then create the window
+method =  questdlg('Choose method for source Localization','Localization', ...
+    'LORETA','Beamforming Particle Filter','LORETA');
+
+if strcmpi(get(handles.pushbuttonPause,'string'),'Pause')
+    stop(handles.pauseTimers); end
+
+switch method
+    case 'LORETA'
+        genFigLocLORETA(hObject,handles)
+%     case 'DipFit'
+%         genFigLocDF(hObject,handles)
+    case 'Beamforming Particle Filter'
+        genFigLocBFPF(hObject,handles)
 end
+
+if strcmpi(get(handles.pushbuttonPause,'string'),'Pause')
+    start(handles.pauseTimers); end
+
 end
 
 
-function genFigLoc(hObject,handles)
+function genFigLocLORETA(hObject,handles)
 % get ica decomposition
-W = evalin('base','W');
-sphere = evalin('base','sphere');
+W = evalin('base','pipeline.state.icaweights');
+sphere = evalin('base','pipeline.state.icasphere');
 Winv = inv(W*sphere);
 
 % run dynamicLoreta once to generate state and initial localization
@@ -386,10 +399,11 @@ options = struct('maxTol',1e-3,'maxIter',100,'gridSize',100,'verbose',false,'his
 Jest = zeros(handles.nVertices,3);
 Jest(handles.hmInd,:) = reshape(J,[],3);
 fhandle = handles.headModel.plotOnModel(Jest(:),Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
-set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject});
+set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject},'name',['IC' num2str(handles.curIC)]);
+
 
 % create timer
-locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
+locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLocLORETA,hObject},'Tag','locTimer','Name','locTimer');
 
 % save headModel plot, timer, and dynamicLoreta parameters to handles
 handles.pauseTimers = [handles.pauseTimers,locTimer];
@@ -401,39 +415,19 @@ handles.figLoc.iLV = iLV;
 handles.figLoc.tau2 = tau2;
 handles.figLoc.sigma2 = sigma2;
 handles.figLoc.options = options;
+temp = load(handles.headModel.surfaces);
+handles.figLoc.scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,temp.surfData(1).vertices,32);
 guidata(hObject,handles);
 
-% run dynamicLoreta once to generate state and initial localization using bcilab
-%{ 
-signal = eeg_emptyset;
-signal.data = Winv(:,handles.curIC);
-[out,state] = hlp_scope({'disable_expressions',true},@flt_loreta,'signal',signal,'K',handles.K,'L',handles.L);
-assignin('base','stateLocalization',state);
-
-% create headModel plot
-Jest = zeros(handles.nVertices,3);
-Jest(handles.hmInd,:) = reshape(out.srcpot,[],3);
-fhandle = handles.headModel.plotOnModel(Jest(:),Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
-set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject});
-
-% create timer
-locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLoc,hObject},'Tag','locTimer','Name','locTimer');
-
-% save headModel plot and timer to handles
-handles.pauseTimers = [handles.pauseTimers,locTimer];
-handles.figLoc.handle = fhandle;
-guidata(hObject,handles);
-
-% start the localization update timer
-start(locTimer)
-%} 
+% start timer
+% start(locTimer)
 end
 
 
-function updateLoc(varargin)
+function updateLocLORETA(varargin)
 % get ica decomposition
-W = evalin('base','W');
-sphere = evalin('base','sphere');
+W = evalin('base','pipeline.state.icaweights');
+sphere = evalin('base','pipeline.state.icasphere');
 Winv = inv(W*sphere);
 
 % parse inputs
@@ -456,29 +450,123 @@ handles.figLoc.handle.sourceOrientation = Jest;
 handles.figLoc.handle.sourceMagnitud = squeeze(sqrt(sum(Jest.^2,2)));
 set(handles.figLoc.handle.hVector,'udata',Jest(:,1),'vdata',Jest(:,2),'wdata',Jest(:,3))
 set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
+set(handles.figLoc.handle.hScalp,'FaceVertexCData', ...
+    handles.figLoc.scalp*Winv(:,handles.figLoc.IC))
+maxabs = max(abs(Winv(:,handles.figLoc.IC)));
+handles.figLoc.handle.clim.scalp = [-maxabs maxabs];
+maxabs = max(abs(handles.figLoc.handle.sourceMagnitud));
+handles.figLoc.handle.clim.scalp = [-maxabs maxabs];
+
 
 % save dynamicLoreta parameters to handles
 handles.figLoc.tau2 = tau2;
 handles.figLoc.sigma2 = sigma2;
 guidata(hObject,handles);
+end
 
 
-%{
-% run dynamicLoreta with bcilab
-state = evalin('base','stateLocalization');
-signal = eeg_emptyset;
-signal.data = Winv(:,handles.curIC);%cos(0:.1:2*pi);
-[out,state] = hlp_scope({'disable_expressions',true},@flt_loreta,'signal',signal,'K',handles.K,'L',handles.L,'state',state);
-assignin('base','stateLocalization',state);
+% function genFigLocDF(hObject,handles)
+% % get ica decomposition
+% W = evalin('base','pipeline.state.icaweights');
+% sphere = evalin('base','pipeline.state.icasphere');
+% Winv = inv(W*sphere);
+% 
+% 
+% end
+% 
+% 
+% function updateLocDF(varargin)
+% 
+% end
 
-% update figure and related object
-Jest = zeros(handles.nVertices,3);
-Jest(handles.hmInd,:) = reshape(out.srcpot(:,1),[],3);
-handles.figLoc.handle.sourceOrientation = Jest;
-handles.figLoc.handle.sourceMagnitud = squeeze(sqrt(sum(Jest.^2,2)));
-set(handles.figLoc.handle.hVector,'udata',Jest(:,1),'vdata',Jest(:,2),'wdata',Jest(:,3))
-set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
-%}
+
+function genFigLocBFPF(hObject,handles)
+% get ica decomposition
+W = evalin('base','pipeline.state.icaweights');
+sphere = evalin('base','pipeline.state.icasphere');
+Winv = inv(W*sphere);
+
+% load surfaces
+temp = load(handles.headModel.surfaces);
+vertices = temp.surfData(3).vertices(handles.hmInd,:);
+
+% create figure and dipole plot
+fhandle = handles.headModel.plotDipoles([0 0 0],[0 0 0]);
+set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject},'name',['IC' num2str(handles.curIC)]);
+hold(fhandle.hAxes,'on');
+
+% initialize bfpf
+[dipoles, L, moments, weights, handles.figLoc.state] = ...
+    bfpf(Winv(:,handles.curIC),handles.K,vertices,1,500);
+moments = reshape(moments,[],3);
+moments = bsxfun(@rdivide,moments,row_pnorm(moments));
+dmnorm = norm(dipoles.moment)/50;
+arrows_dip = quiver3(dipoles.location(1),dipoles.location(2),dipoles.location(3), ...
+    dipoles.moment(1)/dmnorm,dipoles.moment(2)/dmnorm,dipoles.moment(3)/dmnorm,'g','linewidth',3);
+arrows = quiver3(vertices(L,1),vertices(L,2),vertices(L,3), ...
+    weights'.*moments(:,1),weights'.*moments(:,2),weights'.*moments(:,3));
+temp = load(handles.headModel.surfaces);
+scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,temp.surfData(1).vertices,32);
+set(fhandle.hScalp,'FaceVertexCData',scalp*Winv(:,handles.curIC),'facecolor','interp')
+colormap(bipolar(512, 0.99))
+maxabs = max(abs(Winv(:,handles.curIC)));
+caxis(fhandle.hAxes,[-maxabs maxabs]);
+
+% create timer
+locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLocBFPF,hObject},'Tag','locTimer','Name','locTimer');
+
+% save headModel plot, timer, and bfpf state to handles
+handles.pauseTimers = [handles.pauseTimers,locTimer];
+handles.figLoc.handle = fhandle;
+handles.figLoc.IC = handles.curIC;
+handles.figLoc.arrows_dip = arrows_dip;
+handles.figLoc.arrows = arrows;
+handles.figLoc.scalp = scalp;
+guidata(hObject,handles);
+
+% start timer
+% start(locTimer)
+end
+
+
+function updateLocBFPF(varargin)
+% get ica decomposition
+W = evalin('base','pipeline.state.icaweights');
+sphere = evalin('base','pipeline.state.icasphere');
+Winv = inv(W*sphere);
+
+% parse inputs
+handles = guidata(varargin{3});
+
+% load surfaces
+temp = load(handles.headModel.surfaces);
+vertices = temp.surfData(3).vertices(handles.hmInd,:);
+
+
+% update bfpf
+[dipoles, L, moments, weights, handles.figLoc.state] = ...
+    bfpf(Winv(:,handles.figLoc.IC),handles.K,vertices,1,handles.figLoc.state.nParticles,[],[],handles.figLoc.state);
+moments = reshape(moments,[],3);
+moments = bsxfun(@rdivide,moments,row_pnorm(moments));
+dmnorm = norm(dipoles.moment)/50;
+set(handles.figLoc.arrows_dip,'XData',dipoles.location(1), ...
+                              'YData',dipoles.location(2), ...
+                              'ZData',dipoles.location(3), ...
+                              'UData',dipoles.moment(1)/dmnorm, ...
+                              'VData',dipoles.moment(2)/dmnorm, ...
+                              'WData',dipoles.moment(3)/dmnorm);
+set(handles.figLoc.arrows,'XData',vertices(L,1), ...
+                          'YData',vertices(L,2), ...
+                          'ZData',vertices(L,3), ...
+                          'UData',weights'.*moments(:,1), ...
+                          'VData',weights'.*moments(:,2), ...
+                          'WData',weights'.*moments(:,3));
+set(handles.figLoc.handle.hScalp,'FaceVertexCData', ...
+    handles.figLoc.scalp*Winv(:,handles.figLoc.IC))
+maxabs = max(abs(Winv(:,handles.figLoc.IC)));
+caxis(handles.figLoc.handle.hAxes,[-maxabs maxabs]);
+
+
 end
 
 
@@ -521,8 +609,8 @@ end
 function genICSelectGUI(hObject,handles)
 temp = get(handles.figure1,'Position');
 fhandle = figure('toolbar','none','Menubar','none','Name','IC Select','position',[1 1 temp(3:4)],'Resize','on','DeleteFcn',{@closeFigIC,hObject});
-W = evalin('base','W');
-sphere = evalin('base','sphere');
+W = evalin('base','pipeline.state.icaweights');
+sphere = evalin('base','pipeline.state.icasphere');
 Winv = inv(W*sphere);
 
 rowcols(2) = ceil(sqrt(handles.nic));

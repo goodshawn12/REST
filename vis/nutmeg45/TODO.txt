@@ -1,0 +1,33 @@
+
+POTENTIALLY IMPORTANT
+- check sign of meg/eeg data (it appears to be different between Matlab and CTF)
+- CTF read data needs to be permuted (comes out [time,channels,trials], but should be [channels,time,trials])
+
+REWORK OUTPUT:
+- save weights and path to original MEG file, rather than whole s_beam
+- allow option to use weights with different MEG file
+
+TODO IF YOU'RE BORED:
+- use SPM's spm_sections for activation display
+- clean up code/unnecessary comments
+- make everything batch-process friendly/ call from command line
+- use MarsBar for ROI selection? (marsbar.sourceforge.net)
+- average time series around cursor
+- for CTF, allow selection (random?) of channel subset for quick analysis ???
+- somehow allow montage selection
+- estimate time of completion for long procedures...
+
+- ability to combine multiple runs?
+
+- incorporate uigetpref & uisetpref
+
+- MOVIE generation
+    - mac/windows-compatible version
+    - allow specification of time interval
+
+FUTURE:
+- connectivity analyses
+- sensor time-frequency analyses
+- parallel MATLAB
+- direct render on MNI brain
+- anon svn

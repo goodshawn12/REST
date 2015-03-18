@@ -5,8 +5,8 @@ addpath(genpath('utility'))
 addpath('vis')
 
 Emotiv = 0;
-Cognionics = 0;
-test16 = 1;
+Cognionics = 1;
+test16 = 0;
 
 % load channel locations
 if Emotiv
@@ -28,7 +28,7 @@ if Emotiv
 elseif Cognionics
 %     calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20150115_Calibration.set', ...
 %         'markerchannel',{'remove_eventchns',false}));
-    calibData = exp_eval_optimized(io_loadset('/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Calibration.set', ...
+    calibData = exp_eval_optimized(io_loadset('/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Experiment.set', ...
         'markerchannel',{'remove_eventchns',false}));
     hmObj = load('vis/cognionicsHeadModel');
     hmLoc = load('vis/cognionicssLORETA');
@@ -64,6 +64,6 @@ end
 % select data
 % calibData = set_selinterval(calibData, opts.calibEpoch);
 % calibData = pop_loadset('data/EmotivTrain_EyeClose_icainfo.set');
-calibData = pop_select(calibData,'time',[0 60]);
+calibData = pop_select(calibData,'time',[0 10]);
 
 visORICA(calibData)

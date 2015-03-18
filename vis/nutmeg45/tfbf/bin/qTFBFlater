@@ -1,0 +1,5 @@
+#!/bin/csh
+# schedules qTFBF to run later today...
+# Usage: qTFBFlater 2300 sessionfile
+# This would run qTFBF at 11pm tonight
+qsub -t 1-8 -a `date +%m%d`$1 /data/research_meg/tfbf/bin/qTFBF.csh $2 /data/research_meg/tfbf/params/firlsbp200cn SAM

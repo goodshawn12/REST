@@ -1,0 +1,4 @@
+#example script to automatically synchronize local directory with chef (QB3 cluster) upon login and logout
+rsync --progress --exclude=bin/MCR --exclude=.matlab --exclude='*all.mat' --exclude='*spatnorm.mat' --exclude=nosync --exclude=oldattempts --exclude=qlogs -rltvue ssh /data/research_meg2/sarang/qb3/ chef.compbio.ucsf.edu:/netapp/home/sarang/
+ssh -X sarang@chef.compbio.ucsf.edu
+rsync --progress --exclude=bin/MCR --exclude=.ssh --exclude=nosync --exclude=qlogs --exclude=.matlab --exclude=CTF_v5 --exclude='*SAM.mat' -rltvue ssh chef.compbio.ucsf.edu:/netapp/home/sarang/ /data/research_meg2/sarang/qb3/
