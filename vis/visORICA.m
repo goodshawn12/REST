@@ -60,7 +60,7 @@ handles.chanlocs = evalin('base','chanlocs');
 handles.ntopo = 8;
 handles.nic = length(handles.chanlocs);
 handles.ics = 1:handles.ntopo;
-handles.streamName = 'visORICAst'; %'EEGLAB'; %
+handles.streamName = 'visORICAst';
 handles.curIC = 1;
 handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
@@ -72,9 +72,7 @@ calibData = varargin{1};
 handles = check_localization(handles,calibData);
 
 % Start EEG stream
-[~, handles.buffername] = vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG);
-% [~, handles.buffername] = vis_stream_ORICA('StreamName',handles.streamName,'figurehandles',handles.figure1,'axishandles',handles.axisEEG);
-% vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG); % assume only one stream existed (FIXME: multiple streams case)
+[~, handles.bufferName] = vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG);
 eegTimer = timerfind('Name','eegTimer');
 
 % Intialize ORICA
@@ -142,15 +140,20 @@ else
     else
         handles.nVertices = calibData.localization.nVertices;
     end
+    
     if ~isfield(calibData,'localization') || ...
-            ~isfield(calibData.localization,'K') || ...
             ~isfield(calibData.localization,'L')
             
         [~,handles.K,handles.L,rmIndices] = ...
             getSourceSpace4PEB(handles.headModel);
-        handles.ind = setdiff(1:handles.nVertices,rmIndices);
+        handles.hmInd = setdiff(1:handles.nVertices,rmIndices);
     else
-        handles.K = calibData.localization.K;
+        if ~isfield(calibData.localization,'K')
+            temp = load(handles.headModel.leadFieldFile);
+            handles.K = temp.K;
+        else
+            handles.K = calibData.localization.K;
+        end
         handles.L = calibData.localization.L;
         if isfield(calibData.localization,'ind') || isfield(calibData.localization,'rmIndices')
             try
@@ -219,8 +222,8 @@ try
     
     set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
     
-    srate = evalin('base',['lsl_' handles.streamName '_stream.srate']);
-    data = evalin('base',['lsl_' handles.streamName '_stream.data']);
+    srate = evalin('base',[handles.bufferName '.srate']);
+    data = evalin('base',[handles.bufferName '.data']);
     if all(data(:,end)==0)
         mark=1;
         while true
@@ -363,8 +366,11 @@ end
 method =  questdlg('Choose method for source Localization','Localization', ...
     'LORETA','Beamforming Particle Filter','LORETA');
 
+flag_resume = false;
 if strcmpi(get(handles.pushbuttonPause,'string'),'Pause')
-    stop(handles.pauseTimers); end
+    stop(handles.pauseTimers);
+    flag_resume = true;
+end
 
 switch method
     case 'LORETA'
@@ -375,7 +381,8 @@ switch method
         genFigLocBFPF(hObject,handles)
 end
 
-if strcmpi(get(handles.pushbuttonPause,'string'),'Pause')
+if flag_resume
+    handles = guidata(hObject);
     start(handles.pauseTimers); end
 
 end
@@ -396,8 +403,12 @@ options = struct('maxTol',1e-3,'maxIter',100,'gridSize',100,'verbose',false,'his
 [J,sigma2,tau2] = dynamicLoreta(Winv(:,handles.curIC), Ut, s2,iLV,[],[], options);
 
 % create headModel plot
-Jest = zeros(handles.nVertices,3);
-Jest(handles.hmInd,:) = reshape(J,[],3);
+if handles.nVertices == length(J)
+    Jest = J;
+else
+    Jest = zeros(handles.nVertices,3);
+    Jest(handles.hmInd,:) = reshape(J,[],3);
+end
 fhandle = handles.headModel.plotOnModel(Jest(:),Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
 set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject},'name',['IC' num2str(handles.curIC)]);
 
@@ -417,6 +428,10 @@ handles.figLoc.sigma2 = sigma2;
 handles.figLoc.options = options;
 temp = load(handles.headModel.surfaces);
 handles.figLoc.scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,temp.surfData(1).vertices,32);
+if range(handles.figLoc.scalp)<.5
+    warning('visORICA - Localization: Unsure about channel space units. Trying meters instead of millimeters.')
+    handles.figLoc.scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,temp.surfData(1).vertices,32/1000);
+end
 guidata(hObject,handles);
 
 % start timer
@@ -434,7 +449,6 @@ Winv = inv(W*sphere);
 handles = guidata(varargin{3});
 
 % run dynamicLoreta
-
 Ut = handles.figLoc.Ut;
 s2 = handles.figLoc.s2;
 iLV = handles.figLoc.iLV;
@@ -443,25 +457,33 @@ sigma2 = handles.figLoc.sigma2;
 options = handles.figLoc.options;
 [J,sigma2,tau2] = dynamicLoreta(Winv(:,handles.figLoc.IC), Ut, s2,iLV,sigma2,tau2, options);
 
-% update figure and related object
-Jest = zeros(handles.nVertices,3);
-Jest(handles.hmInd,:) = reshape(J,[],3);
-handles.figLoc.handle.sourceOrientation = Jest;
-handles.figLoc.handle.sourceMagnitud = squeeze(sqrt(sum(Jest.^2,2)));
-set(handles.figLoc.handle.hVector,'udata',Jest(:,1),'vdata',Jest(:,2),'wdata',Jest(:,3))
-set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
-set(handles.figLoc.handle.hScalp,'FaceVertexCData', ...
-    handles.figLoc.scalp*Winv(:,handles.figLoc.IC))
-maxabs = max(abs(Winv(:,handles.figLoc.IC)));
+% update figure and related object values
+if handles.nVertices == length(J)
+    Jest = J;
+    handles.figLoc.handle.sourceMagnitud = Jest;
+    set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
+else
+    Jest = zeros(handles.nVertices,3);
+    Jest(handles.hmInd,:) = reshape(J,[],3);
+    handles.figLoc.handle.sourceOrientation = Jest;
+    handles.figLoc.handle.sourceMagnitud = squeeze(sqrt(sum(Jest.^2,2)));
+    set(handles.figLoc.handle.hVector,'udata',Jest(:,1),'vdata',Jest(:,2),'wdata',Jest(:,3))
+    set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
+end
+scalp_val = handles.figLoc.scalp*Winv(:,handles.figLoc.IC);
+set(handles.figLoc.handle.hScalp,'FaceVertexCData',scalp_val)
+
+% upade color limits
+maxabs = max(abs(scalp_val));
 handles.figLoc.handle.clim.scalp = [-maxabs maxabs];
 maxabs = max(abs(handles.figLoc.handle.sourceMagnitud));
-handles.figLoc.handle.clim.scalp = [-maxabs maxabs];
+handles.figLoc.handle.clim.source = [-maxabs maxabs];
 
 
 % save dynamicLoreta parameters to handles
 handles.figLoc.tau2 = tau2;
 handles.figLoc.sigma2 = sigma2;
-guidata(hObject,handles);
+guidata(varargin{3},handles);
 end
 
 
@@ -487,41 +509,72 @@ sphere = evalin('base','pipeline.state.icasphere');
 Winv = inv(W*sphere);
 
 % load surfaces
-temp = load(handles.headModel.surfaces);
-vertices = temp.surfData(3).vertices(handles.hmInd,:);
+sd = load(handles.headModel.surfaces);
+vertices = sd.surfData(3).vertices(handles.hmInd,:);
+
+% calculate scalp potential transform and guess units
+scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,sd.surfData(1).vertices,32);
+if range(scalp)<.5
+    warning('visORICA - Localization: Unsure about channel space units. Trying meters instead of millimeters.')
+    scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,sd.surfData(1).vertices,32/1000);
+    Q_location = .01*eye(3)/1000;
+else
+    Q_location = .01*eye(3);
+end
 
 % create figure and dipole plot
 fhandle = handles.headModel.plotDipoles([0 0 0],[0 0 0]);
 set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject},'name',['IC' num2str(handles.curIC)]);
 hold(fhandle.hAxes,'on');
 
-% initialize bfpf
-[dipoles, L, moments, weights, handles.figLoc.state] = ...
-    bfpf(Winv(:,handles.curIC),handles.K,vertices,1,500);
-moments = reshape(moments,[],3);
-moments = bsxfun(@rdivide,moments,row_pnorm(moments));
-dmnorm = norm(dipoles.moment)/50;
-arrows_dip = quiver3(dipoles.location(1),dipoles.location(2),dipoles.location(3), ...
-    dipoles.moment(1)/dmnorm,dipoles.moment(2)/dmnorm,dipoles.moment(3)/dmnorm,'g','linewidth',3);
-arrows = quiver3(vertices(L,1),vertices(L,2),vertices(L,3), ...
-    weights'.*moments(:,1),weights'.*moments(:,2),weights'.*moments(:,3));
-temp = load(handles.headModel.surfaces);
-scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,temp.surfData(1).vertices,32);
+% initialize bfpf with all vertices active
+nParticles = 500;
+[dipoles, L, moments, weights, state] = ...
+    bfpf(Winv(:,handles.curIC),handles.K,vertices,1,nParticles,Q_location,[],[],1);
+
+% adjust state to only contain the nParticles best particles
+[~,ind] = sort(state.weights,2,'descend');
+state.weights = state.weights(ind(1:nParticles));
+state.L = state.L(ind(1:nParticles));
+
+% set scalp potentials
 set(fhandle.hScalp,'FaceVertexCData',scalp*Winv(:,handles.curIC),'facecolor','interp')
+
+if length(moments)/3==nParticles
+    moments = reshape(moments,[],3);
+    moments = bsxfun(@rdivide,moments,row_pnorm(moments));
+    dmnorm = norm(dipoles.moment)/50;
+    arrows_dip = quiver3(dipoles.location(1),dipoles.location(2),dipoles.location(3), ...
+        dipoles.moment(1)/dmnorm,dipoles.moment(2)/dmnorm,dipoles.moment(3)/dmnorm,'k0','filled');
+%     arrows = quiver3(vertices(L,1),vertices(L,2),vertices(L,3), ...
+%         weights'.*moments(:,1),weights'.*moments(:,2),weights'.*moments(:,3));
+else
+    normals = geometricTools.getSurfaceNormals(sd.surfData(end).vertices,sd.surfData(end).faces,false);
+    arrows_dip = quiver3(dipoles.location(1),dipoles.location(2),dipoles.location(3), ...
+        dipoles.moment*normals(dipoles.L,1)/50,dipoles.moment*normals(dipoles.L,2)/50,dipoles.moment*normals(dipoles.L,3)/50,'ko','filled');
+%     arrows = quiver3(vertices(L,1),vertices(L,2),vertices(L,3), ...
+%         weights'.*moments.*normals(L,1),weights'.*moments.*normals(L,2),weights'.*moments.*normals(L,3)); 
+end
 colormap(bipolar(512, 0.99))
-maxabs = max(abs(Winv(:,handles.curIC)));
+maxabs = max(abs(vec(scalp*Winv(:,handles.curIC))));
 caxis(fhandle.hAxes,[-maxabs maxabs]);
+
+
 
 % create timer
 locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLocBFPF,hObject},'Tag','locTimer','Name','locTimer');
 
 % save headModel plot, timer, and bfpf state to handles
+handles.figLoc.state = state;
 handles.pauseTimers = [handles.pauseTimers,locTimer];
 handles.figLoc.handle = fhandle;
 handles.figLoc.IC = handles.curIC;
 handles.figLoc.arrows_dip = arrows_dip;
-handles.figLoc.arrows = arrows;
+% handles.figLoc.arrows = arrows;
 handles.figLoc.scalp = scalp;
+handles.figLoc.Q_location = Q_location;
+handles.figLoc.normals = normals;
+handles.figLoc.nParticles = nParticles;
 guidata(hObject,handles);
 
 % start timer
@@ -537,36 +590,52 @@ Winv = inv(W*sphere);
 
 % parse inputs
 handles = guidata(varargin{3});
+Q_location = handles.figLoc.Q_location;
+normals = handles.figLoc.normals;
+nParticles = handles.figLoc.nParticles;
 
 % load surfaces
 temp = load(handles.headModel.surfaces);
 vertices = temp.surfData(3).vertices(handles.hmInd,:);
 
-
 % update bfpf
 [dipoles, L, moments, weights, handles.figLoc.state] = ...
-    bfpf(Winv(:,handles.figLoc.IC),handles.K,vertices,1,handles.figLoc.state.nParticles,[],[],handles.figLoc.state);
-moments = reshape(moments,[],3);
-moments = bsxfun(@rdivide,moments,row_pnorm(moments));
-dmnorm = norm(dipoles.moment)/50;
-set(handles.figLoc.arrows_dip,'XData',dipoles.location(1), ...
-                              'YData',dipoles.location(2), ...
-                              'ZData',dipoles.location(3), ...
-                              'UData',dipoles.moment(1)/dmnorm, ...
-                              'VData',dipoles.moment(2)/dmnorm, ...
-                              'WData',dipoles.moment(3)/dmnorm);
-set(handles.figLoc.arrows,'XData',vertices(L,1), ...
-                          'YData',vertices(L,2), ...
-                          'ZData',vertices(L,3), ...
-                          'UData',weights'.*moments(:,1), ...
-                          'VData',weights'.*moments(:,2), ...
-                          'WData',weights'.*moments(:,3));
+    bfpf(Winv(:,handles.figLoc.IC),handles.K,vertices,1,handles.figLoc.state.nParticles,Q_location,[],handles.figLoc.state,1);
+if length(moments)/3==nParticles
+    moments = reshape(moments,[],3);
+    moments = bsxfun(@rdivide,moments,row_pnorm(moments));
+    dmnorm = norm(dipoles.moment)/50;
+    set(handles.figLoc.arrows_dip,'XData',dipoles.location(1), ...
+                                  'YData',dipoles.location(2), ...
+                                  'ZData',dipoles.location(3), ...
+                                  'UData',dipoles.moment(1)/dmnorm, ...
+                                  'VData',dipoles.moment(2)/dmnorm, ...
+                                  'WData',dipoles.moment(3)/dmnorm);
+%     set(handles.figLoc.arrows,'XData',vertices(L,1), ...
+%                               'YData',vertices(L,2), ...
+%                               'ZData',vertices(L,3), ...
+%                               'UData',weights'.*moments(:,1), ...
+%                               'VData',weights'.*moments(:,2), ...
+%                               'WData',weights'.*moments(:,3));
+else
+    set(handles.figLoc.arrows_dip,'XData',dipoles.location(1), ...
+                                  'YData',dipoles.location(2), ...
+                                  'ZData',dipoles.location(3), ...
+                                  'UData',dipoles.moment*normals(dipoles.L,1)/50, ...
+                                  'VData',dipoles.moment*normals(dipoles.L,2)/50, ...
+                                  'WData',dipoles.moment*normals(dipoles.L,3)/50);
+%     set(handles.figLoc.arrows,'XData',vertices(L,1), ...
+%                               'YData',vertices(L,2), ...
+%                               'ZData',vertices(L,3), ...
+%                               'UData',weights'.*moments.*normals(L,1), ...
+%                               'VData',weights'.*moments.*normals(L,2), ...
+%                               'WData',weights'.*moments.*normals(L,3));
+    
+end
 set(handles.figLoc.handle.hScalp,'FaceVertexCData', ...
     handles.figLoc.scalp*Winv(:,handles.figLoc.IC))
-maxabs = max(abs(Winv(:,handles.figLoc.IC)));
+maxabs = max(abs(vec(handles.figLoc.scalp*Winv(:,handles.figLoc.IC))));
 caxis(handles.figLoc.handle.hAxes,[-maxabs maxabs]);
-
-
 end
 
 

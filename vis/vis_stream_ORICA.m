@@ -176,8 +176,8 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 % conditionally calculate components
                 plotdata = stream.data(:, round(1 : stream.srate/stream.opts.samplingrate : end));
                 if plotICs
-                    W = evalin('base','W');
-                    sphere = evalin('base','sphere');
+                    W = evalin('base','pipeline.state.icaweights');
+                    sphere = evalin('base','pipeline.state.icasphere');
                     plotdata = W*(sphere*plotdata);
                     stream.opts.datascale = stream.opts.datascale*mean(abs(W*sphere*ones(length(sphere),1)));
                 end
@@ -227,6 +227,28 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',cellstr(int2str(plotchans')));
                     else
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',{stream.chanlocs(plotchans).labels});
+                    end
+                    
+                    % update linestyles if channels were removed
+                    try
+                        flag_channel_removed = false;
+                        pipeline = evalin('base','pipeline');
+                        while true
+                            if ~isequal(pipeline.head,@flt_clean_channels)
+                                try
+                                    pipeline = pipeline.parts{2};
+                                catch
+                                    break
+                                end
+                            else
+                                index = pipeline.parts{2}.parts{end-1};
+                                flag_channel_removed = true;
+                                break
+                            end
+                        end
+                        if flag_channel_removed && ~plotICs
+                            set(lines(index),'linestyle','..')
+                        end
                     end
                 end
                 

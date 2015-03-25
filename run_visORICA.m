@@ -5,8 +5,9 @@ addpath(genpath('utility'))
 addpath('vis')
 
 Emotiv = 0;
-Cognionics = 1;
+Cognionics = 0;
 test16 = 0;
+test64 = 1;
 
 % load channel locations
 if Emotiv
@@ -14,7 +15,9 @@ if Emotiv
 elseif Cognionics %#ok<*UNRCH>
     load data/chanlocs64
 elseif test16
-    load vis/artificial_data_16/chanlocs_test16.mat
+    load vis/artificial_data_16/16ch/chanlocs_test16.mat
+elseif test64
+    load vis/artificial_data_16/test64chanlocs.mat
 end
 
 % load calibration data
@@ -35,11 +38,18 @@ elseif Cognionics
     calibData.headModel = hmObj.cognionicsHeadModel;
     calibData.localization = hmLoc;
 elseif test16
-    calibData = exp_eval_optimized(io_loadset('vis/artificial_data_16/SIM_NSTAT_3sess_16ch_3min.set', ...
+    calibData = exp_eval_optimized(io_loadset('vis/artificial_data_16/16ch/SIM_NSTAT_3sess_16ch_3min.set', ...
         'markerchannel',{'remove_eventchns',false}));
-    hmObj = load('vis/artificial_data_16/hmTest16.mat');
-    hmLoc = load('vis/artificial_data_16/test16LORETA.mat');
-    calibData.headModel = hmObj.hmTest;
+    hmObj = load('vis/artificial_data_16/16ch/Artificial16_HeadModel.mat');
+    hmLoc = load('vis/artificial_data_16/16ch/Artificial16_LFMetc.mat');
+    calibData.headModel = hmObj.Artificial16_HeadModel;
+    calibData.localization = hmLoc;
+elseif test64
+    calibData = exp_eval_optimized(io_loadset('vis/artificial_data_16/SIM_STAT_64ch_10min.set', ...
+        'markerchannel',{'remove_eventchns',false}));
+    hmObj = load('vis/artificial_data_16/sim64HeadModel.mat');
+    hmLoc = load('vis/artificial_data_16/sim64LFMetc.mat');
+    calibData.headModel = hmObj.sim64HeadModel;
     calibData.localization = hmLoc;
 end
 
@@ -64,6 +74,6 @@ end
 % select data
 % calibData = set_selinterval(calibData, opts.calibEpoch);
 % calibData = pop_loadset('data/EmotivTrain_EyeClose_icainfo.set');
-calibData = pop_select(calibData,'time',[0 10]);
+calibData = pop_select(calibData,'time',[0 1]);
 
 visORICA(calibData)
