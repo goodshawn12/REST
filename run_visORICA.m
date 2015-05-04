@@ -1,6 +1,6 @@
 %% Run visGUI
 
-% addpath(genpath('dependencies'))
+addpath(genpath('dependencies'))
 addpath(genpath('utility'))
 addpath('vis')
 
@@ -9,46 +9,50 @@ Cognionics = 0;
 test16 = 0;
 test64 = 1;
 
+playback = 1;
+
 % load channel locations
 if Emotiv
     load data/chanlocs14
 elseif Cognionics %#ok<*UNRCH>
     load data/chanlocs64
 elseif test16
-    load vis/artificial_data_16/16ch/chanlocs_test16.mat
+    load vis/artificial_data/16ch/chanlocs_test16.mat
 elseif test64
-    load vis/artificial_data_16/test64chanlocs.mat
+    load vis/artificial_data/test64chanlocs.mat
 end
 
 % load calibration data
 if Emotiv
-    calibData = exp_eval_optimized(io_loadset('data/EmotivTrain_EyeClose_icainfo.set', ...
+    data_location = 'data/EmotivTrain_EyeClose_icainfo.set';
+    calibData = exp_eval_optimized(io_loadset(data_location, ...
         'markerchannel',{'remove_eventchns',false}));
     hmObj = load('vis/emotivHeadModel');
     hmLoc = load('vis/emotivLFMDerivatives');
     calibData.headModel = hmObj.emotivHeadModel;
     calibData.localization = hmLoc;
 elseif Cognionics
-%     calibData = exp_eval_optimized(io_loadset('D:\Matlab Coding\VisEEG\data\20150115_Calibration.set', ...
-%         'markerchannel',{'remove_eventchns',false}));
-    calibData = exp_eval_optimized(io_loadset('/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Experiment.set', ...
+    data_location = '/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Experiment.set';
+    calibData = exp_eval_optimized(io_loadset(dataset, ...
         'markerchannel',{'remove_eventchns',false}));
     hmObj = load('vis/cognionicsHeadModel');
     hmLoc = load('vis/cognionicssLORETA');
     calibData.headModel = hmObj.cognionicsHeadModel;
     calibData.localization = hmLoc;
 elseif test16
-    calibData = exp_eval_optimized(io_loadset('vis/artificial_data_16/16ch/SIM_NSTAT_3sess_16ch_3min.set', ...
+    data_location = 'vis/artificial_data/16ch/SIM_NSTAT_3sess_16ch_3min.set';
+    calibData = exp_eval_optimized(io_loadset(data_location, ...
         'markerchannel',{'remove_eventchns',false}));
-    hmObj = load('vis/artificial_data_16/16ch/Artificial16_HeadModel.mat');
-    hmLoc = load('vis/artificial_data_16/16ch/Artificial16_LFMetc.mat');
+    hmObj = load('vis/artificial_data/16ch/Artificial16_HeadModel.mat');
+    hmLoc = load('vis/artificial_data/16ch/Artificial16_LFMetc.mat');
     calibData.headModel = hmObj.Artificial16_HeadModel;
     calibData.localization = hmLoc;
 elseif test64
-    calibData = exp_eval_optimized(io_loadset('vis/artificial_data_16/SIM_STAT_64ch_10min.set', ...
+    data_location = 'vis/artificial_data/SIM_STAT_64ch_10min.set';
+    calibData = exp_eval_optimized(io_loadset(data_location, ...
         'markerchannel',{'remove_eventchns',false}));
-    hmObj = load('vis/artificial_data_16/sim64HeadModel.mat');
-    hmLoc = load('vis/artificial_data_16/sim64LFMetc.mat');
+    hmObj = load('vis/artificial_data/sim64HeadModel.mat');
+    hmLoc = load('vis/artificial_data/sim64LFMetc.mat');
     calibData.headModel = hmObj.sim64HeadModel;
     calibData.localization = hmLoc;
 end
@@ -75,5 +79,14 @@ end
 % calibData = set_selinterval(calibData, opts.calibEpoch);
 % calibData = pop_loadset('data/EmotivTrain_EyeClose_icainfo.set');
 calibData = pop_select(calibData,'time',[0 1]);
+W = [];sphere = [];
 
+
+
+if playback
+    EEG = pop_loadset(data_location);
+    playbackStream = play_eegset_lsl(EEG,[],[],[],true);
+end
 visORICA(calibData)
+stop(playbackStream)
+delete(playbackStream)

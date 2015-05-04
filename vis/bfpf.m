@@ -63,13 +63,15 @@ if flag_all
         for itM = 1:nParticles
             % make linearly constrained minimum variance(LCMV) beamforming filter
 %             W0 = Ktpi(:,tri_index(unique(Lold(itM)),nVert))*K(:,tri_index(unique(Lold(itM)),nVert))';
-            W0 = eye(nChan);
+%             W0 = eye(nChan);
             % calculate moments vector
-            moments(tri_index(itM,nParticles,flag_fixedDir)) = Kpi_individual(tri_index(L(itM),nVert,flag_fixedDir),:)*W0'*data(:,it);
+            moments(tri_index(itM,nParticles,flag_fixedDir)) = Kpi_individual(tri_index(L(itM),nVert,flag_fixedDir),:)*data(:,it);
+%             moments(tri_index(itM,nParticles,flag_fixedDir)) = Kpi_individual(tri_index(L(itM),nVert,flag_fixedDir),:)*(W0'*data(:,it));
         end
         %     moments = sparse([ones(nParticles,1);2*ones(nParticles,1);3*ones(nParticles,1)],repmat(Lold',3,1),moments',3,nVert);
         % update new weights
         if flag_fixedDir
+%             moments = max(moments,0);
             y_hat = bsxfun(@times,moments',K(:,tri_index(L,nVert,flag_fixedDir)));
         else
             y_hat = sum(reshape(bsxfun(@times,moments',K(:,tri_index(L,nVert,flag_fixedDir))),[nChan,nParticles,3]),3);

@@ -1,2 +1,0 @@
-#!/bin/csh
-qsub /data/research_meg/tfbf/bin/qrun.csh $*

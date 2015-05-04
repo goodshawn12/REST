@@ -21,6 +21,10 @@ classdef headModel < handle
     end
     properties(GetAccess = private, SetAccess = private)
         label;
+        F = [];
+    end
+    properties(Dependent)
+        channelLabel = []
     end
     methods
         function obj = headModel(varargin)
@@ -39,8 +43,7 @@ classdef headModel < handle
             if ~isempty(obj.surfaces)
                 [~,~,e] = fileparts(obj.surfaces);
                 if isempty(e), obj.surfaces = [obj.surfaces,'.mat'];end
-            end
-            
+            end            
             ind = find(ismember(varargin(1:2:length(varargin)-1),'atlas'));
             if ~isempty(ind)
                 tmpAtlas = varargin{ind*2};
@@ -50,14 +53,11 @@ classdef headModel < handle
                 end
                 obj.atlas = tmpAtlas;
             end
-            
-            
             ind = find(ismember(varargin(1:2:length(varargin)-1),'fiducials'));
             if ~isempty(ind), obj.fiducials = varargin{ind*2};end
             
             ind = find(ismember(varargin(1:2:length(varargin)-1),'leadFieldFile'));
             if ~isempty(ind), obj.leadFieldFile = varargin{ind*2};end
-            
             ind = find(ismember(varargin(1:2:length(varargin)-1),'label'));
             if ~isempty(ind),
                 obj.label = varargin{ind*2};
@@ -68,7 +68,47 @@ classdef headModel < handle
                 for it=1:N, obj.label{it} = deblank(obj.label{it});end
             end
         end
-        function labels = getChannelLabels(obj), labels = obj.label;end
+        function labels = getChannelLabels(obj)
+            labels = obj.label;
+            warning('This method will be deprecated in the future, instead you can access directly the property channelLabel.')
+        end
+        function channelLabel = get.channelLabel(obj)
+            channelLabel = obj.label;
+        end
+        %%
+        function [roiname,roinumber] = labelDipole(obj,dipole)
+            if isempty(obj.F)
+                load(obj.surfaces)
+                obj.F = scatteredInterpolant(surfData(end).vertices(:,1),...
+                    surfData(end).vertices(:,2),surfData(end).vertices(:,3),...
+                    obj.atlas.colorTable,'nearest');
+            end
+            roinumber = obj.F(dipole(:,1),dipole(:,2),dipole(:,3));
+            roiname = obj.atlas.label(roinumber);
+        end
+        %%
+        function chanlocs = makeChanlocs(obj)
+            % make EEGLAB chanlocs structure from channel locations and
+            % labels
+            if isempty(which('convertlocs'))
+                error('EEGLAB function convertlocs.m is missing.');
+            end
+            for k=1:length(obj.label)
+                chanlocs(k) = struct('labels',obj.label{k}, ...
+                                     'ref','', ...
+                                     'theta',[], ...
+                                     'radius',[], ...
+                                     'X',obj.channelSpace(k,1), ...
+                                     'Y',obj.channelSpace(k,2), ...
+                                     'Z',obj.channelSpace(k,3), ...
+                                     'sph_theta', [], ...
+                                     'sph_phi',[], ...
+                                     'sph_radius',[], ...
+                                     'type', 'EEG', ...
+                                     'urchan', []);
+            end
+            chanlocs = convertlocs( chanlocs, 'cart2all');
+        end
         %%
         function h = plotHeadModel(obj,~) % do not remove the circumflex, I'm passging a second arguments when this method is called from MoBILAB's gui
             % Plots the different layers of tissue, the sensor positions, and their labels.
@@ -81,7 +121,7 @@ classdef headModel < handle
             end
             h = headModelViewerHandle(obj,obj.label);
         end
-        %%
+       %%
         function h = plotMontage(obj,showNewfig)
             % Plots a figure with the xyz distribution of sensors, fiducial landmarks, and
             % coordinate axes.
@@ -134,7 +174,7 @@ classdef headModel < handle
             axis vis3d
             grid on;
         end
-        %%
+       %%
         function individualHeadModelFile = warpTemplate2channelSpace(obj,headModelFile,individualHeadModelFile)
             % Warps a template head model to the space defined by the sensor positions (channelSpace). It uses Dirk-Jan Kroon's
             % nonrigid_version23 toolbox.
@@ -299,7 +339,7 @@ classdef headModel < handle
             try obj.statusbar(8);end %#ok
             disp('Done!')
         end
-        %%
+       %%
         function hFigureObj = plotOnModel(obj,J,V,figureTitle)
             % Plots cortical/topographical maps onto the cortical/scalp surface.
             % 
@@ -318,7 +358,7 @@ classdef headModel < handle
             if isa(obj,'pcdStream'), channelLabels = obj.parent.label;else channelLabels = obj.label;end
             hFigureObj = currentSourceViewer(obj,J,V,figureTitle,channelLabels);
         end
-        %%
+       %%
         function Aff = warpChannelSpace2Template(obj,headModelFile,individualHeadModelFile,regType)
             % Estimates a mapping from channel space to a template's head. It uses Dirk-Jan Kroon's
             % nonrigid_version23 toolbox.
@@ -490,7 +530,7 @@ classdef headModel < handle
             save(obj.surfaces,'surfData');
             if isa(obj,'eeg'), obj.statusbar(8);end
         end
-        %%
+       %%
         function computeLeadFieldBEM(obj, conductivity,orientation)
             % Computes the lead field matrix interfacing OpenMEEG toolbox [1].
             %
@@ -642,7 +682,7 @@ classdef headModel < handle
                 csfSurf = surfData(2);
                 csfSurf.vertices     = surfData(2).vertices + 1.05*normals;
                 surfData(2).vertices = surfData(2).vertices - 1.05*normals;
-                csfSurf.vertices     = gTools.repareIntersectedSurface(surfData(3),csfSurf,1);
+                csfSurf.vertices     = gTools.repareIntersectedSurface(surfData(end),csfSurf,1);
                 surfData(2).vertices = gTools.repareIntersectedSurface(csfSurf,surfData(2),2);
                 surfData(1).vertices = gTools.repareIntersectedSurface(surfData(2),surfData(1),2);
                 [normals,csfSurf.faces] = gTools.getSurfaceNormals(csfSurf.vertices,csfSurf.faces,normalsIn);
@@ -697,10 +737,14 @@ classdef headModel < handle
             load(lfFile);
             K = linop;
             clear linop;
+            
+            %-- Remove extreme values due to numerical instability
             z = zscore(K(:));
-            ind = find(z<norminv(0.01) | z>norminv(0.99));
-            % removing extreme values due to numerical instability
-            K(ind) = 0; %#ok
+            a = 0.00001;
+            ind = find(z<norminv(a) | z>norminv(1-a));
+            ind_i = setdiff(1:numel(K),ind);
+            K(ind) = interp1(ind_i,K(ind_i),ind,'nearest','extrap');
+            %--
             
             if exist(lfFile,'file'), delete(lfFile);end
             if exist(obj.leadFieldFile,'file'), delete(obj.leadFieldFile);end
@@ -710,24 +754,26 @@ classdef headModel < handle
             if isa(obj,'coreStreamObject'), saveProperty(obj,'leadFieldFile',obj.leadFieldFile);end
             disp('Done.')
         end
-        %%
-        function [sourceSpace,K,L,rmIndices] = getSourceSpace4PEB(obj,structName)
+       %%
+        function [sourceSpace,K,L,rmIndices] = getSourceSpace4PEB(obj,structName, rmIndices)
             if isempty(obj.surfaces) || isempty(obj.leadFieldFile), error('Head model or leadfield are missing.');end
             if nargin < 2
                 structName = {'Thalamus_L' 'Thalamus_R'};
                 disp('Undefined structure to remove. Opening the surface by the Thalamus.')
             end
-            maxNumVertices2rm = 20;
-            load(obj.surfaces);
+            if nargin < 3, rmIndices = [];end
+            maxNumVertices2rm = 10;
+            load(obj.surfaces,'-mat');
             sourceSpace = surfData(end); %#ok
-            load(obj.leadFieldFile);
+            load(obj.leadFieldFile,'-mat');
             if ~exist('L','var'),
                 disp('Computing the Laplacian operator...')
                 L = geometricTools.getSurfaceLaplacian(sourceSpace.vertices,sourceSpace.faces);
                 save(obj.leadFieldFile,'K','L','-mat')
             end
             
-            try [sourceSpace,rmIndices] = obj.removeStructureFromSourceSpace(structName,maxNumVertices2rm);
+            try 
+                [sourceSpace,rmIndices] = obj.removeStructureFromSourceSpace(structName,maxNumVertices2rm, rmIndices);
             catch ME
                 warning(ME.message);
                 disp('Doing my best to open the surface.')
@@ -747,15 +793,15 @@ classdef headModel < handle
                 K(:,rmIndices) = [];
             end
         end
-        %%
-        function indices = indicesROI2Indices(obj,structName)
+       %%
+        function indices = indices4Structure(obj,structName)
             if nargin < 2, error('Not enough input arguments.');end
-            if isempty(obj.atlas) || isempty(obj.surfaces), error('Head model or atlas are missing.');end
-            ind     = find(ismember(obj.atlas.label,structName));
+            ind = find(ismember(obj.atlas.label,structName));
+            if isempty(ind), error('MoBILAB:noStructureMatched','The structure you want to remove is not defined in this atlas.');end
             indices = bsxfun(@eq,obj.atlas.colorTable,ind');
         end
-        %%
-        function xyz = getCentoidROI(obj,ROInames)
+       %%
+        function xyz = getCentroidROI(obj,ROInames)
             if nargin < 2, error('Not enough input arguments.');end
             if isempty(obj.atlas) || isempty(obj.surfaces), error('Head model or atlas are missing.');end
             if ~iscell(ROInames), ROInames = {ROInames}; end
@@ -763,13 +809,13 @@ classdef headModel < handle
             xyz = nan(N,3);
             load(obj.surfaces);
             for it=1:N
-                try indices = obj.indicesROI2Indices(ROInames{it});
-                    xyz(it,:) = mean(surfData(3).vertices(indices,:));
+                try indices = obj.indices4Structure(ROInames{it});
+                    xyz(it,:) = mean(surfData(end).vertices(indices,:));
                 end
             end
         end
-        %%
-        function K = getForwardProjection(obj,xyz)
+       %%
+        function [FP,S] = getForwardProjection(obj,xyz)
             if nargin < 2, error('Not enough input arguments.');end
             if isempty(obj.atlas) || isempty(obj.surfaces), error('Head model or atlas are missing.');end
             if ~exist(obj.surfaces,'file'), error('Head model is missing.');end
@@ -779,205 +825,68 @@ classdef headModel < handle
             if ~exist('K','var'), error('Lead field is missing.');end
             
             load(obj.surfaces);
-            [~,~,loc] = geometricTools.nearestNeighbor(surfData(3).vertices,xyz);
+            [~,~,loc] = geometricTools.nearestNeighbor(surfData(end).vertices,xyz);
             dim = size(K);
-            if size(surfData(3).vertices,1) == dim(2)/3, K = reshape(K,[dim(1) dim(2)/3 3]);end
-            K = K(:,loc,:);
+            if size(surfData(end).vertices,1) == dim(2)/3, K = reshape(K,[dim(1) dim(2)/3 3]);end
+            FP = sum(K(:,loc,:),3);
+            S = geometricTools.simulateGaussianSource(surfData(end).vertices,xyz,0.01);
         end
-        %%
-        function hFigureObj = plotDipoles(obj,xyz,ecd,figureTitle)
+       %%
+        function hFigureObj = plotDipoles(obj,xyz,ecd,dipoleLabel,figureTitle)
             if nargin < 2, error('Not enough input arguments.');end
             if isempty(obj.surfaces), error('Head model is missing.');end
             N = size(xyz,1);
             if nargin < 3, ecd = 3*ones(N,3);end
-            if nargin < 4, figureTitle = '';end
-            hFigureObj = equivalentCurrentDipoleViewer(obj,xyz,ecd,figureTitle);
+            if isempty(ecd), ecd = 3*ones(N,3);end
+            if nargin < 4, dipoleLabel = [];end
+            if nargin < 5, figureTitle = '';end
+            hFigureObj = equivalentCurrentDipoleViewer(obj,xyz,ecd,dipoleLabel,figureTitle);
         end
-        function hFigureObj = plotDipolesForwardProjection(obj,xyz,ecd,figureTitle)
+        function hFigureObj = plotDipolesForwardProjection(obj,xyz,figureTitle)
+            [FP,S] = getForwardProjection(obj,xyz);
+            hFigureObj = obj.plotOnModel(S,FP);
         end
-        %%
-        function [sourceSpace,rmIndices] = removeStructureFromSourceSpace(obj,structName,maxNumVertices2rm)
+       %%
+        function [sourceSpace,rmIndices] = removeStructureFromSourceSpace(obj,structName,maxNumVertices2rm, structIndices)
             if isempty(obj.atlas) || isempty(obj.surfaces), error('Head model or atlas are missing.');end
             if nargin < 2, error('Not enough input arguments.');end
             if nargin < 3, maxNumVertices2rm = [];end
+            if nargin < 4, structIndices = [];end
             if ~iscell(structName), structName = {structName}; end
             
-            load(obj.surfaces);
+            load(obj.surfaces,'-mat');
             sourceSpace = surfData(end);%#ok
             
-            ind = find(ismember(obj.atlas.label,structName));
-            if isempty(ind), error('The structure you want to remove is not defined in this atlas.');end
-            
-            rmIndices = bsxfun(@eq,obj.atlas.colorTable,ind');
-            if isempty(maxNumVertices2rm)
-                rmIndices = find(any(rmIndices,2));
-            else
-                I = [];
-                for it=1:length(ind)
-                    tmp = find(rmIndices(:,it));
-                    if length(tmp) > maxNumVertices2rm+1, tmp(maxNumVertices2rm+1:end) = [];end
-                    I = [I; tmp]; %#ok
-                end
-                rmIndices = I;
+            tmpIndices = indices4Structure(obj,structName);
+            if ~any(tmpIndices(:)) && isempty(structIndices),
+                error('The structure you want to remove is not defined in this atlas.');
             end
+            
+            if ~isempty(structIndices)
+                % concatenate elements of structIndices into a single column vector
+                structIndices = cellfun(@(x)x(:),structIndices,'UniformOutput',false)';
+                structIndices = cell2mat(structIndices);
+            end
+            if ~isempty(maxNumVertices2rm) && any(sum(tmpIndices) > maxNumVertices2rm+1)
+                I = [];
+                maxNumVertices2rm = fix(maxNumVertices2rm/size(tmpIndices,2));
+                for it=1:size(tmpIndices,2)
+                    ind = find(tmpIndices(:,it));
+                    if length(ind) > maxNumVertices2rm
+                        I = [I; ind(1:maxNumVertices2rm)];
+                    else
+                        I = [I; ind];
+                    end
+                end
+                tmpIndices = I;
+            end
+            rmIndices = unique_bc([tmpIndices(:) ; structIndices]);
+            
             [nVertices,nFaces] = geometricTools.openSurface(sourceSpace.vertices,sourceSpace.faces,rmIndices);
             sourceSpace.vertices = nVertices;
             sourceSpace.faces = nFaces;
         end
-        %%
-        % call NFT routines (doesn't work)
-        function computeLeadFieldBEM_NFT(obj, conductivity, normalityConstrained)
-            % conductivity values taken from Valdes-Hernandez et al., 2006
-            % also check Oostendrop TF, 2000; Wendel and Malmivuo, 2006
-            %
-            % brain and scalp: 0.33 S/m
-            % skull: 0.022 S/m
-            if nargin < 2, conductivity = [0.33 0.022 0.33];end
-            if isempty(obj.channelSpace) || isempty(obj.label) || isempty(obj.surfaces);
-                error('Head model is incomplete or missing.');
-            end
-            if any(conductivity == -1)
-                prompt = {'Enter conductivities (in S/m) for each layer of tissue: scalp, skull, and brain'};
-                dlg_title = 'NFT BEM solver';
-                num_lines = 1;
-                def =  {'0.33 0.022 0.33'};
-                varargin = inputdlg2(prompt,dlg_title,num_lines,def);
-                if isempty(varargin), return;end
-                conductivity = eval(['[' varargin{1} '];']);
-                if isnan(conductivity), return;end
-            end
-            
-            if ~exist(obj.surfaces,'file'), error('The file containing the surfaces is missing.');end
-            if isempty(which('utilbem_add_mesh')), error('NFT plugin is missing, You can download it from: http://sccn.ucsd.edu/nft/');end
-            
-            
-            session_name = 'mesh';
-            if isa(obj,'eeg')
-                of = obj.container.mobiDataDirectory;
-                subject_name = ['BEM_' obj.name];
-            else
-                of = pwd;
-                subject_name = 'BEM_surfaces.bec';
-            end
-            
-            ssave.fn = '';
-            ssave.eloc = 0;
-            ssave.pnt = obj.channelSpace;
-            ssave.ind = 1:size(obj.channelSpace,1);%#ok
-            sensors_file = fullfile(of,[subject_name '_' session_name '.sensors']);
-            save(sensors_file, '-STRUCT', 'ssave');
-            
-            
-            load(obj.surfaces);
-            
-            nv = size(surfData(1).vertices,1);
-            nf = size(surfData(1).faces,1);
-            Cscalp = [(1:nv)' surfData(1).vertices];
-            Escalp = [(1:nf)' surfData(1).faces];
-            
-            nv = size(surfData(2).vertices,1);
-            nf = size(surfData(2).faces,1);
-            Cskull = [(1:nv)' surfData(2).vertices];
-            Eskull = [(1:nf)' surfData(2).faces];
-            
-            nv = size(surfData(3).vertices,1);
-            nf = size(surfData(3).faces,1);
-            Cbrain = [(1:nv)' surfData(3).vertices];
-            Ebrain = [(1:nf)' surfData(3).faces];
-            
-            [Coord, Elem] = utilbem_add_mesh(Cscalp,Escalp,Cskull,Eskull);
-            [Coord, Elem] = utilbem_add_mesh(Coord,Elem,Cbrain,Ebrain);%#ok
-            
-            bec_file = fullfile(of,[subject_name '.bec']);
-            save(bec_file, 'Coord', '-ascii');
-            
-            nl = length(surfData);
-            Info(1,1) = nl;
-            Info(1,2) = size(Escalp,1)+size(Eskull,1)+size(Ebrain,1);
-            Info(1,3) = size(Cscalp,1)+size(Cskull,1)+size(Cbrain,1);
-            
-            Info(1,4) = size(Escalp,2)-1; % number of nodes per element
-            Info(2,1) = 1;
-            Info(2,2) = size(Escalp,1);
-            Info(2,3:4) = [1 0];
-            Info(3,1) = 2;
-            Info(3,2) = size(Eskull,1);
-            Info(3,3:4) = [2 1];
-            Info(4,1) = 3;
-            Info(4,2) = size(Ebrain,1);
-            Info(4,3:4) = [3 2];
-            
-            bei_file = fullfile(of,[subject_name '.bei']);
-            fid = fopen(bei_file,'w');
-            fprintf(fid, '%d %d %d %d\r\n', Info');
-            fclose(fid);
-            
-            bee_file = fullfile(of,[subject_name '.bee']);
-            fid = fopen(bee_file,'w');
-            if size(Elem,2) == 4
-                fprintf(fid, '%d %d %d %d\r\n', Elem');
-            elseif size(Elem,2) ==7
-                fprintf(fid, '%d %d %d %d %d %d %d\r\n', Elem');
-            end
-            fclose(fid);
-            
-            Ns = size(surfData(3).vertices,1);
-%             so = zeros(Ns, 6);
-%             so(:, 1:3) = surfData(3).vertices;
-%             so(:, 4:6) = geometricTools.getSurfaceNormals(surfData(3).vertices,surfData(3).faces,false); %#ok
-            
-            so = zeros(3*Ns, 6);
-            so(1:Ns, 1:3) = surfData(3).vertices;
-            so(1:Ns, 4) = 1;
-            so(1+Ns:2*Ns, 1:3) = surfData(3).vertices;
-            so(1+Ns:2*Ns, 5) = 1;
-            so(1+Ns*2:3*Ns, 1:3) = surfData(3).vertices;
-            so(1+Ns*2:3*Ns, 6) = 1; %#ok
-            %
-            % save source space
-            dip_file = fullfile(of,[subject_name '_sourcespace.dip']);
-            save(dip_file, 'so', '-ascii');
-            
-            try
-                nft_wrapper(subject_name, session_name, of, 'cond', conductivity)
-                % nft_forward_problem_solution(subject_name, session_name, of, 'cond', conductivity);
-            catch ME
-                % cleaning up
-                delete(sensors_file);
-                delete(bec_file);
-                delete(bei_file);
-                delete(bee_file);
-                delete(dip_file);
-                ME.rethrow;
-            end
-            
-            % cleaning up
-            delete(sensors_file);
-            delete(bec_file);
-            delete(bei_file);
-            delete(bee_file);
-            delete(dip_file);
-            lfFile = fullfile(of,[session_name '_LFM.mat']);
-            
-            load(lfFile);
-            cd(wDir);
-            
-            K = LFM;
-            clear LFM;
-            z = zscore(K(:));
-            ind = find(z<norminv(0.01) | z>norminv(0.99));
-            % removing extreme values due to numerical instability
-            K(ind) = 0; %#ok
-            
-            if exist(lfFile,'file'), delete(lfFile);end
-            if isa(obj,'coreStreamObject')
-                lfFile = fullfile(obj.container.mobiDataDirectory,['lf_' obj.name '_' obj.uuid '_' obj.sessionUUID '.mat']);
-            end
-            if exist(obj.leadFieldFile,'file'), delete(obj.leadFieldFile);end
-            obj.leadFieldFile = lfFile;
-            save(obj.leadFieldFile,'K');
-        end
-        %%
+       %%
         function saveToFile(obj,file)
             metadata = struct(obj);
             if exist(metadata.surfaces,'file')
@@ -1012,13 +921,13 @@ classdef headModel < handle
                 if isfield(surfData,'surfData'), surfData = surfData.surfData;end%#ok
                 % [~,filename] = fileparts(tempname);
                 % metadata.surfaces = [getHomeDir filesep '.' filename '.mat'];
-                metadata.surfaces = tempname;
+                metadata.surfaces = [tempname '.mat'];
                 save(metadata.surfaces,'surfData');
             end
             if isfield(metadata,'leadField') && ~isempty(metadata.leadField)
                 % [~,filename] = fileparts(tempname);
                 % metadata.leadFieldFile = [getHomeDir filesep '.' filename '.mat'];
-                metadata.leadFieldFile = tempname;
+                metadata.leadFieldFile = [tempname '.mat'];
                 if isfield(metadata.leadField,'K')
                     K = metadata.leadField.K; %#ok
                 else
@@ -1068,4 +977,70 @@ for it=1:Nl
 end
 elec(rmThis,:) = [];
 labels(rmThis) = [];
+end
+
+
+%% unique_bc - unique backward compatible with Matlab versions prior to 2013a
+function [C,IA,IB] = unique_bc(A,varargin);
+
+errorFlag = error_bc;
+
+v = version;
+indp = find(v == '.');
+v = str2num(v(1:indp(2)-1));
+if v > 7.19, v = floor(v) + rem(v,1)/10; end;
+
+if nargin > 2
+    ind = strmatch('legacy', varargin);
+    if ~isempty(ind)
+        varargin(ind) = [];
+    end;
+end;
+
+if v >= 7.14
+    [C,IA,IB] = unique(A,varargin{:},'legacy');
+    if errorFlag
+        [C2,IA2] = unique(A,varargin{:});
+        if ~isequal(C, C2) || ~isequal(IA, IA2) || ~isequal(IB, IB2)
+            warning('backward compatibility issue with call to unique function');
+        end;
+    end;
+else
+    [C,IA,IB] = unique(A,varargin{:});
+end
+end
+
+%% ismember_bc - ismember backward compatible with Matlab versions prior to 2013a
+function [C,IA] = ismember_bc(A,B,varargin);
+
+errorFlag = error_bc;
+
+v = version;
+indp = find(v == '.');
+v = str2num(v(1:indp(2)-1));
+if v > 7.19, v = floor(v) + rem(v,1)/10; end;
+
+if nargin > 2
+    ind = strmatch('legacy', varargin);
+    if ~isempty(ind)
+        varargin(ind) = [];
+    end;
+end;
+
+if v >= 7.14
+    [C,IA] = ismember(A,B,varargin{:},'legacy');
+    if errorFlag
+        [C2,IA2] = ismember(A,B,varargin{:});
+        if (~isequal(C, C2) || ~isequal(IA, IA2))
+            warning('backward compatibility issue with call to ismember function');
+        end;
+    end;
+else
+    [C,IA] = ismember(A,B,varargin{:});
+end
+end
+
+%%
+function res = error_bc
+res = false;
 end

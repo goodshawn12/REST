@@ -79,7 +79,7 @@ eegTimer = timerfind('Name','eegTimer');
 initializeORICA(handles,calibData);
 
 % Create ORICA timer
-oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,1},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');
+oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,1},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer','BusyMode','queue');
 
 % Populate scalp maps
 for it = 1:handles.ntopo
@@ -243,12 +243,12 @@ try
     data = data(handles.curIC,:);
     
     [data,f] = pwelch(data,[],[],[],srate);
+%     [data,f,conf] = pwelch(data,[],[],[],srate,'ConfidenceLevel',0.95);!!!
     
-    plot(handles.axisInfo,f,db(data))
+    plot(handles.axisInfo,f,db(data)) % !!!
     grid(handles.axisInfo,'on');
     xlabel(handles.axisInfo,'Frequency (Hz)')
     ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
-    % axis(handles.axisInfo,[0 srate/2 -60 40])
     axis(handles.axisInfo,'tight')
     set(handles.axisInfo,'XTick',[0 10:10:f(end)])
 end
@@ -291,7 +291,8 @@ try
     Winv = inv(W*sphere);
     
     [map, cmin, cmax] = topoplotUpdate(Winv(:,handles.ics(it)), handles.chanlocs,'electrodes','off','gridscale',32);
-    set(hand(end),'CData',map);
+    surfInd = strcmp(get(hand,'type'),'surface');
+    set(hand(surfInd),'CData',map);
     set(handles.(hstr),'CLim',[cmin cmax]);
 end
 
@@ -364,7 +365,7 @@ end
 
 % otherwise pause if necessary and then create the window
 method =  questdlg('Choose method for source Localization','Localization', ...
-    'LORETA','Beamforming Particle Filter','LORETA');
+    'LORETA','Dipole Fit','LORETA');
 
 flag_resume = false;
 if strcmpi(get(handles.pushbuttonPause,'string'),'Pause')
@@ -374,11 +375,9 @@ end
 
 switch method
     case 'LORETA'
-        genFigLocLORETA(hObject,handles)
-%     case 'DipFit'
-%         genFigLocDF(hObject,handles)
-    case 'Beamforming Particle Filter'
-        genFigLocBFPF(hObject,handles)
+        figLoc_gen_LORETA(hObject,handles)
+    case 'Dipole Fit'
+        figLoc_gen_dipolefit(hObject,handles)
 end
 
 if flag_resume
@@ -388,7 +387,7 @@ if flag_resume
 end
 
 
-function genFigLocLORETA(hObject,handles)
+function figLoc_gen_LORETA(hObject,handles)
 % get ica decomposition
 W = evalin('base','pipeline.state.icaweights');
 sphere = evalin('base','pipeline.state.icasphere');
@@ -414,7 +413,7 @@ set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject},'name',['IC' num2str(hand
 
 
 % create timer
-locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLocLORETA,hObject},'Tag','locTimer','Name','locTimer');
+locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@figLoc_update_LORETA,hObject},'Tag','locTimer','Name','locTimer');
 
 % save headModel plot, timer, and dynamicLoreta parameters to handles
 handles.pauseTimers = [handles.pauseTimers,locTimer];
@@ -434,12 +433,10 @@ if range(handles.figLoc.scalp)<.5
 end
 guidata(hObject,handles);
 
-% start timer
-% start(locTimer)
 end
 
 
-function updateLocLORETA(varargin)
+function figLoc_update_LORETA(varargin)
 % get ica decomposition
 W = evalin('base','pipeline.state.icaweights');
 sphere = evalin('base','pipeline.state.icasphere');
@@ -486,23 +483,7 @@ handles.figLoc.sigma2 = sigma2;
 guidata(varargin{3},handles);
 end
 
-
-% function genFigLocDF(hObject,handles)
-% % get ica decomposition
-% W = evalin('base','pipeline.state.icaweights');
-% sphere = evalin('base','pipeline.state.icasphere');
-% Winv = inv(W*sphere);
-% 
-% 
-% end
-% 
-% 
-% function updateLocDF(varargin)
-% 
-% end
-
-
-function genFigLocBFPF(hObject,handles)
+function figLoc_gen_dipolefit(hObject,handles)
 % get ica decomposition
 W = evalin('base','pipeline.state.icaweights');
 sphere = evalin('base','pipeline.state.icasphere');
@@ -540,15 +521,17 @@ state.L = state.L(ind(1:nParticles));
 % set scalp potentials
 set(fhandle.hScalp,'FaceVertexCData',scalp*Winv(:,handles.curIC),'facecolor','interp')
 
-if length(moments)/3==nParticles
+if length(moments)/3==length(vertices)
+    handles.figLoc.fixed_dip = false;
     moments = reshape(moments,[],3);
     moments = bsxfun(@rdivide,moments,row_pnorm(moments));
     dmnorm = norm(dipoles.moment)/50;
     arrows_dip = quiver3(dipoles.location(1),dipoles.location(2),dipoles.location(3), ...
-        dipoles.moment(1)/dmnorm,dipoles.moment(2)/dmnorm,dipoles.moment(3)/dmnorm,'k0','filled');
+        dipoles.moment(1)/dmnorm,dipoles.moment(2)/dmnorm,dipoles.moment(3)/dmnorm,'ko','filled');
 %     arrows = quiver3(vertices(L,1),vertices(L,2),vertices(L,3), ...
 %         weights'.*moments(:,1),weights'.*moments(:,2),weights'.*moments(:,3));
 else
+    handles.figLoc.fixed_dip = true;
     normals = geometricTools.getSurfaceNormals(sd.surfData(end).vertices,sd.surfData(end).faces,false);
     arrows_dip = quiver3(dipoles.location(1),dipoles.location(2),dipoles.location(3), ...
         dipoles.moment*normals(dipoles.L,1)/50,dipoles.moment*normals(dipoles.L,2)/50,dipoles.moment*normals(dipoles.L,3)/50,'ko','filled');
@@ -562,7 +545,7 @@ caxis(fhandle.hAxes,[-maxabs maxabs]);
 
 
 % create timer
-locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@updateLocBFPF,hObject},'Tag','locTimer','Name','locTimer');
+locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@figLoc_update_dipolefit,hObject},'Tag','locTimer','Name','locTimer');
 
 % save headModel plot, timer, and bfpf state to handles
 handles.figLoc.state = state;
@@ -573,16 +556,15 @@ handles.figLoc.arrows_dip = arrows_dip;
 % handles.figLoc.arrows = arrows;
 handles.figLoc.scalp = scalp;
 handles.figLoc.Q_location = Q_location;
-handles.figLoc.normals = normals;
+if handles.figLoc.fixed_dip
+    handles.figLoc.normals = normals; end
 handles.figLoc.nParticles = nParticles;
 guidata(hObject,handles);
 
-% start timer
-% start(locTimer)
 end
 
 
-function updateLocBFPF(varargin)
+function figLoc_update_dipolefit(varargin)
 % get ica decomposition
 W = evalin('base','pipeline.state.icaweights');
 sphere = evalin('base','pipeline.state.icasphere');
@@ -591,7 +573,8 @@ Winv = inv(W*sphere);
 % parse inputs
 handles = guidata(varargin{3});
 Q_location = handles.figLoc.Q_location;
-normals = handles.figLoc.normals;
+if handles.figLoc.fixed_dip
+    normals = handles.figLoc.normals; end
 nParticles = handles.figLoc.nParticles;
 
 % load surfaces
@@ -601,7 +584,7 @@ vertices = temp.surfData(3).vertices(handles.hmInd,:);
 % update bfpf
 [dipoles, L, moments, weights, handles.figLoc.state] = ...
     bfpf(Winv(:,handles.figLoc.IC),handles.K,vertices,1,handles.figLoc.state.nParticles,Q_location,[],handles.figLoc.state,1);
-if length(moments)/3==nParticles
+if ~handles.figLoc.fixed_dip
     moments = reshape(moments,[],3);
     moments = bsxfun(@rdivide,moments,row_pnorm(moments));
     dmnorm = norm(dipoles.moment)/50;
@@ -1133,10 +1116,20 @@ function figure1_DeleteFcn(hObject, eventdata, handles)
 % hObject    handle to figure1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-temp = timerfindall;
-warning off MATLAB:timer:deleterunning
-delete(temp)
-
 if isfield(handles,'figIC')
     close(handles.figIC.handle); end
+if isfield(handles,'figLoc')
+    close(handles.figIC.handle); end
+
+timerNames = {'eegTimer','oricaTimer','topoTimer','infoTimer','locTimer',[handles.streamName '_timer']};
+% warning off MATLAB:timer:deleterunning
+for it = 1:length(timerNames)
+    temp = timerfind('name',timerNames{it});
+    if isempty(temp)
+        continue; end
+    stop(temp)
+    delete(temp)
 end
+
+end
+

@@ -19,6 +19,7 @@ classdef currentSourceViewer < handle
         sourceOrientation
         scalpData
         pointer
+        clim
     end
     methods
         function obj = currentSourceViewer(streamObj,J,V,figureTitle,channelLabels)
@@ -36,12 +37,13 @@ classdef currentSourceViewer < handle
             load(obj.streamObj.surfaces);
             color = [0.93 0.96 1];
             
-            mPath = which('mobilabApplication');
-            if isempty(mPath)
-                 path = fileparts(which('currentSourceViewer'));
-            else path = fullfile(fileparts(mPath),'skin');
+            path = fileparts(which('currentSourceViewer'));
+            loc = strfind(path,'mobilab');
+            if ~isempty(loc)
+                path = path(1:loc+length('mobilab')-1);
             end
-            
+            path = fullfile(path,'skin');
+                        
             try labelsOn  = imread([path filesep 'labelsOn.png']);
                 labelsOff = imread([path filesep 'labelsOff.png']);
                 sensorsOn = imread([path filesep 'sensorsOn.png']);
@@ -53,7 +55,6 @@ classdef currentSourceViewer < handle
                 prev = imread([path filesep '32px-Gnome-media-seek-backward.svg.png']);
                 next = imread([path filesep '32px-Gnome-media-seek-forward.svg.png']);
             catch ME
-                ME.message = sprintf('%s\nSome icons may be missing.',ME.message);
                 ME.rethrow;
             end
             if isa(streamObj,'struct'), visible = 'off';else visible = 'on';end
@@ -95,30 +96,29 @@ classdef currentSourceViewer < handle
             for it=1:N, obj.hLabels(it) = text('Position',k*obj.streamObj.channelSpace(it,:),'String',channelLabels{it},'Parent',obj.hAxes);end
             set(obj.hLabels,'Visible','off');
             
-            if size(J,1) == 3*size(surfData(3).vertices,1)  
+            if size(J,1) == 3*size(surfData(end).vertices,1)  
                 J = reshape(J,[size(J,1)/3 3 size(J,2)]);
                 Jm = squeeze(sqrt(sum(J.^2,2)));
                 normals = J;
             else
                 Jm = J;
-                normals = geometricTools.getSurfaceNormals(surfData(3).vertices,surfData(3).faces,false);    
+                normals = geometricTools.getSurfaceNormals(surfData(end).vertices,surfData(end).faces,false);    
             end
             obj.sourceMagnitud = Jm;
             obj.sourceOrientation = J;
             obj.pointer = 1;
             
             % vectors
-            obj.hVector = quiver3(surfData(3).vertices(:,1),surfData(3).vertices(:,2),surfData(3).vertices(:,3),normals(:,1,1),normals(:,2,1),normals(:,3,1),2);
+            obj.hVector = quiver3(surfData(end).vertices(:,1),surfData(end).vertices(:,2),surfData(end).vertices(:,3),normals(:,1,1),normals(:,2,1),normals(:,3,1),2);
             set(obj.hVector,'Color','k','Visible','off');
             
             % cortex
-            obj.hCortex = patch('vertices',surfData(3).vertices,'faces',surfData(3).faces,'FaceVertexCData',obj.sourceMagnitud(:,1),...
+            obj.hCortex = patch('vertices',surfData(end).vertices,'faces',surfData(end).faces,'FaceVertexCData',obj.sourceMagnitud(:,1),...
                 'FaceColor','interp','FaceLighting','phong','LineStyle','none','FaceAlpha',1,'SpecularColorReflectance',0,...
                 'SpecularExponent',50,'SpecularStrength',0.5,'Parent',obj.hAxes);
             camlight(0,180)
             camlight(0,0)
-            mx = 0.9*max(abs(Jm(:)));
-            
+                        
             % scalp
             if isempty(V)
                 skinColor = [1,.75,.65];
@@ -126,26 +126,52 @@ classdef currentSourceViewer < handle
                     'facelighting','phong','LineStyle','none','FaceAlpha',.85,'Parent',obj.hAxes,'Visible','off');
                 obj.scalpData = [];
             else
-                W = geometricTools.localGaussianInterpolator(obj.streamObj.channelSpace,surfData(1).vertices,6);
+                W = geometricTools.localGaussianInterpolator(obj.streamObj.channelSpace,surfData(1).vertices,32);
                 obj.scalpData = W*V;
                 obj.hScalp = patch('vertices',surfData(1).vertices,'faces',surfData(1).faces,'FaceVertexCData',obj.scalpData(:,1),...
                     'FaceColor','interp','FaceLighting','phong','LineStyle','none','FaceAlpha',0.85,'SpecularColorReflectance',0,...
                     'SpecularExponent',50,'SpecularStrength',0.5,'Parent',obj.hAxes,'Visible','off');
             end
             view(obj.hAxes,[90 0]);
+            
+            disp('Calibrating the color scale...')
+            mxsrc = obj.getRobustLimits(obj.sourceMagnitud(:),10);
+            mxscp = obj.getRobustLimits(obj.scalpData,1);
+            obj.clim = struct('source',[-mxsrc mxsrc],'scalp',[-mxscp mxscp]);
+            disp('Done.')
+            
             colorbar
             % box on;
             hold(obj.hAxes,'off');
             axis(obj.hAxes,'equal','vis3d');
             axis(obj.hAxes,'off')
-            set(obj.hAxes,'Clim',[-mx mx]);
-            colormap(bipolar(512, 0.99))
+            set(obj.hAxes,'Clim',obj.clim.source);
+            try
+                colormap(bipolar(512, 0.99))
+            catch 
+                warning('Bipolar colormap is missing, fallback with jet.')
+            end
             if isprop(streamObj,'name'), objName = [streamObj.name ': '];else objName = '';end
             set(obj.hFigure,'Visible',visible,'userData',obj,'Name',[objName num2str(1) '/' num2str(size(obj.sourceMagnitud,2))]);
             rotate3d
             drawnow
         end
-        %%
+        function [mx,mn] = getRobustLimits(obj,vect,th)
+            if isempty(vect)
+                mx = 1;
+                mn = -1;
+                return
+            end
+            samples = unidrnd(numel(vect),round(0.75*numel(vect)),20);
+            prc = prctile(vect(samples),[th 100-th]);
+            mn = median(prc(1,:));
+            mx = median(prc(2,:));
+            if mx == mn && mx == 0
+                mx = max(vect(:));
+                mn = min(vect(:));
+            end
+        end
+       %%
         function rePaint(obj,hObject,opt)
             CData = get(hObject,'userData');
             if isempty(strfind(opt,'Off'))
@@ -163,22 +189,17 @@ classdef currentSourceViewer < handle
                 case 'sensorsOff'
                     set(obj.hSensors,'Visible','off');
                 case 'scalpOn'
-                    val = obj.scalpData(:);
-                    mx = 0.9*max(abs(val));
                     set(obj.hCortex,'FaceAlpha',0.15);
                     if strcmp(get(obj.hVector,'Visible'),'on')
                         set(obj.hScalp,'Visible','on','FaceAlpha',0.65);
                     else
                         set(obj.hScalp,'Visible','on','FaceAlpha',0.85);
                     end
-                    if isempty(val), return;end
-                    set(get(obj.hScalp,'Parent'),'Clim',[-mx mx]);
+                    set(get(obj.hScalp,'Parent'),'Clim',obj.clim.scalp);
                 case 'scalpOff'
-                    val = obj.sourceMagnitud(:);
-                    mx = 0.9*max(abs(val));
                     set(obj.hScalp,'Visible','off');
                     set(obj.hCortex,'Visible','on','FaceAlpha',1);
-                    set(get(obj.hCortex,'Parent'),'Clim',[-mx mx]);
+                    set(get(obj.hCortex,'Parent'),'Clim',obj.clim.source);
                 case 'vectorOn'
                     set(obj.hVector,'Visible','on');
                     set(obj.hCortex,'FaceAlpha',0.75);
@@ -197,7 +218,7 @@ classdef currentSourceViewer < handle
             end
             if isempty(DT)
                 load(obj.streamObj.surfaces);
-                vertices = surfData(3).vertices;
+                vertices = surfData(end).vertices;
                 DT = DelaunayTri(vertices(:,1),vertices(:,2),vertices(:,3));
             end
             pos = get(event_obj,'Position');
@@ -212,15 +233,11 @@ classdef currentSourceViewer < handle
             if obj.pointer < 1, obj.pointer = 1;end
             val = obj.sourceMagnitud(:,obj.pointer);
             set(obj.hCortex,'FaceVertexCData',val);
-            mx = 0.9*max(abs(val));
-            %if strcmp(get(obj.hCortex,'Visible'),'on'), set(get(obj.hCortex,'Parent'),'Clim',[-mx mx]);end
             if isprop(obj.streamObj,'name'), objName = [obj.streamObj.name ': '];else objName = '';end
             set(obj.hFigure,'Name',[objName num2str(obj.pointer) '/' num2str(size(obj.sourceMagnitud,2))]);
             if isempty(obj.scalpData), drawnow;return;end
             val = obj.scalpData(:,obj.pointer);
             set(obj.hScalp,'FaceVertexCData',val);
-            mx = 0.9*max(abs(val));
-            %if strcmp(get(obj.hScalp,'Visible'),'on'), set(get(obj.hScalp,'Parent'),'Clim',[-mx mx]);end
             try %#ok
                 set(obj.hVector,'UData',obj.sourceOrientation(:,1,obj.pointer),'VData',obj.sourceOrientation(:,2,obj.pointer),'WData',obj.sourceOrientation(:,3,obj.pointer));
             end
@@ -231,15 +248,11 @@ classdef currentSourceViewer < handle
             if obj.pointer > n, obj.pointer = n;end
             val = obj.sourceMagnitud(:,obj.pointer);
             set(obj.hCortex,'FaceVertexCData',val);
-            mx = 0.9*max(abs(val));
-            %if strcmp(get(obj.hCortex,'Visible'),'on'), set(get(obj.hCortex,'Parent'),'Clim',[-mx mx]);end
             if isprop(obj.streamObj,'name'), objName = [obj.streamObj.name ': '];else objName = '';end
             set(obj.hFigure,'Name',[objName num2str(obj.pointer) '/' num2str(size(obj.sourceMagnitud,2))]);
             if isempty(obj.scalpData), drawnow;return;end
             val = obj.scalpData(:,obj.pointer);
             set(obj.hScalp,'FaceVertexCData',val);
-            mx = 0.9*max(abs(val));
-            %if strcmp(get(obj.hScalp,'Visible'),'on'), set(get(obj.hScalp,'Parent'),'Clim',[-mx mx]);end
             try %#ok
                 set(obj.hVector,'UData',obj.sourceOrientation(:,1,obj.pointer),'VData',obj.sourceOrientation(:,2,obj.pointer),'WData',obj.sourceOrientation(:,3,obj.pointer));
             end
@@ -253,13 +266,9 @@ classdef currentSourceViewer < handle
             if isprop(obj.streamObj,'name'), objName = [obj.streamObj.name ': '];else objName = '';end
             set(obj.hFigure,'Name',[objName num2str(obj.pointer) '/' num2str(size(obj.sourceMagnitud,2))]);
             set(obj.hCortex,'FaceVertexCData',val);
-            mx = 0.9*max(abs(val));
-            %if strcmp(get(obj.hCortex,'Visible'),'on'), set(get(obj.hCortex,'Parent'),'Clim',[-mx mx]);end
             if isempty(obj.scalpData), drawnow;return;end
             val = obj.scalpData(:,obj.pointer);
             set(obj.hScalp,'FaceVertexCData',val);
-            mx = 0.9*max(abs(val));
-            %if strcmp(get(obj.hScalp,'Visible'),'on'), set(get(obj.hScalp,'Parent'),'Clim',[-mx mx]);end
         end
     end
 end
