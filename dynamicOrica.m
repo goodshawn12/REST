@@ -54,7 +54,8 @@ weights = lambda_prod * (weights - y * diag(lambda_k./Q) * f' * weights);
 
 % orthogonalize weight matrix - avoid inverse of signular matrix
 [V,D] = eig(weights * weights');
-weights = V/sqrt(D)/V * weights;    % run 30% faster
+weights = V/sqrt(D)*V' * weights;    % runs 70% faster
+% weights = V/sqrt(D)/V * weights;    % run 30% faster
 % weights = real(inv(V * sqrt(D) / V)) * weights;
 % if all eigenvalues is non-zero, A=WW' is non-singular and 
 % A^(-1/2) = V*D^(-1/2)*V^-1; W = A^(-1/2) * W.
