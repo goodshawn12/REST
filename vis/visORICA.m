@@ -79,7 +79,7 @@ eegTimer = timerfind('Name','eegTimer');
 initializeORICA(handles,calibData);
 
 % Create ORICA timer
-oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,1},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer','BusyMode','queue');
+oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,1},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');%,'BusyMode','queue');
 
 % Populate scalp maps
 for it = 1:handles.ntopo
@@ -125,6 +125,14 @@ function handles = check_localization(handles,calibData)
 
 if ~isfield(calibData,'headModel') || isempty(calibData.headModel)
     set(handles.pushbuttonLocalize,'HitTest','off','visible','off')
+elseif ischar(calibData.headModel)
+    handles.headModel = headModel.loadFromFile(calibData.headModel);
+    temp = load(handles.headModel.surfaces);
+    handles.nVertices = size(temp.surfData(3).vertices,1);
+    [~,handles.K,handles.L,rmIndices] = getSourceSpace4PEB(handles.headModel);
+    handles.hmInd = setdiff(1:handles.nVertices,rmIndices);
+%     temp = load(handles.headModel.leadFieldFile);
+%     handles.K = temp.K;
 else
     handles.headModel = calibData.headModel;
     % if calibData does not contain field 'localization' with lead field
@@ -402,8 +410,9 @@ options = struct('maxTol',1e-3,'maxIter',100,'gridSize',100,'verbose',false,'his
 [J,sigma2,tau2] = dynamicLoreta(Winv(:,handles.curIC), Ut, s2,iLV,[],[], options);
 
 % create headModel plot
-if handles.nVertices == length(J)
-    Jest = J;
+if length(handles.hmInd) == length(J)
+    Jest = zeros(handles.nVertices,1);
+    Jest(handles.hmInd,:) = J;
 else
     Jest = zeros(handles.nVertices,3);
     Jest(handles.hmInd,:) = reshape(J,[],3);
@@ -428,7 +437,7 @@ handles.figLoc.options = options;
 temp = load(handles.headModel.surfaces);
 handles.figLoc.scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,temp.surfData(1).vertices,32);
 if range(handles.figLoc.scalp)<.5
-    warning('visORICA - Localization: Unsure about channel space units. Trying meters instead of millimeters.')
+%     warning('visORICA - Localization: Unsure about channel space units. Trying meters instead of millimeters.')
     handles.figLoc.scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,temp.surfData(1).vertices,32/1000);
 end
 guidata(hObject,handles);
@@ -496,7 +505,7 @@ vertices = sd.surfData(3).vertices(handles.hmInd,:);
 % calculate scalp potential transform and guess units
 scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,sd.surfData(1).vertices,32);
 if range(scalp)<.5
-    warning('visORICA - Localization: Unsure about channel space units. Trying meters instead of millimeters.')
+%     warning('visORICA - Localization: Unsure about channel space units. Trying meters instead of millimeters.')
     scalp = geometricTools.localGaussianInterpolator(handles.headModel.channelSpace,sd.surfData(1).vertices,32/1000);
     Q_location = .01*eye(3)/1000;
 else
@@ -594,6 +603,8 @@ if ~handles.figLoc.fixed_dip
                                   'UData',dipoles.moment(1)/dmnorm, ...
                                   'VData',dipoles.moment(2)/dmnorm, ...
                                   'WData',dipoles.moment(3)/dmnorm);
+    residual_var = var(Winv(:,handles.figLoc.IC)-sum(bsxfun(@times,handles.K(:,dipoles.L),dipoles.moment))) ...
+                    / var(Winv(:,handles.figLoc.IC));
 %     set(handles.figLoc.arrows,'XData',vertices(L,1), ...
 %                               'YData',vertices(L,2), ...
 %                               'ZData',vertices(L,3), ...
@@ -607,6 +618,8 @@ else
                                   'UData',dipoles.moment*normals(dipoles.L,1)/50, ...
                                   'VData',dipoles.moment*normals(dipoles.L,2)/50, ...
                                   'WData',dipoles.moment*normals(dipoles.L,3)/50);
+    residual_var = var(Winv(:,handles.figLoc.IC)-handles.K(:,dipoles.L)*dipoles.moment) ...
+                    / var(Winv(:,handles.figLoc.IC));
 %     set(handles.figLoc.arrows,'XData',vertices(L,1), ...
 %                               'YData',vertices(L,2), ...
 %                               'ZData',vertices(L,3), ...
@@ -1117,9 +1130,11 @@ function figure1_DeleteFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 if isfield(handles,'figIC')
-    close(handles.figIC.handle); end
+    try
+        close(handles.figIC.handle); end, end
 if isfield(handles,'figLoc')
-    close(handles.figIC.handle); end
+    try
+        close(handles.figIC.handle); end, end
 
 timerNames = {'eegTimer','oricaTimer','topoTimer','infoTimer','locTimer',[handles.streamName '_timer']};
 % warning off MATLAB:timer:deleterunning

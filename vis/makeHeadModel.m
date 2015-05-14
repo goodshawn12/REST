@@ -11,7 +11,7 @@ templateFile = [mobilabPath filesep 'data' filesep 'head_modelColin27_4825.mat']
 template = load([mobilabPath filesep 'data' filesep 'head_modelColin27_4825.mat']);
 surfFile = [name '_Colin27_4825.mat'];
 surfData = template.surfData;
-save([output_dir filesep surfFile],'surfData');
+% save([output_dir filesep surfFile],'surfData');
 
 %% display template head model: Colin27 + aal atlas + emotiv montage
 dipfitdefs;
@@ -51,20 +51,21 @@ cd(dir_original);
 % L: Laplaciian operator
 % rmIndices: indices to be removed (the Thalamus)
 % surfData(3).vertices: source space
-addpath(genpath('/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/dependency/'))
 
-[sourceSpace,K,L,rmIndices] = getSourceSpace4PEB(hmObj);
+% addpath(genpath('/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/dependency/'))
+% 
+% [sourceSpace,K,L,rmIndices] = getSourceSpace4PEB(hmObj);
+% 
+% %--
+% [U,S,V] = svd(K/L,'econ');
+% Ut = U';
+% s2 = diag(S).^2;
+% iLV = L\V;
 
-%--
-[U,S,V] = svd(K/L,'econ');
-Ut = U';
-s2 = diag(S).^2;
-iLV = L\V;
+% eval([name '_HeadModel = hmObj;']);
+% save([output_dir filesep name '_HeadModel'],[name 'HeadModel'])
+% save([output_dir filesep name '_LFMetc'],'K','L','rmIndices','Ut','s2','iLV')
 
-eval([name '_HeadModel = hmObj;']);
-save([output_dir filesep name '_HeadModel'],[name 'HeadModel'])
-save([output_dir filesep name '_LFMetc'],'K','L','rmIndices','Ut','s2','iLV')
-
-
+hmObj.saveToFile([fileparts(output_dir) filesep name])
 
 
