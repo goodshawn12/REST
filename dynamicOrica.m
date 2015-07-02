@@ -34,6 +34,8 @@ Q = 1 + lambda_k .* (dot(f,y,1)-1);
 weights = lambda_prod * (weights - y * diag(lambda_k./Q) * f' * weights);
 
 % orthogonalize weight matrix - avoid inverse of signular matrix
+% [Q,R] = qr(weights);
+% weights = Q*diag(sign(diag(R))); % ~6 times faster than svd method
 [V,D] = eig(weights * weights');
 weights = V/sqrt(D)*V' * weights; 
 

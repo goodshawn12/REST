@@ -531,7 +531,7 @@ hold(fhandle.hAxes,'on');
 
 % initialize bfpf with all vertices active
 nParticles = 500;
-[dipoles, L, moments, weights, state] = ...
+[dipoles, L, moments, weights, rv, state] = ...
     bfpf(Winv(:,handles.curIC),handles.K,vertices,1,nParticles,Q_location,[],[],1);
 
 % adjust state to only contain the nParticles best particles
@@ -563,10 +563,15 @@ colormap(bipolar(512, 0.99))
 maxabs = max(abs(vec(scalp*Winv(:,handles.curIC))));
 caxis(fhandle.hAxes,[-maxabs maxabs]);
 
-
+% create Residual Variance text
+handles.figLoc.axisRV = axes('parent',fhandle.hFigure,'position',[.05 .9 .3 .1],'hittest','off');
+axis(handles.figLoc.axisRV,'off')
+handles.figLoc.textRV = text(0,0.5,sprintf('Residual Variance: %04.1f%%',rv*100), ...
+    'parent',handles.figLoc.axisRV,'fontweight','bold','fontsize',16,'hittest','off');
 
 % create timer
-locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@figLoc_update_dipolefit,hObject},'Tag','locTimer','Name','locTimer');
+locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate', ...
+    'TimerFcn',{@figLoc_update_dipolefit,hObject},'Tag','locTimer','Name','locTimer');
 
 % save headModel plot, timer, and bfpf state to handles
 handles.figLoc.state = state;
@@ -603,7 +608,7 @@ temp = load(handles.headModel.surfaces);
 vertices = temp.surfData(3).vertices(handles.hmInd,:);
 
 % update bfpf
-[dipoles, L, moments, weights, handles.figLoc.state] = ...
+[dipoles, L, moments, weights, rv, handles.figLoc.state] = ...
     bfpf(Winv(:,handles.figLoc.IC),handles.K,vertices,1,handles.figLoc.state.nParticles,Q_location,[],handles.figLoc.state,1);
 if ~handles.figLoc.fixed_dip
     moments = reshape(moments,[],3);
@@ -615,8 +620,6 @@ if ~handles.figLoc.fixed_dip
                                   'UData',dipoles.moment(1)/dmnorm, ...
                                   'VData',dipoles.moment(2)/dmnorm, ...
                                   'WData',dipoles.moment(3)/dmnorm);
-%     residual_var = var(Winv(:,handles.figLoc.IC)-sum(bsxfun(@times,handles.K(:,dipoles.L),dipoles.moment))) ...
-%                     / var(Winv(:,handles.figLoc.IC));
 %     set(handles.figLoc.arrows,'XData',vertices(L,1), ...
 %                               'YData',vertices(L,2), ...
 %                               'ZData',vertices(L,3), ...
@@ -630,8 +633,6 @@ else
                                   'UData',dipoles.moment*normals(dipoles.L,1)/50, ...
                                   'VData',dipoles.moment*normals(dipoles.L,2)/50, ...
                                   'WData',dipoles.moment*normals(dipoles.L,3)/50);
-%     residual_var = var(Winv(:,handles.figLoc.IC)-handles.K(:,dipoles.L)*dipoles.moment) ...
-%                     / var(Winv(:,handles.figLoc.IC));
 %     set(handles.figLoc.arrows,'XData',vertices(L,1), ...
 %                               'YData',vertices(L,2), ...
 %                               'ZData',vertices(L,3), ...
@@ -644,6 +645,10 @@ set(handles.figLoc.handle.hScalp,'FaceVertexCData', ...
     handles.figLoc.scalp*Winv(:,handles.figLoc.IC))
 maxabs = max(abs(vec(handles.figLoc.scalp*Winv(:,handles.figLoc.IC))));
 caxis(handles.figLoc.handle.hAxes,[-maxabs maxabs]);
+
+% update RV text
+set(handles.figLoc.textRV,'string',sprintf('Residual Variance: %04.1f%%',rv*100));
+
 end
 
 

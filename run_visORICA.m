@@ -30,7 +30,7 @@ if Emotiv
 %     hmLoc = load('vis/emotivLFMDerivatives');
 %     calibData.headModel = hmObj.emotivHeadModel;
 %     calibData.localization = hmLoc;
-    calibData.headModel = 'vis/emotivHeadModel_file';%HeadModel_file';
+    calibData.headModel = 'head_models/emotivHeadModel_file';%HeadModel_file';
 elseif Cognionics
     data_location = '/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Experiment.set';
     calibData = exp_eval_optimized(io_loadset(data_location, ...
@@ -39,7 +39,7 @@ elseif Cognionics
 %     hmLoc = load('vis/cognionicssLORETA');
 %     calibData.headModel = hmObj.cognionicsHeadModel;
 %     calibData.localization = hmLoc;
-    calibData.headModel = 'vis/cognionicsHeadModel_file';
+    calibData.headModel = 'head_models/cognionicsHeadModel_file';
 elseif test16
     data_location = 'vis/artificial_data/16ch/SIM_NSTAT_3sess_16ch_3min.set';
     calibData = exp_eval_optimized(io_loadset(data_location, ...
@@ -48,7 +48,7 @@ elseif test16
 %     hmLoc = load('vis/artificial_data/16ch/Artificial16_LFMetc.mat');
 %     calibData.headModel = hmObj.Artificial16_HeadModel;
 %     calibData.localization = hmLoc;
-    calibData.headModel = 'vis/artificial_data/64ch/sim64HeadModel_file';
+    calibData.headModel = 'head_models/sim16HeadModel_file';
 elseif test64
     data_location = 'vis/artificial_data/64ch/SIM_STAT_64ch_10min.set';
 %     calibData = exp_eval_optimized(io_loadset(data_location, ...
@@ -57,7 +57,7 @@ elseif test64
 %     hmLoc = load('vis/artificial_data/64ch/sim64LFMetc.mat');
 %     calibData.headModel2 = hmObj.sim64HeadModel;
 %     calibData.localization = hmLoc;
-    calibData.headModel = 'vis/artificial_data/64ch/sim64HeadModel_file';
+    calibData.headModel = 'head_models/sim64HeadModel_file';
 end
 
 

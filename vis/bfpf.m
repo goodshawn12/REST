@@ -1,4 +1,4 @@
-function [dipoles, L, moments, weights, state] = bfpf(data,K,vertices,nDipoles,nParticles,Q_location,Q_data,state,flag_all)
+function [dipoles, L, moments, weights, rv, state] = bfpf(data,K,vertices,nDipoles,nParticles,Q_location,Q_data,state,flag_all)
 % check inputs
 nChan = size(data,1);
 nTimes = size(data,2);
@@ -40,8 +40,10 @@ else
     % precalculate pseudo inverse of Lead Field Matrix transposed
     Ktpi = pinv(K');
     Kpi_individual = zeros(size(K'));
-    for it = 1:nK
-        Kpi_individual(it,:) = pinv(K(:,it)); end
+%     for it = 1:nK
+%         Kpi_individual(it,:) = pinv(K(:,it)); end
+    for it = 1:length(Kpi_individual)/3
+        Kpi_individual(tri_index(it,nVert,flag_fixedDir),:) = pinv(K(:,tri_index(it,nVert,flag_fixedDir))); end
     cQ_location = chol(Q_location);
     state.Ktpi = Ktpi;
     state.Kpi_individual = Kpi_individual;
@@ -103,9 +105,10 @@ else
         for itM = 1:nParticles
             % make linearly constrained minimum variance(LCMV) beamforming filter
     %         W0 = Ktpi(:,tri_index(unique(Lold(itM)),nVert))*K(:,tri_index(unique(Lold(itM)),nVert))';
-            W0 = eye(nChan);
+%             W0 = eye(nChan);
             % calculate moments vector
-            moments(tri_index(itM,nParticles,flag_fixedDir)) = Kpi_individual(tri_index(Lold(itM),nVert,flag_fixedDir),:)*W0'*data(:,it);
+%             moments(tri_index(itM,nParticles,flag_fixedDir)) = Kpi_individual(tri_index(Lold(itM),nVert,flag_fixedDir),:)*W0'*data(:,it);
+            moments(tri_index(itM,nParticles,flag_fixedDir)) = Kpi_individual(tri_index(Lold(itM),nVert,flag_fixedDir),:)*data(:,it);
         end
     %     moments = sparse([ones(nParticles,1);2*ones(nParticles,1);3*ones(nParticles,1)],repmat(Lold',3,1),moments',3,nVert);
         % update new weights
@@ -127,12 +130,15 @@ dipoles = struct('location',[],'moment',[]);
 [~,ind] = sort(weights,2,'descend');
 for it = 1:nDipoles
     dipoles(it).location = vertices(:,L(ind(it)));
-    dipoles(it).moment = moments(tri_index(ind(it),nParticles,flag_fixedDir));
-    dipoles(it).L = ind(it);
+    dipoles(it).L = tri_index(ind(it),nParticles,flag_fixedDir);
+    dipoles(it).moment = moments(dipoles(it).L);
 end
 
 state.weights = weights;
 state.L = L;
+
+% does not support multiple dipoles or multiple data points atm
+rv = var(data - y_hat(:,dipoles.L(1)))/var(data);
 
 
 function index = tri_index(index,nVert,flag_fixedDir)
