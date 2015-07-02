@@ -88,7 +88,7 @@ for it = 1:handles.ntopo
 end
 
 % Create scalp map timer
-topoTimer = timer('Period',round(.5/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
+topoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
 infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
@@ -182,6 +182,7 @@ function initializeORICA(handles,calibData)
 bufflen = 60; % seconds
 assignin('base','conv_statIdx',zeros(1,bufflen*calibData.srate));
 assignin('base','conv_mir',zeros(1,bufflen*calibData.srate));
+assignin('base','learning_rate',zeros(1,bufflen*calibData.srate));
 
 run_readlsl_ORICA('MatlabStream',handles.streamName,'MarkerStreamQuery', []);
 % run_readlsl_ORICA('MarkerStreamQuery', []);
@@ -268,16 +269,27 @@ function infoConverge(varargin)
 % plot convergence statistics
 
 % parse inputs
-handle_statIdx = varargin{3};
-handle_mir = varargin{4};
+% handle_statIdx = varargin{3};
+handle_learning_rate = varargin{3};
+% handle_mir = varargin{4};
 
 % load convergence statistics
-conv_statIdx = evalin('base','conv_statIdx');
+% conv_statIdx = evalin('base','conv_statIdx');
 conv_mir = evalin('base','conv_mir');
+learning_rate = evalin('base','learning_rate');
+
+ylim_mir = minmax(conv_mir);
+ylim_lr = minmax(learning_rate);
+% set(get(handle_mir,'parent'),'YLim',ylim_mir,'YTick',linspace(ylim_mir(1),ylim_mir(2),5))
+set(get(handle_learning_rate,'parent'),'YLim',ylim_lr,'YTick',linspace(ylim_lr(1),ylim_lr(2),5))
 
 % update plots
-set(handle_statIdx,'YData',conv_statIdx)
-set(handle_mir,'YData',conv_mir)
+% set(handle_statIdx,'YData',conv_statIdx)
+% set(handle_mir,'YData',conv_mir)
+% set(handle_learning_rate,'YData',learning_rate)
+set(handle_learning_rate,'YData',learning_rate)
+
+
 
 end
 
@@ -603,8 +615,8 @@ if ~handles.figLoc.fixed_dip
                                   'UData',dipoles.moment(1)/dmnorm, ...
                                   'VData',dipoles.moment(2)/dmnorm, ...
                                   'WData',dipoles.moment(3)/dmnorm);
-    residual_var = var(Winv(:,handles.figLoc.IC)-sum(bsxfun(@times,handles.K(:,dipoles.L),dipoles.moment))) ...
-                    / var(Winv(:,handles.figLoc.IC));
+%     residual_var = var(Winv(:,handles.figLoc.IC)-sum(bsxfun(@times,handles.K(:,dipoles.L),dipoles.moment))) ...
+%                     / var(Winv(:,handles.figLoc.IC));
 %     set(handles.figLoc.arrows,'XData',vertices(L,1), ...
 %                               'YData',vertices(L,2), ...
 %                               'ZData',vertices(L,3), ...
@@ -618,8 +630,8 @@ else
                                   'UData',dipoles.moment*normals(dipoles.L,1)/50, ...
                                   'VData',dipoles.moment*normals(dipoles.L,2)/50, ...
                                   'WData',dipoles.moment*normals(dipoles.L,3)/50);
-    residual_var = var(Winv(:,handles.figLoc.IC)-handles.K(:,dipoles.L)*dipoles.moment) ...
-                    / var(Winv(:,handles.figLoc.IC));
+%     residual_var = var(Winv(:,handles.figLoc.IC)-handles.K(:,dipoles.L)*dipoles.moment) ...
+%                     / var(Winv(:,handles.figLoc.IC));
 %     set(handles.figLoc.arrows,'XData',vertices(L,1), ...
 %                               'YData',vertices(L,2), ...
 %                               'ZData',vertices(L,3), ...
@@ -844,16 +856,24 @@ switch contents{get(handles.popupmenuInfo,'Value')}
         end
         % if so...
         stop(infoTimer)
-        conv_statIdx = evalin('base','conv_statIdx');
+%         conv_statIdx = evalin('base','pipeline.state.statIdx');
+%         conv_statIdx = evalin('base','conv_statIdx');
         conv_mir = evalin('base','conv_mir');
+        learning_rate = evalin('base','learning_rate');
         srate = evalin('base','visORICAst.srate');
         x = -(length(conv_mir)-1)/srate:1/srate:0;
         axes(handles.axisInfo)
-        [handles.axisInfo,line1,line2] = plotyy(x,conv_statIdx,x,conv_mir);
-        set(get(handles.axisInfo(1),'XLabel'),'String','Time (seconds)')
-        set(get(handles.axisInfo(1),'YLabel'),'String','Convergence Index')
-        set(get(handles.axisInfo(2),'YLabel'),'String','Mutual Information Reduction')
-        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoConverge,line1,line2},'StartDelay',0);
+        [handles.axisInfo] = plot(x,learning_rate);
+        line1 = get(handles.axisInfo,'children');
+%         [handles.axisInfo,line1,line2] = plotyy(x,learning_rate,x,conv_mir);
+%         [handles.axisInfo,line1,line2] = plotyy(x,conv_statIdx,x,conv_mir);
+        set(get(get(handles.axisInfo(1),'parent'),'XLabel'),'String','Time (seconds)')
+        set(get(get(handles.axisInfo(1),'parent'),'YLabel'),'String','Learning Rate (dB)')
+%         set(get(handles.axisInfo(1),'YLabel'),'String','Convergence Index')
+%         set(get(handles.axisInfo(2),'YLabel'),'String','Mutual Information Reduction')
+        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoConverge,handles.axisInfo},'StartDelay',0);
+%         set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoConverge,line1,line2},'StartDelay',0);
+        axis(get(handles.axisInfo,'parent'),'tight')
         start(infoTimer)
     otherwise
         warning('visORICA: popupmenuInfo recieved a strange input')

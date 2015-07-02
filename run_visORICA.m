@@ -1,5 +1,4 @@
 %% Run visGUI
-
 addpath(genpath('dependencies'))
 addpath(genpath('utility'))
 addpath('vis')
@@ -31,7 +30,7 @@ if Emotiv
 %     hmLoc = load('vis/emotivLFMDerivatives');
 %     calibData.headModel = hmObj.emotivHeadModel;
 %     calibData.localization = hmLoc;
-    calibData.headModel = 'vis/emotive';%HeadModel_file';
+    calibData.headModel = 'vis/emotivHeadModel_file';%HeadModel_file';
 elseif Cognionics
     data_location = '/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Experiment.set';
     calibData = exp_eval_optimized(io_loadset(data_location, ...
@@ -98,5 +97,8 @@ if playback
     playbackStream = play_eegset_lsl(EEG,[],[],[],true);
 end
 visORICA(calibData)
-stop(playbackStream)
-delete(playbackStream)
+
+% if playback
+%     stop(playbackStream)
+%     delete(playbackStream)
+% end

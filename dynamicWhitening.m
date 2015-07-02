@@ -1,4 +1,4 @@
-function state = dynamicWhitening(data, state, options, sphere)
+function state = dynamicWhitening(data, state, sphere)
 
 % Usage: 
 % Compute whitening (sphering) matrix in blockwise RLS fashion. Store
@@ -29,9 +29,12 @@ for bi = 0 : numsplits-1
     dataRange = 1+floor(bi*nPts/numsplits) : min(nPts,floor((bi+1)*nPts/numsplits));
     nPtBlk = length(dataRange);
 
-    % define exponential decay forgetting rate
-    lambda = exp_decay(state.counter + dataRange, state.gamma, state.lambda_0, state.t_0, state.lambda_ss);
-
+    % define adaptive forgetting rate
+    lambda = state.lambda_ss + state.lambda_0 ./ ((state.counter+dataRange) .^ state.gamma);
+    if ~isempty(state.constLambda)
+        if lambda < state.constLambda, lambda = state.constLambda; end
+    end
+    
     % blockwise whitening
     % ------------------------------------------------------------------------
     xPreWhite = state.icasphere * Mixtures(:, timeperm(dataRange)); % pre-whitened data 

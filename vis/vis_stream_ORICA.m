@@ -178,8 +178,10 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 if plotICs
                     W = evalin('base','pipeline.state.icaweights');
                     sphere = evalin('base','pipeline.state.icasphere');
+                    data_scale = mean(range(plotdata,2));
                     plotdata = W*(sphere*plotdata);
-                    stream.opts.datascale = stream.opts.datascale*mean(abs(W*sphere*ones(length(sphere),1)));
+                    component_scale = mean(range(plotdata,2));
+                    stream.opts.datascale = stream.opts.datascale*component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));
                 end
                 
                 % determine channels and samples to display
