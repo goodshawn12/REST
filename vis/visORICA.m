@@ -188,7 +188,7 @@ run_readlsl_ORICA('MatlabStream',handles.streamName,'MarkerStreamQuery', []);
 % run_readlsl_ORICA('MarkerStreamQuery', []);
 
 opts.lsl.StreamName = handles.streamName;
-opts.BCILAB_PipelineConfigFile = 'ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
+opts.BCILAB_PipelineConfigFile = 'data/ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
 
 % define the pipeline configuration
 try    fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));

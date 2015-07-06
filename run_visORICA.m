@@ -3,8 +3,8 @@ addpath(genpath('dependencies'))
 addpath(genpath('utility'))
 addpath('vis')
 
-Emotiv = 1;
-Cognionics = 0;
+Emotiv = 0;
+Cognionics = 1;
 test16 = 0;
 test64 = 0;
 
@@ -32,7 +32,8 @@ if Emotiv
 %     calibData.localization = hmLoc;
     calibData.headModel = 'head_models/emotivHeadModel_file';%HeadModel_file';
 elseif Cognionics
-    data_location = '/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Experiment.set';
+%     data_location = '/home/lpiontonachini/Dropbox/School/Research/VisEEG_local/20150115_Experiment.set';
+    data_location = 'data/20150115_Experiment.set';
     calibData = exp_eval_optimized(io_loadset(data_location, ...
         'markerchannel',{'remove_eventchns',false}));
 %     hmObj = load('vis/cognionicsHeadModel');
