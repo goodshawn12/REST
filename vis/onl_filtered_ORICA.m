@@ -145,6 +145,8 @@ else
     % get the most recent samples since our buffer's smax from a raw stream: 
     % inputs holds the cell array {stream_name,channel_range)
     chunk = onl_peek(inputs{1},p.smax,'index',inputs{2});
+    chunk.etc.badChIndex = evalin('base','badChIndex');
+    chunk.etc.badChLabels = evalin('base','badChLabels');
     p.smax = chunk.smax;
     p.out = chunk.data;
     n = size(chunk.data,2);

@@ -294,9 +294,11 @@ end
 
 % grab calib data from online stream
 disp('Collecting calibration data from online stream... please wait 20 seconds...');
-pause(20); % uh oh!
-calibData = onl_peek(opts.lsl.StreamName,20,'seconds');
+pause(10); % uh oh!
+calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
 calibData = warmStartWithBadChRemoved(calibData);
+assignin('base','badChIndex',calibData.etc.badChIndex);
+assignin('base','badChLabels',calibData.etc.badChLabels);
 
 % run pipline on calibration data
 cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));

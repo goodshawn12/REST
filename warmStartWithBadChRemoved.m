@@ -67,7 +67,7 @@ if ~isfield(signal.etc,'clean_channel_mask')
     signal.etc.clean_channel_mask = true(1,signal.nbchan); end
 signal.etc.clean_channel_mask(signal.etc.clean_channel_mask) = ~removed_channel_mask;
 signal.etc.badChIndex = find(removed_channel_mask==1);
-signal.etc.badChLabels = signal.chanlocs(signal.etc.badChIndex).labels;
+signal.etc.badChLabels = {signal.chanlocs(signal.etc.badChIndex).labels};
 
 %% Whitening
 rowmeans = mean(signal.data,2);
