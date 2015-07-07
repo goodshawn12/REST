@@ -151,9 +151,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
             if evalin('base',['exist(''' buffername ''',''var'')'])
                 
                 % check what to play
-                timerdata = get(varargin{1},'userdata');
-                handles = guidata(timerdata{1});
-                plot_content = timerdata{2};
+                plot_content = get(varargin{1},'userdata');
                 
                 % === update buffer contents (happens in the base workspace) ===
                 
@@ -175,9 +173,12 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
                     plotdata = stream.data{plot_content}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
                     if plot_content==length(stream.data)
-                        W = evalin('base','pipeline.state.icaweights');
-                        sphere = evalin('base','pipeline.state.icasphere');
-                        stream.opts.datascale = stream.opts.datascale*mean(sqrt(mean((W*sphere).^2)));%component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));
+%                         W = evalin('base','pipeline.state.icaweights');
+%                         sphere = evalin('base','pipeline.state.icasphere');
+                        data_scale = mean(range(plotdata,2));
+%                         plotdata = W*(sphere*plotdata);
+                        component_scale = mean(range(plotdata,2));
+%                         stream.opts.datascale = stream.opts.datascale*component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));
                     end
                 else % plot subtracted components
 %                     stream.d= stream.data{plot_content}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
@@ -190,7 +191,8 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                     [stream.nbchan,stream.pnts,stream.trials] = size(stream.data{end});
                     stream.xmax = stream.smax/stream.srate;
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
-                    ind = setdiff(1:length(W),handles.exclude);
+                    exclude = [2]; % !!! temporary, need to find real
+                    ind = setdiff(1:length(W),exclude);
                     plotdata = Winv(:,ind)*plotica(ind,:);
                 end
                                               

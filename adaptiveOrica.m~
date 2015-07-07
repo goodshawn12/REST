@@ -38,14 +38,13 @@ if computeConvergence
 %     A = pinv(weights);
 %     flow = A - blockdata*f'/nPts;   
     flow = eye(nChs)+y*f'/nPts;
-    variance = blockdata.*blockdata;
+    variance = blockdata.*blockdata';
     if isempty(state.Rn)
         state.Rn = flow;
         state.Var = sum(variance,2)/(nPts-1);
     else
         state.Rn = (1-state.leakyAvgDelta)*state.Rn + state.leakyAvgDelta*flow; % !!! this does not account for block update!
-        state.Var = (1-state.leakyAvgDeltaVar)^nPts*state.Var ...
-            + sum(state.leakyAvgDeltaVar*bsxfun(@times,variance,(1-state.leakyAvgDeltaVar).^(nPts-1:-1:0)),2);
+        state.Var = (1-state.leakyAvgDelta)^nPts*state.Var + state.leakyAvgDelta*sum((1-state.leakyAvgDelta).^(nPts-1:-1:0)
     end
     state.normRn = norm(state.Rn,'fro');
     if isempty(state.minNormRn), state.minNormRn = state.normRn; end;

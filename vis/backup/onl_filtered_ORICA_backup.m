@@ -1,4 +1,4 @@
-function onl_filtered_ORICA(~,~,stream_name)
+function onl_filtered_ORICA(p,desired_length,suppress_output,set_online_scope)
 % Obtain processed data from a filter pipeline online.
 %
 % This function returns a chunk of most recent filtered output from a filter pipeline.
@@ -48,20 +48,62 @@ function onl_filtered_ORICA(~,~,stream_name)
 %
 %                                Christian Kothe, Swartz Center for Computational Neuroscience, UCSD
 %                                2012-05-13
-try
+
+nargin = 1;
 p = evalin('base','pipeline');
 
+% check inputs
+if nargin < 4
+    set_online_scope = true;
+    if nargin < 1
+        error('You need to pass a pipeline structure.'); end
+    if nargin < 2
+        desired_length = 0; end
+    if nargin < 3
+        suppress_output = true; end
+end
+
+
 % run update_pipeline() with appropriate options
-[console_output,chunk,p] = evalc('hlp_scope({''disable_expressions'',1,''is_online'',1},@update_pipeline,p)'); %#ok<ASGLU>
+if suppress_output
+    if set_online_scope
+        [console_output,chunk,p] = evalc('hlp_scope({''disable_expressions'',1,''is_online'',1},@update_pipeline,p)'); %#ok<ASGLU>
+    else
+        [console_output,chunk,p] = evalc('update_pipeline(p)'); %#ok<ASGLU>
+    end
+else
+    if set_online_scope
+        [chunk,p] = hlp_scope({'disable_expressions',1,'is_online',1},@update_pipeline,p); 
+    else
+        [chunk,p] = update_pipeline(p); 
+    end
+end
 
 if isempty(chunk.data)
     return
 end
 
-% save pipeline in base workspace
+% if a desired length was specified and the chunk is not epoched
+if desired_length && ~isstruct(chunk.epoch)    
+    try
+        % concatenate the chunk with previous buffer contents and trim to desired size
+        p.buffer = utl_buffer(chunk,p.buffer,desired_length);
+    catch e
+        % handle missing .buffer field (first-time use)
+        if ~isfield(p,'buffer')        
+            p.buffer = utl_buffer(chunk,struct('data',[],'event',[]),desired_length);
+        else
+            rethrow(e);
+        end
+    end
+    chunk = p.buffer;
+    
+end
 assignin('base','pipeline',p);
-
-% save convergence info in base workspace % !!! clean for output
+% assignin('base','W_temp',chunk.icaweights);
+% assignin('base','sphere_temp',chunk.icasphere);
+% evalin('base','W = cat(3,W,W_temp);')
+% evalin('base','sphere = cat(3,sphere,sphere_temp);')
 conv_statIdx = evalin('base','conv_statIdx');
 conv_mir = evalin('base','conv_mir');
 learning_rate = evalin('base','learning_rate');
@@ -72,35 +114,7 @@ if isfield(chunk,'statIdx')
     assignin('base','learning_rate',[learning_rate(len+1:end) db(chunk.lambda_k)]);
 end
 
-% raw data: p.parts{2}.parts{2}.out
-% iir filtered data: p.out
-% whitened data: chunk.icasphere
-% ica activations: chunk.icaact
-
-% update vis_stream_ORICA buffer
-buffername = ['lsl_' stream_name '_stream'];
-buffer = evalin('base',buffername);
-strin = ['] = deal(buffer.smax + size(p.out,2),'];
-strout = ['[buffer.smax,'];
-[strin,strout] = build_command(p,0,[],strin,strout,'buffer');
-eval([strout(1:end-1) strin(1:end-1) ');']);
-assignin('base',buffername,buffer)
-
-
-
-% buffername = ['lsl_' stream_name '_stream'];
-% strin = ['] = deal(' buffername '.smax + size(pipeline.out,2),'];
-% strout = ['[' buffername '.smax,'];
-% [strin,strout] = build_command(p,0,[],strin,strout,buffername);
-% evalin('base',[strout(1:end-1) strin(1:end-1) ');']);
-catch e
-    dbstop
-end
-
-           
-% draw_timerseries_function(data); % !!! need to get and format data;
-
-function [chunk,p,n] = update_pipeline(p)
+function [chunk,p] = update_pipeline(p)
 % Update the given filter pipeline and get a chunk of the newly appended output
 % [Chunk,Pipeline] = update_pipeline(Pipeline)
 %
@@ -129,40 +143,16 @@ inputs = p.parts;
 if p.subnodes
     % update input pipelines to the current node and store the results in inputs
     for k=p.subnodes
-        [inputs{k},p.parts{k},n] = update_pipeline(p.parts{k}); end
+        [inputs{k},p.parts{k}] = update_pipeline(p.parts{k}); end
     % process the inputs by calling the respective filter function
     if p.stateful
         [chunk,p.state] = p.head(inputs{:},'state',p.state,'arg_direct',true);
     else
         chunk = p.head(inputs{:});
     end
-    if isempty(chunk.icaact)
-        p.out = chunk.data(:,end-n+1:end);
-    else
-        p.out = chunk.icaact(:,end-n+1:end);
-    end
 else
     % get the most recent samples since our buffer's smax from a raw stream: 
     % inputs holds the cell array {stream_name,channel_range)
     chunk = onl_peek(inputs{1},p.smax,'index',inputs{2});
     p.smax = chunk.smax;
-    p.out = chunk.data;
-    n = size(chunk.data,2);
 end
-
-function [strin,strout,count] = build_command(p,count,index,strin,strout,buffername)
-if p.subnodes
-    % recursive call for deeper parts of pipeline
-    for k=p.subnodes
-        [strin,strout,count] = build_command(p.parts{k},count,[index '.parts{' num2str(k) '}'],strin,strout,buffername); end
-end
-% build the outputs
-count = count + 1;
-strout = [strout 'buffer.data{' num2str(count) '}(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)),'];
-strin = [strin 'p' index '.out,'];
-
-
-
-
-
-

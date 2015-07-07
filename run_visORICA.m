@@ -1,4 +1,8 @@
 %% Run visGUI
+clear
+close all
+delete(timerfind)
+
 addpath(genpath('dependencies'))
 addpath(genpath('utility'))
 addpath('vis')
@@ -95,7 +99,7 @@ if playback
         end
     end
     EEG = pop_loadset(data_location);
-    playbackStream = play_eegset_lsl(EEG,[],[],[],true);
+    playbackStream = play_eegset_lsl(EEG,'REST_test_data','REST_test_markers',[],true);
 end
 visORICA(calibData)
 
