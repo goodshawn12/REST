@@ -59,6 +59,7 @@ function visORICA_OpeningFcn(hObject, eventdata, handles, varargin)
 % Parse varargsin
 handles.chanlocs = evalin('base','chanlocs'); % change !!!
 handles.ntopo = 8;
+handles.nic = length(handles.chanlocs);
 handles.ics = 1:handles.ntopo;
 % handles.streamName = 'visORICAst';
 handles.curIC = 1;
@@ -72,7 +73,7 @@ calibData = varargin{1};
 startup_check_flt_files();
 
 % Check if localization is possible and adjust GUI accordingly
-handles = startup_check_localization(handles,calibData);
+% handles = startup_check_localization(handles,calibData); % !!! turn back on after testing
 
 % Intialize ORICA
 handles = initializeORICA(handles,calibData);
@@ -83,7 +84,6 @@ oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_f
 % Start EEG stream
 [~, handles.bufferName] = vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG,'streamname',handles.streamName);
 eegTimer = timerfind('Name','eegTimer');
-set(eegTimer,'UserData',{hObject,1})
 
 % Populate scalp maps
 for it = 1:handles.ntopo
@@ -105,31 +105,8 @@ for it = 1:length(ind)
     set(handles.(names{ind(it)}),'BackgroundColor',handles.color_bg)
 end
 
-% Gather and disperse pipeline function names
-funs = get_pipeline_functions();
-set(handles.popupmenuEEG,'String',[funs; 'ICA cleaned'])
-buffer = evalin('base',handles.bufferName);
-buffer.funs = funs;
-assignin('base',handles.bufferName,buffer);
+% Populate plot options
 
-% Find if channels have been removed
-if any(strcmp(funs,'flt_selchans'))
-    pipeline = evalin('base','pipeline');
-    removed = pipeline.parts{2}.parts{2}.parts{4}; % !!! generalize
-    handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
-    % adjust chanlocs
-    handles.urchanlocs = handles.chanlocs;
-    handles.chanlocs(handles.rmchan_index) = [];
-    handles.nic = length(handles.chanlocs);
-    % adjust headModel
-    handles.urheadModel = handles.headModel;
-    handles.headModel.channelSpace(handles.rmchan_index,:) = [];
-    handles.headModel.channelLabel(handles.rmchan_index) = []; % !!! had to change the headModel contructor
-    handles.K(handles.rmchan_index,:) = [];
-%     LFM = load(handles.headModel.leadFieldFile);
-%     LFM.K(handles.rmchan_index,:) = [];
-%     save(handles.headModel.leadFieldFile,'-struct','LFM')
-end
 
 % Save timers
 handles.pauseTimers = [eegTimer,topoTimer,infoTimer];
@@ -151,17 +128,16 @@ end
 % UIWAIT makes visORICA wait for user response (see UIRESUME)
 % uiwait(handles.figure1);
 
-function [funs] = get_pipeline_functions(p)
-if ~exist('p','var')
-    p = evalin('base','pipeline'); end
-funs = {};
+function [funs] = build_command(p,count,index,strin,strout,buffername)
 if p.subnodes
     % recursive call for deeper parts of pipeline
     for k=p.subnodes
-        [funs] = get_pipeline_functions(p.parts{k}); end
+        [strin,strout,count] = build_command(p.parts{k},count,[index '.parts{' num2str(k) '}'],strin,strout,buffername); end
 end
 % build the outputs
-funs = [funs;func2str(p.head)];
+count = count + 1;
+strout = [strout 'buffer.data{' num2str(count) '}(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)),'];
+strin = [strin 'p' index '.out,'];
 end
 
 
@@ -293,7 +269,7 @@ run_readlsl('MatlabStream',streamnames,'DataStreamQuery', ['name=''' streamnames
 handles.streamName = streamnames;
 
 opts.lsl.StreamName = handles.streamName;
-opts.BCILAB_PipelineConfigFile = 'data/ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
+opts.BCILAB_PipelineConfigFile = 'ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
 
 % define the pipeline configuration
 try    fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));
@@ -311,12 +287,8 @@ end
 
 
 % grab calib data from online stream
-disp('Collecting calibration data from online stream... please wait 20 seconds...');
-pause(10); % uh oh!
-calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
-calibData = warmStartWithBadChRemoved(calibData);
-assignin('base','badChIndex',calibData.etc.badChIndex);
-assignin('base','badChLabels',calibData.etc.badChLabels);
+%pause(30); % uh oh!
+%calibData = onl_peek(opts.lsl.StreamName,30,'seconds');
 
 % run pipline on calibration data
 cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));
@@ -343,12 +315,14 @@ try
     srate = evalin('base',[handles.bufferName '.srate']);
     data = evalin('base',[handles.bufferName '.data{end}']); % !!! make this more robust
     if all(data(:,end)==0)
-        mark=length(data);
+        mark=1;
         while true
-            mark = find(data(1,1:mark)~=0,1,'last');
-            if all(data(:,mark)~=0)
+            ind = find(data(1,mark:end)==0,1);
+            mark = mark+ind;
+            if all(data(:,mark-1)==0)
                 break; end
         end
+        mark = mark-2;
         data = data(:,max(1,mark-srate*secs2samp+1):mark);
     else
         data = data(:,max(1,end-srate*secs2samp+1):end);
@@ -452,15 +426,9 @@ function popupmenuEEG_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 eegTimer = timerfind('Name','eegTimer');
-if strcmpi(get(handles.pushbuttonPause,'string'),'Pause'); % if running
-    stop(eegTimer)
-    temp = get(eegTimer,'UserData');
-    set(eegTimer,'UserData',[temp(1) get(hObject,'value')]);
-    start(eegTimer)
-else % if paused
-    temp = get(eegTimer,'UserData');
-    set(eegTimer,'UserData',[temp(1) get(hObject,'value')]);
-end
+stop(eegTimer)
+set(eegTimer,'UserData',get(hObject,'value'));
+start(eegTimer)
 % Hints: contents = cellstr(get(hObject,'String')) returns popupmenuEEG contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from popupmenuEEG
 end
@@ -859,14 +827,14 @@ if get(button,'Value') % turned lock on
 %     set(button,'BackgroundColor',[0.5 1 0.5])
     if isfield(handles,'figIC')
         set(handles.figIC.buttonLock(ic),'Value',1,'BackgroundColor',handles.color_lock); end
-%     if any(handles.exclude==ic)
-%         handles.exclude(handles.exclude==ic) = [];
-%         % update fig
-%         if isfield(handles,'figIC')
-%             set(handles.figIC.buttonExclude(ic),'Value',0,...
-%                 'BackgroundColor',handles.color_bg);
-%         end
-%     end
+    if any(handles.exclude==ic)
+        handles.exclude(handles.exclude==ic) = [];
+        % update fig
+        if isfield(handles,'figIC')
+            set(handles.figIC.buttonExclude(ic),'Value',0,...
+                'BackgroundColor',handles.color_bg);
+        end
+    end
 else % turned lock off
     handles.lock(handles.lock==ic) = [];
     if isfield(handles,'figIC')
@@ -894,14 +862,14 @@ if get(button,'Value') % turned exclude on
 %     set(button,'BackgroundColor',[1 0.5 0.5])
     if isfield(handles,'figIC')
         set(handles.figIC.buttonExclude(ic),'Value',1,'BackgroundColor',handles.color_exclude); end
-%     if any(handles.lock==ic)
-%         handles.lock(handles.lock==ic) = [];
-%         % update fig
-%         if isfield(handles,'figIC')
-%             set(handles.figIC.buttonLock(ic),'Value',0,...
-%                 'BackgroundColor',handles.color_bg);
-%         end
-%     end
+    if any(handles.lock==ic)
+        handles.lock(handles.lock==ic) = [];
+        % update fig
+        if isfield(handles,'figIC')
+            set(handles.figIC.buttonLock(ic),'Value',0,...
+                'BackgroundColor',handles.color_bg);
+        end
+    end
 else % turned exclude off
     handles.exclude(handles.exclude==ic) = [];
     if isfield(handles,'figIC')
@@ -916,12 +884,10 @@ end
 
 function updateICs(hObject)
 handles = guidata(hObject);
-temp = [handles.lock setdiff(1:handles.nic,[handles.lock])];
-% temp = [handles.lock setdiff(1:handles.nic,[handles.lock,handles.exclude]) handles.exclude];
+temp = [handles.lock setdiff(1:handles.nic,[handles.lock,handles.exclude]) handles.exclude];
 handles.ics = temp(1:handles.ntopo);
 guidata(hObject,handles);
 end
-
 
 
 % function updateButtons(handles,ic,onFlag,lockFlag)
