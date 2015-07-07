@@ -56,8 +56,20 @@ else
 end
 
 % handle input arguments
+streamnames = find_streams;
+
+if length(streamnames) == 1
+    assignin('base','streamname',streamnames); % save stream name in base workspace
+else
+    % if more than 2 (EEG) streams, pop up a GUI to select one.
+    selStream(streamnames); % result 'streamname' is saved in base workspace
+%     delete(h)
+    streamnames = evalin('base','streamname');
+end
+
+
 opts = arg_define(varargin, ...
-    arg({'streamname','StreamName'},[],[],'LSL stream that should be displayed. The name of the stream that you would like to display.'), ...
+    arg({'streamname','StreamName'},streamnames{1},streamnames,'LSL stream that should be displayed. The name of the stream that you would like to display.'), ...
     arg({'property','SelectionProperty'}, 'type',[],'Selection property. The selection criterion by which the desired device is identified on the net. This is a property that the desired device must have (e.g., name, type, desc/manufacturer, etc.'), ...
     arg({'value','SelectionValue'}, 'EEG',[],'Selection value. This is the value that the desired device must have for the selected property (e.g., EEG if searching by type, or Biosemi if searching by manufacturer).'), ...
     arg({'bufferrange','BufferRange'},360,[],'Maximum time range to buffer. Imposes an upper limit on what can be displayed.'), ...
@@ -85,30 +97,18 @@ opts.bufferrange = max(opts.bufferrange,opts.timerange);
 % init shared handles
 [fig,ax,lines] = deal([]);
 
-% streamnames = find_streams;
-% if length(streamnames) == 1
-%     assignin('base','streamname',streamnames); % save stream name in base workspace
-% else
-%     % if more than 2 (EEG) streams, pop up a GUI to select one.
-%     selStream(streamnames); % result 'streamname' is saved in base workspace
-% %     delete(h)
-%     streamnames = evalin('base','streamname');
-% end
-
-
 % choose variable names to hold the stream's data (in the base workspace)
 taken = evalin('base','whos(''lsl*'')');
-% chunkname = genvarname(['lsl_visORICAst_chunk'],{taken.name});
-% buffername = genvarname(['lsl_visORICAst_stream'],{taken.name});
-chunkname = genvarname(['lsl_' opts.streamname '_chunk'],{taken.name});
-buffername = genvarname(['lsl_' opts.streamname '_stream'],{taken.name});
+chunkname = genvarname(['lsl_visORICAst_chunk'],{taken.name});
+buffername = genvarname(['lsl_visORICAst_stream'],{taken.name});
+% chunkname = genvarname(['lsl_' opts.streamname '_chunk'],{taken.name});
+% buffername = genvarname(['lsl_' opts.streamname '_stream'],{taken.name});
 
 % create a stream inlet
 inlet = create_inlet(opts);
 
 % create the stream data structure in the base workspace
-buffer = create_streambuffer(opts);
-assignin('base', buffername, buffer);
+assignin('base', buffername, create_streambuffer(opts,inlet.info()));
 
 % create the figure
 create_figure(opts);
@@ -116,7 +116,7 @@ create_figure(opts);
 % set up a timer that reads from LSL
 th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,...
     'StartDelay',0.2,'Tag','lsl_visORICAst_timer',...
-    'Name','eegTimer','UserData',1);
+    'Name','eegTimer','UserData',0);
 
 % th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,...
 %     'StartDelay',0.2,'Tag',['lsl_' genvarname(opts.streamname) '_timer'],...
@@ -150,62 +150,39 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
             % check if the buffer is still there
             if evalin('base',['exist(''' buffername ''',''var'')'])
                 
-                % check what to play
-                timerdata = get(varargin{1},'userdata');
-                handles = guidata(timerdata{1});
-                plot_content = timerdata{2};
+                % check if plotting components
+                plotICs = get(varargin{1},'userdata');
                 
                 % === update buffer contents (happens in the base workspace) ===
                 
-%                 % pull a new chunk from LSL
-%                 assignin('base',chunkname,inlet.pull_chunk());
-%                 
-%                 % append it to the stream buffer
-%                 evalin('base',['[' buffername '.smax,' buffername '.data(:,1+mod(' buffername '.smax:' buffername '.smax+size(' chunkname ',2)-1,' buffername '.pnts))] = deal(' buffername '.smax + size(' chunkname ',2),' chunkname ');']);
+                % pull a new chunk from LSL
+                assignin('base',chunkname,inlet.pull_chunk());
+                
+                % append it to the stream buffer
+                evalin('base',['[' buffername '.smax,' buffername '.data(:,1+mod(' buffername '.smax:' buffername '.smax+size(' chunkname ',2)-1,' buffername '.pnts))] = deal(' buffername '.smax + size(' chunkname ',2),' chunkname ');']);
                 
                 % get the updated stream buffer
                 stream = evalin('base',buffername);
                 
                 % reformat the stream buffer to contain only the current block that should be displayed
                 samples_to_get = min(stream.pnts, round(stream.srate*stream.opts.timerange));
-                if plot_content<=length(stream.data)
-                    stream.data{plot_content} = stream.data{plot_content}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
-                    [stream.nbchan,stream.pnts,stream.trials] = size(stream.data{plot_content});
-                    stream.xmax = stream.smax/stream.srate;
-                    stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
-                    plotdata = stream.data{plot_content}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
-                    if plot_content==length(stream.data)
-                        W = evalin('base','pipeline.state.icaweights');
-                        sphere = evalin('base','pipeline.state.icasphere');
-                        stream.opts.datascale = stream.opts.datascale*mean(sqrt(mean((W*sphere).^2)));%component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));
-                    end
-                else % plot subtracted components
-%                     stream.d= stream.data{plot_content}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
-                    stream.data{end} = stream.data{end}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
-                    plotica = stream.data{end}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
-%                     variance = evalin('base','pipeline.state.Var');
-                    W = evalin('base','pipeline.state.icaweights');
-                    sphere = evalin('base','pipeline.state.icasphere');
-                    Winv = pinv(W*sphere);
-                    [stream.nbchan,stream.pnts,stream.trials] = size(stream.data{end});
-                    stream.xmax = stream.smax/stream.srate;
-                    stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
-                    ind = setdiff(1:length(W),handles.exclude);
-                    plotdata = Winv(:,ind)*plotica(ind,:);
-                end
+                stream.data = stream.data(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
+                [stream.nbchan,stream.pnts,stream.trials] = size(stream.data);
+                stream.xmax = stream.smax/stream.srate;
+                stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
+                
                                               
                 % === data post-processing for plotting ===
                 % conditionally calculate components
-%                 if plot_content<= length*
-%                 plotdata = stream.data{plot_content}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
-%                 if plot_content
-%                     W = evalin('base','pipeline.state.icaweights');
-%                     sphere = evalin('base','pipeline.state.icasphere');
-%                     data_scale = mean(range(plotdata,2));
-%                     plotdata = W*(sphere*plotdata);
-%                     component_scale = mean(range(plotdata,2));
-%                     stream.opts.datascale = stream.opts.datascale*component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));
-%                 end
+                plotdata = stream.data(:, round(1 : stream.srate/stream.opts.samplingrate : end));
+                if plotICs
+                    W = evalin('base','pipeline.state.icaweights');
+                    sphere = evalin('base','pipeline.state.icasphere');
+                    data_scale = mean(range(plotdata,2));
+                    plotdata = W*(sphere*plotdata);
+                    component_scale = mean(range(plotdata,2));
+                    stream.opts.datascale = stream.opts.datascale*component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));
+                end
                 
                 % determine channels and samples to display
                 plotchans = stream.opts.channelrange + stream.opts.pageoffset*length(stream.opts.channelrange);
@@ -248,7 +225,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 
                     % update the axis limit and tickmarks
                     axis(ax,[stream.xmin stream.xmax -stream.opts.datascale size(plotdata,2)*stream.opts.datascale + stream.opts.datascale]);
-                    if plot_content
+                    if plotICs
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',cellstr(int2str(plotchans')));
                     else
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',{stream.chanlocs(plotchans).labels});
@@ -271,7 +248,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                                 break
                             end
                         end
-                        if flag_channel_removed && ~plot_content
+                        if flag_channel_removed && ~plotICs
                             set(lines(index),'linestyle','..')
                         end
                     end
@@ -356,29 +333,17 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
 
 
     % create a new stream buffer in the base workspace
-    function stream = create_streambuffer(opts)
-        base_stream = evalin('base',opts.streamname);
-        stream.srate = base_stream.srate;                                   % sampling rate in Hz
-        stream.chanlocs = base_stream.chanlocs;                             % struct with per-channel meta-data
+    function stream = create_streambuffer(opts,info)
+        stream.srate = info.nominal_srate();                                % sampling rate in Hz
+        stream.chanlocs = struct('labels',derive_channel_labels(info));     % struct with per-channel meta-data
         stream.pnts = max(opts.bufferrange*stream.srate,100);               % number of data points in the buffer
-        stream.nbchan = base_stream.nbchan;                                 % number of channels in the buffer
+        stream.nbchan = info.channel_count();                               % number of channels in the buffer
         stream.trials = 1;                                                  % number of segments in the buffer (always 1)
-        pipe_len = find_pipeline_length();                                  % # of pipeline outputs
-        stream.data = repmat({zeros(stream.nbchan,stream.pnts,stream.trials)},pipe_len,1);       % the circular buffer storage
+        stream.data = zeros(stream.nbchan,stream.pnts,stream.trials);       % the circular buffer storage
         stream.smax = 0;                                                    % number of samples that have been written into the buffer so far (wrapping around)
         stream.opts = opts;                                                 % current display options for this stream
     end
-    % create a new stream buffer in the base workspace
-%     function stream = create_streambuffer(opts,info)
-%         stream.srate = info.nominal_srate();                                % sampling rate in Hz
-%         stream.chanlocs = struct('labels',derive_channel_labels(info));     % struct with per-channel meta-data
-%         stream.pnts = max(opts.bufferrange*stream.srate,100);               % number of data points in the buffer
-%         stream.nbchan = info.channel_count();                               % number of channels in the buffer
-%         stream.trials = 1;                                                  % number of segments in the buffer (always 1)
-%         stream.data = zeros(stream.nbchan,stream.pnts,stream.trials);       % the circular buffer storage
-%         stream.smax = 0;                                                    % number of samples that have been written into the buffer so far (wrapping around)
-%         stream.opts = opts;                                                 % current display options for this stream
-%     end
+
 
     % derive a list of channel labels for the given stream info
     function channels = derive_channel_labels(info)
@@ -395,22 +360,6 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
             channels = cellfun(@(k)['Ch' num2str(k)],num2cell(1:info.channel_count(),1),'UniformOutput',false);
         end
     end
-
-    % find pipeline length
-    function pipe_len = find_pipeline_length(p,pipe_len)
-        if ~exist('p','var')
-            p = evalin('base','pipeline'); end
-        if ~exist('pipe_len','var')
-            pipe_len = 0; end
-        
-        if p.subnodes
-            for k = p.subnodes
-                pipe_len = find_pipeline_length(p.parts{k},pipe_len);
-            end
-        end
-        pipe_len = pipe_len + 1;
-    end
     
 end
-
 

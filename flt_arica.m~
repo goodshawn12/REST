@@ -145,8 +145,7 @@ if ~exist('state','var') || isempty(state)
     
     if computeConvergence
         if ~isfield(state,'leakyAvgDelta'), state.leakyAvgDelta = 0.05; end
-        state.leakyAvgDeltaVar = 0.1/signal.srate;
-        state.Var           = [];
+        state.Var = [];
         state.Rn            = [];
         state.normRn        = [];
         state.minNormRn     = [];
