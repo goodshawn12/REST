@@ -48,7 +48,7 @@ function onl_filtered_ORICA(~,~,stream_name)
 %
 %                                Christian Kothe, Swartz Center for Computational Neuroscience, UCSD
 %                                2012-05-13
-try
+
 p = evalin('base','pipeline');
 
 % run update_pipeline() with appropriate options
@@ -80,25 +80,29 @@ end
 % update vis_stream_ORICA buffer
 buffername = ['lsl_' stream_name '_stream'];
 buffer = evalin('base',buffername);
-strin = ['] = deal(buffer.smax + size(p.out,2),'];
-strout = ['[buffer.smax,'];
-[strin,strout] = build_command(p,0,[],strin,strout,'buffer');
-eval([strout(1:end-1) strin(1:end-1) ');']);
-assignin('base',buffername,buffer)
-
-
-
-% buffername = ['lsl_' stream_name '_stream'];
-% strin = ['] = deal(' buffername '.smax + size(pipeline.out,2),'];
-% strout = ['[' buffername '.smax,'];
-% [strin,strout] = build_command(p,0,[],strin,strout,buffername);
-% evalin('base',[strout(1:end-1) strin(1:end-1) ');']);
+try
+    % save data to buffer
+    strin = '] = deal(buffer.smax + size(p.out,2),';
+    strout = '[buffer.smax,';
+    [strin,strout] = build_command(p,0,[],strin,strout,'buffer',false);
+    eval([strout(1:end-1) strin(1:end-1) ');']);
 catch e
-    dbstop
+    % reformat buffer: !!! this won't work if we're adding back in channels or if channles are removed later on
+    [strin,strout] = build_command(p,0,[],'] = deal(','[','buffer',true);
+    eval([strout(1:end-1) strin(1:end-1) ');']);
+    for it = 1:length(t)
+        buffer.data{it}(t(it)+1:end,:) = []; end
+    
+    % save data to buffer
+    strin = '] = deal(buffer.smax + size(p.out,2),';
+    strout = '[buffer.smax,';
+    [strin,strout] = build_command(p,0,[],strin,strout,'buffer',false);
+    eval([strout(1:end-1) strin(1:end-1) ');']);
 end
 
-           
-% draw_timerseries_function(data); % !!! need to get and format data;
+% save buffer
+assignin('base',buffername,buffer)
+
 
 function [chunk,p,n] = update_pipeline(p)
 % Update the given filter pipeline and get a chunk of the newly appended output
@@ -145,26 +149,24 @@ else
     % get the most recent samples since our buffer's smax from a raw stream: 
     % inputs holds the cell array {stream_name,channel_range)
     chunk = onl_peek(inputs{1},p.smax,'index',inputs{2});
-    chunk.etc.badChIndex = evalin('base','badChIndex');
-    chunk.etc.badChLabels = evalin('base','badChLabels');
     p.smax = chunk.smax;
     p.out = chunk.data;
     n = size(chunk.data,2);
 end
 
-function [strin,strout,count] = build_command(p,count,index,strin,strout,buffername)
+function [strin,strout,count] = build_command(p,count,index,strin,strout,buffername,flag_channelCount)
 if p.subnodes
     % recursive call for deeper parts of pipeline
     for k=p.subnodes
-        [strin,strout,count] = build_command(p.parts{k},count,[index '.parts{' num2str(k) '}'],strin,strout,buffername); end
+            [strin,strout,count] = build_command(p.parts{k},count,[index '.parts{' num2str(k) '}'],strin,strout,buffername,flag_channelCount);
+    end
 end
 % build the outputs
 count = count + 1;
-strout = [strout 'buffer.data{' num2str(count) '}(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)),'];
-strin = [strin 'p' index '.out,'];
-
-
-
-
-
-
+if ~flag_channelCount
+    strout = [strout 'buffer.data{' num2str(count) '}(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)),'];
+    strin = [strin 'p' index '.out,'];
+else
+    strout = [strout 't(' num2str(count) '),'];
+    strin = [strin 'size(p' index '.out,1),'];
+end

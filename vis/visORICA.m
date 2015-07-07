@@ -295,6 +295,14 @@ handles.streamName = streamnames;
 opts.lsl.StreamName = handles.streamName;
 opts.BCILAB_PipelineConfigFile = 'data/ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
 
+% grab calib data from online stream
+disp('Collecting calibration data from online stream... please wait 10 seconds...');
+pause(10); % uh oh!
+calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
+calibData = warmStartWithBadChRemoved(calibData);
+% assignin('base','badChIndex',calibData.etc.badChIndex);
+% assignin('base','badChLabels',calibData.etc.badChLabels);
+
 % define the pipeline configuration
 try    fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));
 catch, disp('-- no existing pipeline --'); fltPipCfg = {}; end
@@ -302,21 +310,18 @@ fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
     'Parameters',[{'signal',calibData} fltPipCfg], ...
     'PanelOnly',false);
 
+if isfield(fltPipCfg,'pselchans')
+    if isfield(calibData.etc,'badChLabels')
+        fltPipCfg.pselchans.channels = calibData.etc.badChLabels;
+    end
+end
+
 % save the configuration
 if ~isempty(fltPipCfg)
     if isfield(fltPipCfg,'signal'); fltPipCfg = rmfield(fltPipCfg,'signal'); end
     save(env_translatepath(opts.BCILAB_PipelineConfigFile),...
         '-struct','fltPipCfg');
 end
-
-
-% grab calib data from online stream
-disp('Collecting calibration data from online stream... please wait 20 seconds...');
-pause(10); % uh oh!
-calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
-calibData = warmStartWithBadChRemoved(calibData);
-assignin('base','badChIndex',calibData.etc.badChIndex);
-assignin('base','badChLabels',calibData.etc.badChLabels);
 
 % run pipline on calibration data
 cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));
