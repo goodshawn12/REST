@@ -263,7 +263,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 if ~isempty(plotdata)
                     if ~exist('lines','var') || isempty(lines)                        
                         lines = plot(ax,plottime,plotdata);
-                        title(ax,opts.streamname);
+                        title(ax,opts.streamname,'interpreter','none');
                         xlabel(ax,'Time (sec)','FontSize',12);
                         ylabel(ax,'Activation','FontSize',12);
                     else

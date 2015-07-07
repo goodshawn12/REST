@@ -365,7 +365,7 @@ try
     [data,f] = pwelch(data,[],[],[],srate);
 %     [data,f,conf] = pwelch(data,[],[],[],srate,'ConfidenceLevel',0.95);!!!
     
-    plot(handles.axisInfo,f(1:round(end/2)),db(data(1:round(end/2)))) % !!!
+    plot(handles.axisInfo,f(1:round(end/2)),db(data(1:round(end/2)))) % !!! manually cut
     grid(handles.axisInfo,'on');
     xlabel(handles.axisInfo,'Frequency (Hz)')
     ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
