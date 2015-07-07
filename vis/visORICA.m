@@ -107,13 +107,21 @@ end
 
 % Gather and disperse pipeline function names
 funs = get_pipeline_functions();
-set(handles.popupmenuEEG,'String',[funs; 'ICA cleaned'])
+funnames = cell(length(funs)-2,1);
+for it = 2:length(funs)
+    temp = arg_report('properties',funs{it});
+    funnames{it-1} = temp.name;
+    if iscell(funnames{it-1})
+        funnames{it-1} = funnames{it-1}{1}; end
+end
+set(handles.popupmenuEEG,'String',['Raw Data'; funnames; 'ICA Cleaned'])
 buffer = evalin('base',handles.bufferName);
 buffer.funs = funs;
 assignin('base',handles.bufferName,buffer);
 
 % Find if channels have been removed
-if any(strcmp(funs,'flt_selchans'))
+funsstr = cellfun(@func2str,funs,'uniformoutput',false');
+if any(strcmp(funsstr,'flt_selchans'))
     pipeline = evalin('base','pipeline');
     removed = pipeline.parts{2}.parts{2}.parts{4}; % !!! generalize
     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
@@ -161,7 +169,7 @@ if p.subnodes
         [funs] = get_pipeline_functions(p.parts{k}); end
 end
 % build the outputs
-funs = [funs;func2str(p.head)];
+funs = [funs;{p.head}];
 end
 
 
@@ -366,7 +374,7 @@ try
     [data,f] = pwelch(data,[],[],[],srate);
 %     [data,f,conf] = pwelch(data,[],[],[],srate,'ConfidenceLevel',0.95);!!!
     
-    plot(handles.axisInfo,f,db(data)) % !!!
+    plot(handles.axisInfo,f(1:round(end/2)),db(data(1:round(end/2)))) % !!!
     grid(handles.axisInfo,'on');
     xlabel(handles.axisInfo,'Frequency (Hz)')
     ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
@@ -381,9 +389,8 @@ function infoConverge(varargin)
 % plot convergence statistics
 
 % parse inputs
-% handle_statIdx = varargin{3};
 handle_learning_rate = varargin{3};
-% handle_mir = varargin{4};
+handle_panelInfo = varargin{4};
 
 % load convergence statistics
 % conv_statIdx = evalin('base','conv_statIdx');
@@ -400,6 +407,7 @@ set(get(handle_learning_rate,'parent'),'YLim',ylim_lr,'YTick',linspace(ylim_lr(1
 % set(handle_mir,'YData',conv_mir)
 % set(handle_learning_rate,'YData',learning_rate)
 set(handle_learning_rate,'YData',learning_rate)
+set(handle_panelInfo,'Title',['Adaptive Learning Rate'])
 
 
 
@@ -775,6 +783,7 @@ if isfield(handles,'figLoc')
     handles = rmfield(handles,'figLoc'); end
 % delete timer and remove from pauseTimers
 locTimerInd = strcmp(get(handles.pauseTimers,'Name'),'locTimer');
+stop(handles.pauseTimers(locTimerInd));
 delete(handles.pauseTimers(locTimerInd));
 handles.pauseTimers(locTimerInd) = [];
 % save handles
@@ -992,7 +1001,7 @@ switch contents{get(handles.popupmenuInfo,'Value')}
         set(get(get(handles.axisInfo(1),'parent'),'YLabel'),'String','Learning Rate (dB)')
 %         set(get(handles.axisInfo(1),'YLabel'),'String','Convergence Index')
 %         set(get(handles.axisInfo(2),'YLabel'),'String','Mutual Information Reduction')
-        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoConverge,handles.axisInfo},'StartDelay',0);
+        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoConverge,handles.axisInfo,handles.panelInfo},'StartDelay',0);
 %         set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoConverge,line1,line2},'StartDelay',0);
         axis(get(handles.axisInfo,'parent'),'tight')
         start(infoTimer)
