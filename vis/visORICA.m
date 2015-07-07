@@ -304,12 +304,10 @@ opts.lsl.StreamName = handles.streamName;
 opts.BCILAB_PipelineConfigFile = 'data/ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
 
 % grab calib data from online stream
-disp('Collecting calibration data from online stream... please wait 10 seconds...');
-pause(10); % uh oh!
-calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
+disp('Collecting calibration data from online stream... please wait 20 seconds...');
+pause(20); % uh oh!
+calibData = onl_peek(opts.lsl.StreamName,20,'seconds');
 calibData = warmStartWithBadChRemoved(calibData);
-% assignin('base','badChIndex',calibData.etc.badChIndex);
-% assignin('base','badChLabels',calibData.etc.badChLabels);
 
 % define the pipeline configuration
 try    fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));
