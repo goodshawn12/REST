@@ -59,7 +59,6 @@ function visORICA_OpeningFcn(hObject, eventdata, handles, varargin)
 % Parse varargsin
 handles.chanlocs = evalin('base','chanlocs'); % change !!!
 handles.ntopo = 8;
-handles.nic = length(handles.chanlocs);
 handles.ics = 1:handles.ntopo;
 % handles.streamName = 'visORICAst';
 handles.curIC = 1;
@@ -73,7 +72,7 @@ calibData = varargin{1};
 startup_check_flt_files();
 
 % Check if localization is possible and adjust GUI accordingly
-% handles = startup_check_localization(handles,calibData); % !!! turn back on after testing
+handles = startup_check_localization(handles,calibData);
 
 % Intialize ORICA
 handles = initializeORICA(handles,calibData);
@@ -112,6 +111,25 @@ set(handles.popupmenuEEG,'String',[funs; 'ICA cleaned'])
 buffer = evalin('base',handles.bufferName);
 buffer.funs = funs;
 assignin('base',handles.bufferName,buffer);
+
+% Find if channels have been removed
+if any(strcmp(funs,'flt_selchans'))
+    pipeline = evalin('base','pipeline');
+    removed = pipeline.parts{2}.parts{2}.parts{4}; % !!! generalize
+    handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
+    % adjust chanlocs
+    handles.urchanlocs = handles.chanlocs;
+    handles.chanlocs(handles.rmchan_index) = [];
+    handles.nic = length(handles.chanlocs);
+    % adjust headModel
+    handles.urheadModel = handles.headModel;
+    handles.headModel.channelSpace(handles.rmchan_index,:) = [];
+    handles.headModel.channelLabel(handles.rmchan_index) = []; % !!! had to change the headModel contructor
+    handles.K(handles.rmchan_index,:) = [];
+%     LFM = load(handles.headModel.leadFieldFile);
+%     LFM.K(handles.rmchan_index,:) = [];
+%     save(handles.headModel.leadFieldFile,'-struct','LFM')
+end
 
 % Save timers
 handles.pauseTimers = [eegTimer,topoTimer,infoTimer];
@@ -321,14 +339,12 @@ try
     srate = evalin('base',[handles.bufferName '.srate']);
     data = evalin('base',[handles.bufferName '.data{end}']); % !!! make this more robust
     if all(data(:,end)==0)
-        mark=1;
+        mark=length(data);
         while true
-            ind = find(data(1,mark:end)==0,1);
-            mark = mark+ind;
-            if all(data(:,mark-1)==0)
+            mark = find(data(1,1:mark)~=0,1,'last');
+            if all(data(:,mark)~=0)
                 break; end
         end
-        mark = mark-2;
         data = data(:,max(1,mark-srate*secs2samp+1):mark);
     else
         data = data(:,max(1,end-srate*secs2samp+1):end);
@@ -432,10 +448,15 @@ function popupmenuEEG_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 eegTimer = timerfind('Name','eegTimer');
-stop(eegTimer)
-temp = get(eegTimer,'UserData');
-set(eegTimer,'UserData',[temp(1) get(hObject,'value')]);
-start(eegTimer)
+if strcmpi(get(handles.pushbuttonPause,'string'),'Pause'); % if running
+    stop(eegTimer)
+    temp = get(eegTimer,'UserData');
+    set(eegTimer,'UserData',[temp(1) get(hObject,'value')]);
+    start(eegTimer)
+else % if paused
+    temp = get(eegTimer,'UserData');
+    set(eegTimer,'UserData',[temp(1) get(hObject,'value')]);
+end
 % Hints: contents = cellstr(get(hObject,'String')) returns popupmenuEEG contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from popupmenuEEG
 end

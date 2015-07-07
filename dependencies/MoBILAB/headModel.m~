@@ -18,15 +18,14 @@ classdef headModel < handle
         atlas                  % Atlas that labels each vertex in the most internal surface (gray matter).
         
         leadFieldFile = [];    % Pointer to the file where the lead field matrix was stored.
-        
-        channelLabel = []
     end
     properties(GetAccess = private, SetAccess = private)
         label;
         F = [];
     end
-%     properties(Dependent)
-%     end
+    properties(Dependent)
+        channelLabel = []
+    end
     methods
         function obj = headModel(varargin)
             if length(varargin)==1, varargin = varargin{1};end
@@ -61,7 +60,7 @@ classdef headModel < handle
             if ~isempty(ind), obj.leadFieldFile = varargin{ind*2};end
             ind = find(ismember(varargin(1:2:length(varargin)-1),'label'));
             if ~isempty(ind),
-                obj.channelLabel = varargin{ind*2};
+                obj.label = varargin{ind*2};
             else
                 N = size(obj.channelSpace,1);
                 labels = num2str((1:N)');
@@ -69,13 +68,13 @@ classdef headModel < handle
                 for it=1:N, obj.label{it} = deblank(obj.label{it});end
             end
         end
-%         function labels = getChannelLabels(obj)
-%             labels = obj.label;
-%             warning('This method will be deprecated in the future, instead you can access directly the property channelLabel.')
-%         end
-%         function channelLabel = get.channelLabel(obj)
-%             channelLabel = obj.label;
-%         end
+        function labels = getChannelLabels(obj)
+            labels = obj.label;
+            warning('This method will be deprecated in the future, instead you can access directly the property channelLabel.')
+        end
+        function channelLabel = get.channelLabel(obj)
+            channelLabel = obj.label;
+        end
         %%
         function [roiname,roinumber] = labelDipole(obj,dipole)
             if isempty(obj.F)
@@ -247,7 +246,7 @@ classdef headModel < handle
                 end
             catch
                 disp('Fiducials are missing in the individual head model, selecting the common set of points based on the channel labels.')
-                [~,loc1,loc2] = intersect(channelLabel,template.label,'stable');
+                [~,loc1,loc2] = intersect(obj.getChannelLabels,template.label,'stable');
                 T = obj.channelSpace(loc1,:);
                 S = template.channelSpace(loc2,:);
             end

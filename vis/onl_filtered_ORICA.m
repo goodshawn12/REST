@@ -88,12 +88,10 @@ try
     eval([strout(1:end-1) strin(1:end-1) ');']);
 catch e
     % reformat buffer: !!! this won't work if we're adding back in channels or if channles are removed later on
-    [strin,strout] = build_command(p,0,[],'[','] = deal(','buffer',true);
+    [strin,strout] = build_command(p,0,[],'] = deal(','[','buffer',true);
     eval([strout(1:end-1) strin(1:end-1) ');']);
     for it = 1:length(t)
         buffer.data{it}(t(it)+1:end,:) = []; end
-    [strin,strout] = build_command(p,0,[],strin,strout,'buffer',false);
-    eval([strout(1:end-1) strin(1:end-1) ');']);
     
     % save data to buffer
     strin = '] = deal(buffer.smax + size(p.out,2),';
@@ -105,8 +103,6 @@ end
 % save buffer
 assignin('base',buffername,buffer)
 
-           
-% draw_timerseries_function(data); % !!! need to get and format data;
 
 function [chunk,p,n] = update_pipeline(p)
 % Update the given filter pipeline and get a chunk of the newly appended output

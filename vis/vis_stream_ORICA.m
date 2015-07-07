@@ -193,19 +193,42 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                     ind = setdiff(1:length(W),handles.exclude);
                     plotdata = Winv(:,ind)*plotica(ind,:);
                 end
-                                              
-                % === data post-processing for plotting ===
-                % conditionally calculate components
-%                 if plot_content<= length*
-%                 plotdata = stream.data{plot_content}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
-%                 if plot_content
-%                     W = evalin('base','pipeline.state.icaweights');
-%                     sphere = evalin('base','pipeline.state.icasphere');
-%                     data_scale = mean(range(plotdata,2));
-%                     plotdata = W*(sphere*plotdata);
-%                     component_scale = mean(range(plotdata,2));
-%                     stream.opts.datascale = stream.opts.datascale*component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));
-%                 end
+                
+                % find removed channels stage or pipeline they were removed
+                flag_channel_removed = false;
+                pipeline = evalin('base','pipeline');
+                count = length(stream.data);
+                index = [];
+                while true
+                    if ~isequal(pipeline.head,@flt_clean_channels) && ~isequal(pipeline.head,@flt_selchans)
+                        try
+                            pipeline = pipeline.parts{2}; % !!! make this more general
+                            count = count-1;
+                        catch
+                            break
+                        end
+                    elseif isequal(pipeline.head,@flt_clean_channels)
+                        index = pipeline.parts{2}.parts{end-1};
+                        flag_channel_removed = true;
+                        break
+                    elseif isequal(pipeline.head,@flt_selchans)
+                        plotica = arg_define(pipeline.parts, ...
+                            arg_norep({'signal','Signal'}), ...
+                            arg({'channels','Channels'}, [], [], 'Cell array of channel names to retain.','type','cellstr','shape','row'), ...
+                            arg({'orderPreservation','OrderPreservation'}, 'query-order', {'query-order','dataset-order'}, 'Output channel order. The result will have its channels either in the order of the input set or in the order of the query list.'), ...
+                            arg({'remove_selection','RemoveSelection'},false,[],'Remove selected channels.'), ...
+                            arg({'find_closest','FindClosest'},false,[],'Find closest channels. This is for cases where the requested channels are not in the set.'), ...
+                            arg({'relabel_to_query','RelabelToQuery'},false,[],'Relabel closest channels according to query. This only applies if FindClosest was true.'));
+                        if plotica.remove_selection
+                            index = find(ismember({stream.chanlocs.labels},plotica.channels));
+                        else
+                            [~,index] = setdiff({stream.chanlocs.labels},plotica.channels);
+                            index = sort(index);
+                        end
+                        flag_channel_removed = true;
+                        break
+                    end
+                end
                 
                 % determine channels and samples to display
                 plotchans = stream.opts.channelrange + stream.opts.pageoffset*length(stream.opts.channelrange);
@@ -216,6 +239,10 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 end
                 plotdata = plotdata(plotchans,:);
                 plottime = linspace(stream.xmin,stream.xmax,size(plotdata,2));
+                if plot_content>=count
+                    channels_remaining = setdiff(1:length(stream.chanlocs),index);
+                    plotchans = channels_remaining(plotchans);
+                end
                 
                 % re-reference
                 if stream.opts.reref
@@ -241,40 +268,30 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                         ylabel(ax,'Activation','FontSize',12);
                     else
                         for k=1:length(lines)
-                            set(lines(k),'Ydata',plotdata(:,k));
-                            set(lines(k),'Xdata',plottime);
+                            if k <= size(plotdata,2);
+                                set(lines(k),'Ydata',plotdata(:,k),'visible','on','linestyle','-');
+                                set(lines(k),'Xdata',plottime);
+                            else
+                                set(lines(k),'Ydata',zeros(size(plotdata(:,1))),'visible','off');
+                                set(lines(k),'Xdata',plottime);
+                            end
                         end
                     end
                 
                     % update the axis limit and tickmarks
                     axis(ax,[stream.xmin stream.xmax -stream.opts.datascale size(plotdata,2)*stream.opts.datascale + stream.opts.datascale]);
-                    if plot_content==length(buffer.data)
+                    if plot_content==length(stream.data)
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',cellstr(int2str(plotchans')));
+                    elseif plot_content<count
+                        set(ax, 'YTick',plotoffsets, 'YTickLabel',{stream.chanlocs(plotchans).labels});
                     else
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',{stream.chanlocs(plotchans).labels});
                     end
-                    
-                    % update linestyles if channels were removed
-                    try
-                        flag_channel_removed = false;
-                        pipeline = evalin('base','pipeline');
-                        while true
-                            if ~isequal(pipeline.head,@flt_clean_channels) && ~isequal(pipeline.head,@flt_selchans)
-                                try
-                                    pipeline = pipeline.parts{2};
-                                catch
-                                    break
-                                end
-                            else
-                                index = pipeline.parts{2}.parts{end-1};
-                                flag_channel_removed = true;
-                                break
-                            end
-                        end
-                        if flag_channel_removed && ~plot_content
-                            set(lines(index),'linestyle','..')
-                        end
-                    end
+                end
+                
+                % show which channels are not in pipeline when applicable
+                if flag_channel_removed && plot_content<count
+                    set(lines(ismember(plotchans,index)),'linestyle','--')
                 end
                 
                 drawnow;
@@ -320,7 +337,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
             case 'pagedown'
                 % shift display page offset down
                 stream.opts.pageoffset = mod(stream.opts.pageoffset+1, ...
-                    ceil(stream.nbchan/length(stream.opts.channelrange)));               
+                    ceil(stream.nbchan/length(stream.opts.channelrange)));
             case 'pageup'
                 % shift display page offset up
                 stream.opts.pageoffset = mod(stream.opts.pageoffset-1, ...
