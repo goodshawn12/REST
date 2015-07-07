@@ -248,7 +248,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                 
                     % update the axis limit and tickmarks
                     axis(ax,[stream.xmin stream.xmax -stream.opts.datascale size(plotdata,2)*stream.opts.datascale + stream.opts.datascale]);
-                    if plot_content
+                    if plot_content==length(buffer.data)
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',cellstr(int2str(plotchans')));
                     else
                         set(ax, 'YTick',plotoffsets, 'YTickLabel',{stream.chanlocs(plotchans).labels});
@@ -259,7 +259,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                         flag_channel_removed = false;
                         pipeline = evalin('base','pipeline');
                         while true
-                            if ~isequal(pipeline.head,@flt_clean_channels)
+                            if ~isequal(pipeline.head,@flt_clean_channels) && ~isequal(pipeline.head,@flt_selchans)
                                 try
                                     pipeline = pipeline.parts{2};
                                 catch
