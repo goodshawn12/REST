@@ -78,6 +78,7 @@ end
 % ica activations: chunk.icaact
 
 % update vis_stream_ORICA buffer
+if ~isvarname(stream_name), stream_name = stream_name(~isspace(stream_name)); end
 buffername = ['lsl_' stream_name '_stream'];
 buffer = evalin('base',buffername);
 try

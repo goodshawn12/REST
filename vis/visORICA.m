@@ -297,16 +297,16 @@ else
     streamnames = evalin('base','streamname');
     streamnames = streamnames{1};
 end
-run_readlsl('MatlabStream',streamnames,'DataStreamQuery', ['name=''' streamnames '''']);
+run_readlsl_ORICA('MatlabStream',streamnames,'DataStreamQuery', ['name=''' streamnames '''']);
 handles.streamName = streamnames;
 
-opts.lsl.StreamName = handles.streamName;
+if ~isvarname(streamnames), opts.lsl.StreamName = streamnames(~isspace(streamnames)); end
 opts.BCILAB_PipelineConfigFile = 'data/ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
 
 % grab calib data from online stream
-disp('Collecting calibration data from online stream... please wait 20 seconds...');
-pause(20); % uh oh!
-calibData = onl_peek(opts.lsl.StreamName,20,'seconds');
+disp('Collecting calibration data from online stream... please wait 10 seconds...');
+pause(10); % uh oh!
+calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
 calibData = warmStartWithBadChRemoved(calibData);
 
 % define the pipeline configuration

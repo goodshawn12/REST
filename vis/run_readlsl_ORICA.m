@@ -155,6 +155,9 @@ function run_readlsl_ORICA(varargin)
         nominal_srate = opts.srate_override; end
 
     % create online stream data structure in base workspace (using appropriate meta-data)
+    if ~isvarname(opts.new_stream)
+        opts.new_stream = opts.new_stream(~isspace(opts.new_stream));
+    end
     onl_newstream(opts.new_stream,'srate',nominal_srate,'chanlocs',channels,'buffer_len',opts.buffer_len);
 
     if ~isempty(opts.marker_query)
