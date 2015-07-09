@@ -100,10 +100,11 @@ opts.bufferrange = max(opts.bufferrange,opts.timerange);
 taken = evalin('base','whos(''lsl*'')');
 
 % create a stream inlet
-inlet = create_inlet(opts);
+% inlet = create_inlet(opts);
+inlet = [];
 
 % create the stream data structure in the base workspace
-if ~isvarname(opts.streamname) opts.streamname = opts.streamname(~isspace(opts.streamname)); end
+% if ~isvarname(opts.streamname) opts.streamname = opts.streamname(~isspace(opts.streamname)); end
 chunkname = genvarname(['lsl_' opts.streamname '_chunk'],{taken.name});
 buffername = genvarname(['lsl_' opts.streamname '_stream'],{taken.name});
 

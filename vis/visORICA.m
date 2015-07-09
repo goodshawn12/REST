@@ -271,9 +271,9 @@ function handles = initializeORICA(handles,calibData)
 
 % create/refresh convergence buffers
 bufflen = 60; % seconds
-assignin('base','conv_statIdx',zeros(1,bufflen*calibData.srate)); % !!! clean output
-assignin('base','conv_mir',zeros(1,bufflen*calibData.srate));
-assignin('base','learning_rate',zeros(1,bufflen*calibData.srate));
+assignin('base','conv_statIdx',nan(1,bufflen*calibData.srate)); % !!! clean output
+assignin('base','conv_mir',nan(1,bufflen*calibData.srate));
+assignin('base','learning_rate',nan(1,bufflen*calibData.srate));
 
 % load LSL
 if ~exist('env_translatepath','file')
@@ -298,9 +298,10 @@ else
     streamnames = streamnames{1};
 end
 run_readlsl_ORICA('MatlabStream',streamnames,'DataStreamQuery', ['name=''' streamnames '''']);
-handles.streamName = streamnames;
 
-if ~isvarname(streamnames), opts.lsl.StreamName = streamnames(~isspace(streamnames)); end
+if ~isvarname(streamnames), streamnames = streamnames(~isspace(streamnames)); end
+handles.streamName = streamnames;
+opts.lsl.StreamName = streamnames;
 opts.BCILAB_PipelineConfigFile = 'data/ORICA_pipeline_config_realtime.mat'; % make sure this file doesn't have 'signal' entry
 
 % grab calib data from online stream
@@ -372,7 +373,9 @@ try
     [data,f] = pwelch(data,[],[],[],srate);
 %     [data,f,conf] = pwelch(data,[],[],[],srate,'ConfidenceLevel',0.95);!!!
     
-    plot(handles.axisInfo,f(1:round(end/2)),db(data(1:round(end/2)))) % !!!
+    maxFreq = 50;
+    ind = f <= maxFreq;
+    plot(handles.axisInfo,f(ind),db(data(ind))) % !!!
     grid(handles.axisInfo,'on');
     xlabel(handles.axisInfo,'Frequency (Hz)')
     ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
@@ -551,7 +554,11 @@ else
 end
 fhandle = handles.headModel.plotOnModel(Jest(:),Winv(:,handles.curIC),sprintf('IC %d Localization (LORETA)',handles.curIC));
 set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject},'name',['IC' num2str(handles.curIC)]);
-
+% children = get(fhandle.hAxes,'children');
+colorbar('hide');
+% colorbar(children(strcmp(get(children,'type')),'hide'); 
+% set(fhandle.hAxes,'CLim',[0 max(caxis(fhandle.hAxes))]);colorbar(fhandle.hAxes,'ylim',[]);
+% colormap(fhandle.hAxes,[ones(1,100);fliplr(logspace(-1,0,100));fliplr(logspace(-1,0,100))]');
 
 % create timer
 locTimer = timer('Period',3,'StartDelay',3,'ExecutionMode','fixedRate','TimerFcn',{@figLoc_update_LORETA,hObject},'Tag','locTimer','Name','locTimer');
