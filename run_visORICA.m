@@ -7,8 +7,8 @@ addpath(genpath('dependencies'))
 addpath(genpath('utility'))
 addpath('vis')
 
-Emotiv = 0;
-Cognionics = 1;
+Emotiv = 1;
+Cognionics = 0;
 test16 = 0;
 test64 = 0;
 

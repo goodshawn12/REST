@@ -88,8 +88,21 @@ set(eegTimer,'UserData',{hObject,1})
 % Populate scalp maps
 for it = 1:handles.ntopo
     set(handles.figure1, 'CurrentAxes', handles.(['axesIC' int2str(it)]))
-    topoplotFast(rand(size(handles.chanlocs)), handles.chanlocs);
+    [~,Zi,~,Xi,Yi,intx,inty] = topoplotFast_LRBF(rand(size(handles.chanlocs)), handles.chanlocs);
 end
+
+% Generate scalp map interpolation matrix (jerry rigged)
+nChan = length(handles.chanlocs);
+in = eye(nChan);
+out = zeros(32^2,nChan);
+for it = 1:nChan
+    op = rbfcreate(double([inty;intx]),in(:,it)','RBFFunction', 'linear');
+    out(:,it) = rbfinterp(double([Xi(:),Yi(:)]'), op);
+end
+handles.topoMat = out/in;
+handles.topoNaNMask = isnan(Zi);
+handles.topoNPixel = size(out,1);
+handles.topoMat(handles.topoNaNMask,:) = [];
 
 % Create scalp map timer
 topoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
@@ -408,6 +421,7 @@ end
 function vis_topo(varargin)
 % get the updated stream buffer
 W = evalin('base','pipeline.state.icaweights');
+sphere = evalin('base','pipeline.state.icasphere');
 
 % get handles
 handles = guidata(varargin{3});
@@ -418,10 +432,17 @@ hstr = ['axesIC' int2str(it)];
 hand = get(handles.(hstr),'children');
 
 try
-    sphere = evalin('base','pipeline.state.icasphere');
     Winv = inv(W*sphere);
     
-    [map, cmin, cmax] = topoplotUpdate(Winv(:,handles.ics(it)), handles.chanlocs,'electrodes','off','gridscale',32);
+%     [map, cmin, cmax] = topoplotUpdate(Winv(:,handles.ics(it)), handles.chanlocs,'electrodes','off','gridscale',32);
+    map = zeros(handles.topoNPixel,1);
+    map(~handles.topoNaNMask) = handles.topoMat*Winv(:,handles.ics(it));
+    maxabs = max(abs(map));
+    cmin = -maxabs;
+    cmax =  maxabs;
+    map(handles.topoNaNMask) = NaN;
+    map = reshape(map,sqrt(handles.topoNPixel),[]);
+    
     surfInd = strcmp(get(hand,'type'),'surface');
     set(hand(surfInd),'CData',map);
     set(handles.(hstr),'CLim',[cmin cmax]);
