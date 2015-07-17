@@ -59,7 +59,6 @@ function visORICA_OpeningFcn(hObject, eventdata, handles, varargin)
 % Parse varargsin
 handles.chanlocs = evalin('base','chanlocs'); % change !!!
 handles.ntopo = 8;
-handles.ics = 1:handles.ntopo;
 % handles.streamName = 'visORICAst';
 handles.curIC = 1;
 handles.lock = [];
@@ -70,6 +69,27 @@ calibData = varargin{1};
 
 % Check for orica.m and arica.m in bcilab path
 startup_check_flt_files();
+
+% Find if channels have been removed
+funsstr = cellfun(@func2str,funs,'uniformoutput',false');
+if any(strcmp(funsstr,'flt_selchans'))
+    pipeline = evalin('base','pipeline');
+    removed = pipeline.parts{2}.parts{2}.parts{4}; % !!! generalize
+    handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
+    % adjust chanlocs
+    handles.urchanlocs = handles.chanlocs;
+    handles.chanlocs(handles.rmchan_index) = [];
+    handles.nic = length(handles.chanlocs);
+    handles.ics = 1:handles.nic;
+    % adjust headModel
+    handles.urheadModel = handles.headModel;
+    handles.headModel.channelSpace(handles.rmchan_index,:) = [];
+    handles.headModel.channelLabel(handles.rmchan_index) = []; % !!! had to change the headModel contructor
+    handles.K(handles.rmchan_index,:) = [];
+%     LFM = load(handles.headModel.leadFieldFile);
+%     LFM.K(handles.rmchan_index,:) = [];
+%     save(handles.headModel.leadFieldFile,'-struct','LFM')
+end
 
 % Check if localization is possible and adjust GUI accordingly
 handles = startup_check_localization(handles,calibData);
@@ -132,25 +152,6 @@ buffer = evalin('base',handles.bufferName);
 buffer.funs = funs;
 assignin('base',handles.bufferName,buffer);
 
-% Find if channels have been removed
-funsstr = cellfun(@func2str,funs,'uniformoutput',false');
-if any(strcmp(funsstr,'flt_selchans'))
-    pipeline = evalin('base','pipeline');
-    removed = pipeline.parts{2}.parts{2}.parts{4}; % !!! generalize
-    handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
-    % adjust chanlocs
-    handles.urchanlocs = handles.chanlocs;
-    handles.chanlocs(handles.rmchan_index) = [];
-    handles.nic = length(handles.chanlocs);
-    % adjust headModel
-    handles.urheadModel = handles.headModel;
-    handles.headModel.channelSpace(handles.rmchan_index,:) = [];
-    handles.headModel.channelLabel(handles.rmchan_index) = []; % !!! had to change the headModel contructor
-    handles.K(handles.rmchan_index,:) = [];
-%     LFM = load(handles.headModel.leadFieldFile);
-%     LFM.K(handles.rmchan_index,:) = [];
-%     save(handles.headModel.leadFieldFile,'-struct','LFM')
-end
 
 % Save timers
 handles.pauseTimers = [eegTimer,topoTimer,infoTimer];
@@ -438,6 +439,8 @@ handles = guidata(varargin{3});
 
 % update topo plot
 it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
+if it==1
+    updateICs(varargin{3}); end
 hstr = ['axesIC' int2str(it)];
 hand = get(handles.(hstr),'children');
 
@@ -853,18 +856,18 @@ for it = 1:handles.nic
     h(it) = subaxis(rowcols(1),rowcols(2),it,'MR',.025,'ML',.025,'MT',.025,'MB',.025,'SH',0,'SV',0.02);
     tempPos = get(h(it),'Position');
     set(h(it),'position',get(h(it),'position')*scaleMatTopo)
-    topoplotFast(Winv(:,it),handles.chanlocs);
-    title(['IC' int2str(it)])
+    topoplotFast(Winv(:,handles.ics(it)),handles.chanlocs);
+    title(['IC' int2str(handles.ics(it))])
     
-    lock = any(handles.lock==it);
-    exclude = any(handles.exclude==it);
+    lock = any(handles.lock==handles.ics(it));
+    exclude = any(handles.exclude==handles.ics(it));
     buttonLock(it) = uicontrol('Style', 'togglebutton', 'String', 'Lock',...
         'Units','normalize','Position', tempPos.*[1 1 .5-buttonGap/2 .2],...
-        'Callback', {@lockIC,it,hObject},'Value',lock,...
+        'Callback', {@lockIC,handles.ics(it),hObject},'Value',lock,...
         'BackgroundColor',handles.color_lock*lock + handles.color_bg*(1-lock));
     buttonExclude(it) = uicontrol('Style', 'togglebutton', 'String', 'Exclude',...
         'Units','normalize','Position', tempPos*scaleMatExclude,...
-        'Callback', {@excludeIC,it,hObject},'Value',exclude,...
+        'Callback', {@excludeIC,handles.ics(it),hObject},'Value',exclude,...
         'BackgroundColor',handles.color_exclude*exclude + handles.color_bg*(1-exclude));
 end
 handles.figIC.buttonLock = buttonLock;
@@ -955,10 +958,18 @@ end
 
 
 function updateICs(hObject)
+% load info
 handles = guidata(hObject);
-temp = [handles.lock setdiff(1:handles.nic,[handles.lock])];
-% temp = [handles.lock setdiff(1:handles.nic,[handles.lock,handles.exclude]) handles.exclude];
-handles.ics = temp(1:handles.ntopo);
+S = evalin('base','pipeline.state.icasphere');
+W = evalin('base','pipeline.state.icaweights');
+V = evalin('base','pipeline.state.Var');
+other = setdiff(1:handles.nic,[handles.lock]);
+% sort by residual variance
+meanvar = mean(pinv(W*S).^2).*V';
+[~,ind_lock] = sort(meanvar(handles.lock),'descend');
+[~,ind_other] = sort(meanvar(other),'descend');
+
+handles.ics = [handles.lock(ind_lock) other(ind_other)];
 guidata(hObject,handles);
 end
 
