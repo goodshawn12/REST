@@ -70,6 +70,34 @@ calibData = varargin{1};
 % Check for orica.m and arica.m in bcilab path
 startup_check_flt_files();
 
+% Check if localization is possible and adjust GUI accordingly
+handles = startup_check_localization(handles,calibData);
+
+% Intialize ORICA
+handles = initializeORICA(handles,calibData);
+
+% Create ORICA timer 
+oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,handles.streamName},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');%,'BusyMode','queue');
+
+% Start EEG stream
+[~, handles.bufferName] = vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG,'streamname',handles.streamName);
+eegTimer = timerfind('Name','eegTimer');
+set(eegTimer,'UserData',{hObject,1})
+
+% Gather and disperse pipeline function names
+funs = get_pipeline_functions();
+funnames = cell(length(funs)-2,1);
+for it = 2:length(funs)
+    temp = arg_report('properties',funs{it});
+    funnames{it-1} = temp.name;
+    if iscell(funnames{it-1})
+        funnames{it-1} = funnames{it-1}{1}; end
+end
+set(handles.popupmenuEEG,'String',['Raw Data'; funnames; 'ICA Cleaned'])
+buffer = evalin('base',handles.bufferName);
+buffer.funs = funs;
+assignin('base',handles.bufferName,buffer);
+
 % Find if channels have been removed
 funsstr = cellfun(@func2str,funs,'uniformoutput',false');
 if any(strcmp(funsstr,'flt_selchans'))
@@ -90,20 +118,6 @@ if any(strcmp(funsstr,'flt_selchans'))
 %     LFM.K(handles.rmchan_index,:) = [];
 %     save(handles.headModel.leadFieldFile,'-struct','LFM')
 end
-
-% Check if localization is possible and adjust GUI accordingly
-handles = startup_check_localization(handles,calibData);
-
-% Intialize ORICA
-handles = initializeORICA(handles,calibData);
-
-% Create ORICA timer 
-oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,handles.streamName},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');%,'BusyMode','queue');
-
-% Start EEG stream
-[~, handles.bufferName] = vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG,'streamname',handles.streamName);
-eegTimer = timerfind('Name','eegTimer');
-set(eegTimer,'UserData',{hObject,1})
 
 % Populate scalp maps
 for it = 1:handles.ntopo
@@ -137,21 +151,6 @@ ind = find(any([strncmpi(names,'panel',5),strncmpi(names,'toggle',6),strncmpi(na
 for it = 1:length(ind)
     set(handles.(names{ind(it)}),'BackgroundColor',handles.color_bg)
 end
-
-% Gather and disperse pipeline function names
-funs = get_pipeline_functions();
-funnames = cell(length(funs)-2,1);
-for it = 2:length(funs)
-    temp = arg_report('properties',funs{it});
-    funnames{it-1} = temp.name;
-    if iscell(funnames{it-1})
-        funnames{it-1} = funnames{it-1}{1}; end
-end
-set(handles.popupmenuEEG,'String',['Raw Data'; funnames; 'ICA Cleaned'])
-buffer = evalin('base',handles.bufferName);
-buffer.funs = funs;
-assignin('base',handles.bufferName,buffer);
-
 
 % Save timers
 handles.pauseTimers = [eegTimer,topoTimer,infoTimer];
