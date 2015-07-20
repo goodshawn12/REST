@@ -22,7 +22,7 @@ function varargout = visORICA(varargin)
 
 % Edit the above text to modify the response to help visORICA
 
-% Last Modified by GUIDE v2.5 22-Jan-2015 21:14:45
+% Last Modified by GUIDE v2.5 20-Jul-2015 15:32:46
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -63,8 +63,8 @@ handles.ntopo = 8;
 handles.curIC = 1;
 handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
-handles.exclude = [];
-handles.color_exclude = [1 0.5 0.5];
+handles.reject = [];
+handles.color_reject = [1 0.5 0.5];
 calibData = varargin{1};
 
 % Check for orica.m and arica.m in bcilab path
@@ -438,8 +438,8 @@ handles = guidata(varargin{3});
 
 % update topo plot
 it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
-if it==1
-    updateICs(varargin{3}); end
+% if it==1
+%     updateICs(varargin{3}); end
 hstr = ['axesIC' int2str(it)];
 hand = get(handles.(hstr),'children');
 
@@ -462,12 +462,12 @@ end
 
 % update name and buttons
 lock = any(handles.lock==handles.ics(it));
-exclude = any(handles.exclude==handles.ics(it));
+reject = any(handles.reject==handles.ics(it));
 set(handles.(['panelIC' int2str(it)]),'Title',['IC' int2str(handles.ics(it))])
 set(handles.(['togglebuttonLock' int2str(it)]),'Value',lock,...
     'BackgroundColor',handles.color_lock*lock + handles.color_bg*(1-lock))
-set(handles.(['togglebuttonExclude' int2str(it)]),'Value',exclude,...
-    'BackgroundColor',handles.color_exclude*exclude + handles.color_bg*(1-exclude))
+set(handles.(['togglebuttonReject' int2str(it)]),'Value',reject,...
+    'BackgroundColor',handles.color_reject*reject + handles.color_bg*(1-reject))
 end
 
 
@@ -850,7 +850,7 @@ rowcols(2) = ceil(sqrt(handles.nic));
 rowcols(1) = ceil(handles.nic/rowcols(2));
 scaleMatTopo = [1 0 0 0;0 1 0 0;0 0 1 0;0 .2 0 .8];
 buttonGap = .1;
-scaleMatExclude = [1 0 0 0;0 1 0 0;0 0 .5-buttonGap/2 0;.5+buttonGap/2 0 0 .2];
+scaleMatReject = [1 0 0 0;0 1 0 0;0 0 .5-buttonGap/2 0;.5+buttonGap/2 0 0 .2];
 for it = 1:handles.nic
     h(it) = subaxis(rowcols(1),rowcols(2),it,'MR',.025,'ML',.025,'MT',.025,'MB',.025,'SH',0,'SV',0.02);
     tempPos = get(h(it),'Position');
@@ -859,18 +859,18 @@ for it = 1:handles.nic
     title(['IC' int2str(it)])
     
     lock = any(handles.lock==it);
-    exclude = any(handles.exclude==it);
+    reject = any(handles.reject==it);
     buttonLock(it) = uicontrol('Style', 'togglebutton', 'String', 'Lock',...
         'Units','normalize','Position', tempPos.*[1 1 .5-buttonGap/2 .2],...
         'Callback', {@lockIC,it,hObject},'Value',lock,...
         'BackgroundColor',handles.color_lock*lock + handles.color_bg*(1-lock));
-    buttonExclude(it) = uicontrol('Style', 'togglebutton', 'String', 'Exclude',...
-        'Units','normalize','Position', tempPos*scaleMatExclude,...
-        'Callback', {@excludeIC,it,hObject},'Value',exclude,...
-        'BackgroundColor',handles.color_exclude*exclude + handles.color_bg*(1-exclude));
+    buttonReject(it) = uicontrol('Style', 'togglebutton', 'String', 'Reject',...
+        'Units','normalize','Position', tempPos*scaleMatReject,...
+        'Callback', {@rejectIC,it,hObject},'Value',reject,...
+        'BackgroundColor',handles.color_reject*reject + handles.color_bg*(1-reject));
 end
 handles.figIC.buttonLock = buttonLock;
-handles.figIC.buttonExclude = buttonExclude;
+handles.figIC.buttonReject = buttonReject;
 handles.figIC.handle = fhandle;
 guidata(hObject,handles);
 end
@@ -901,11 +901,11 @@ if get(button,'Value') % turned lock on
 %     set(button,'BackgroundColor',[0.5 1 0.5])
     if isfield(handles,'figIC')
         set(handles.figIC.buttonLock(ic),'Value',1,'BackgroundColor',handles.color_lock); end
-%     if any(handles.exclude==ic)
-%         handles.exclude(handles.exclude==ic) = [];
+%     if any(handles.reject==ic)
+%         handles.reject(handles.reject==ic) = [];
 %         % update fig
 %         if isfield(handles,'figIC')
-%             set(handles.figIC.buttonExclude(ic),'Value',0,...
+%             set(handles.figIC.buttonReject(ic),'Value',0,...
 %                 'BackgroundColor',handles.color_bg);
 %         end
 %     end
@@ -917,11 +917,11 @@ end
 % save handles
 guidata(hObject,handles);
 % update ics to plot
-updateICs(hObject)
+updateICs(hObject,false)
 end
 
 
-function excludeIC(varargin)
+function rejectIC(varargin)
 ic = varargin{3};
 button = varargin{1};
 % load handles
@@ -931,11 +931,11 @@ else
     hObject = get(button,'parent');
 end
 handles = guidata(hObject);
-if get(button,'Value') % turned exclude on
-    handles.exclude = sort([handles.exclude ic]);
+if get(button,'Value') % turned reject on
+    handles.reject = sort([handles.reject ic]);
 %     set(button,'BackgroundColor',[1 0.5 0.5])
     if isfield(handles,'figIC')
-        set(handles.figIC.buttonExclude(ic),'Value',1,'BackgroundColor',handles.color_exclude); end
+        set(handles.figIC.buttonReject(ic),'Value',1,'BackgroundColor',handles.color_reject); end
 %     if any(handles.lock==ic)
 %         handles.lock(handles.lock==ic) = [];
 %         % update fig
@@ -944,31 +944,35 @@ if get(button,'Value') % turned exclude on
 %                 'BackgroundColor',handles.color_bg);
 %         end
 %     end
-else % turned exclude off
-    handles.exclude(handles.exclude==ic) = [];
+else % turned reject off
+    handles.reject(handles.reject==ic) = [];
     if isfield(handles,'figIC')
-        set(handles.figIC.buttonExclude(ic),'value',0,'BackgroundColor',handles.color_bg); end
+        set(handles.figIC.buttonReject(ic),'value',0,'BackgroundColor',handles.color_bg); end
 end
 % save handles
 guidata(hObject,handles);
 % update ics to plot
-updateICs(hObject)
+updateICs(hObject,false)
 end
 
 
-function updateICs(hObject)
-% load info
+function updateICs(hObject,flag_sort)
+% load handles
 handles = guidata(hObject);
-S = evalin('base','pipeline.state.icasphere');
-W = evalin('base','pipeline.state.icaweights');
-V = evalin('base','pipeline.state.Var');
-other = setdiff(1:handles.nic,[handles.lock]);
-% sort by residual variance
-meanvar = mean(pinv(W*S).^2).*V';
-[~,ind_lock] = sort(meanvar(handles.lock),'descend');
-[~,ind_other] = sort(meanvar(other),'descend');
-
-handles.ics = [handles.lock(ind_lock) other(ind_other)];
+if flag_sort
+    % load info
+    S = evalin('base','pipeline.state.icasphere');
+    W = evalin('base','pipeline.state.icaweights');
+    V = evalin('base','pipeline.state.Var');
+    other = setdiff(1:handles.nic,[handles.lock]);
+    % sort by residual variance
+    meanvar = mean(pinv(W*S).^2).*V';
+    [~,ind_lock] = sort(meanvar(handles.lock),'descend');
+    [~,ind_other] = sort(meanvar(other),'descend');
+    handles.ics = [handles.lock(ind_lock) other(ind_other)];
+else
+    handles.ics = [handles.lock setdiff(1:handles.nic,[handles.lock])];
+end
 guidata(hObject,handles);
 end
 
@@ -987,10 +991,10 @@ end
 %     % update gui
 %     ind = find(handles.ics==ic);
 %     if ind
-%         set(handles.(['togglebuttonExclude' int2str(ind)]),'Value',onFlag); end
+%         set(handles.(['togglebuttonReject' int2str(ind)]),'Value',onFlag); end
 %     % update fig
 %     if isfield(handles,'figIC')
-%         set(handles.figIC.buttonExclude(ic),'Value',onFlag); end
+%         set(handles.figIC.buttonReject(ic),'Value',onFlag); end
 % end
 
 
@@ -1065,12 +1069,12 @@ end
 end
 
 
-% --- Executes on button press in togglebuttonExclude8.
-function togglebuttonExclude8_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonExclude8 (see GCBO)
+% --- Executes on button press in togglebuttonReject8.
+function togglebuttonReject8_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonReject8 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],handles.ics(8))
+rejectIC(hObject,[],handles.ics(8))
 end
 
 
@@ -1083,12 +1087,12 @@ lockIC(hObject,[],handles.ics(8))
 end
 
 
-% --- Executes on button press in togglebuttonExclude7.
-function togglebuttonExclude7_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonExclude7 (see GCBO)
+% --- Executes on button press in togglebuttonReject7.
+function togglebuttonReject7_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonReject7 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],handles.ics(7))
+rejectIC(hObject,[],handles.ics(7))
 end
 
 
@@ -1101,12 +1105,12 @@ lockIC(hObject,[],handles.ics(7))
 end
 
 
-% --- Executes on button press in togglebuttonExclude6.
-function togglebuttonExclude6_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonExclude6 (see GCBO)
+% --- Executes on button press in togglebuttonReject6.
+function togglebuttonReject6_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonReject6 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],handles.ics(6))
+rejectIC(hObject,[],handles.ics(6))
 end
 
 
@@ -1119,12 +1123,12 @@ lockIC(hObject,[],handles.ics(6))
 end
 
 
-% --- Executes on button press in togglebuttonExclude5.
-function togglebuttonExclude5_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonExclude5 (see GCBO)
+% --- Executes on button press in togglebuttonReject5.
+function togglebuttonReject5_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonReject5 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],handles.ics(5))
+rejectIC(hObject,[],handles.ics(5))
 end
 
 
@@ -1137,12 +1141,12 @@ lockIC(hObject,[],handles.ics(5))
 end
 
 
-% --- Executes on button press in togglebuttonExclude4.
-function togglebuttonExclude4_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonExclude4 (see GCBO)
+% --- Executes on button press in togglebuttonReject4.
+function togglebuttonReject4_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonReject4 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],handles.ics(4))
+rejectIC(hObject,[],handles.ics(4))
 end
 
 
@@ -1155,12 +1159,12 @@ lockIC(hObject,[],handles.ics(4))
 end
 
 
-% --- Executes on button press in togglebuttonExclude3.
-function togglebuttonExclude3_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonExclude3 (see GCBO)
+% --- Executes on button press in togglebuttonReject3.
+function togglebuttonReject3_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonReject3 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],handles.ics(3))
+rejectIC(hObject,[],handles.ics(3))
 end
 
 
@@ -1173,12 +1177,12 @@ lockIC(hObject,[],handles.ics(3))
 end
 
 
-% --- Executes on button press in togglebuttonExclude2.
-function togglebuttonExclude2_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonExclude2 (see GCBO)
+% --- Executes on button press in togglebuttonReject2.
+function togglebuttonReject2_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonReject2 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],handles.ics(2))
+rejectIC(hObject,[],handles.ics(2))
 end
 
 
@@ -1191,12 +1195,12 @@ lockIC(hObject,[],handles.ics(2))
 end
 
 
-% --- Executes on button press in togglebuttonExclude1.
-function togglebuttonExclude1_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonExclude1 (see GCBO)
+% --- Executes on button press in togglebuttonReject1.
+function togglebuttonReject1_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonReject1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-excludeIC(hObject,[],handles.ics(1))
+rejectIC(hObject,[],handles.ics(1))
 end
 
 
@@ -1335,3 +1339,11 @@ if isfield(handles,'intialized') && handles.intialized
 end
 end
 
+
+% --- Executes on button press in pushbuttonSortICs.
+function pushbuttonSortICs_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbuttonSortICs (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+updateICs(hObject,true)
+end
