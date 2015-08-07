@@ -62,6 +62,7 @@ classdef headModel < handle
             ind = find(ismember(varargin(1:2:length(varargin)-1),'label'));
             if ~isempty(ind),
                 obj.channelLabel = varargin{ind*2};
+                obj.label = varargin{ind*2};
             else
                 N = size(obj.channelSpace,1);
                 labels = num2str((1:N)');
