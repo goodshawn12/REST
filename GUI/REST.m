@@ -20,11 +20,12 @@ function varargout = REST(varargin)
 %             - hmInd (optional): if headModel is an object, then it is 
 %               advisable to attach the remaining indices used in the 
 %               headModel
-%           - custom_pipeline (optional): a value of "true" will bring up a
-%             dialog for customizing the pipeline. Be warned: the pipeline
-%             must end with flt_orica or flt_arica and may be brittle to
-%             other changes as well. This is largely untested but provided
-%             as an option for the brave who wish to experiment (default:0) 
+%           - customize_pipeline (optional): a value of "true" will bring
+%             up a dialog for customizing the pipeline. Be warned: the
+%             pipeline must end with flt_orica or flt_arica and may be
+%             brittle to other changes as well. This is largely untested
+%             but provided as an option for the brave who wish to
+%             experiment (default: false) 
 %
 %      REST('Property','Value',...) creates a new REST or raises the
 %      existing singleton*.  Starting from the left, property value pairs are
@@ -73,12 +74,9 @@ handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
-[handles, calibData] = startup_check_inputs(handles,varargin);
+[handles,calibData,customize_pipeline] = startup_check_inputs(handles,varargin);
 
-% !!! have to deal with no calibData case
-% !!! have to add option to change pipeline
 % !!! srate????
-
 
 % check for bcilab in path
 startup_check_bcilab();
@@ -86,9 +84,8 @@ startup_check_bcilab();
 % Check for orica.m and arica.m in bcilab path
 startup_check_flt_files();
 
-
 % Intialize ORICA
-handles = initializeORICA(handles,calibData);
+handles = initializeORICA(handles,calibData,customize_pipeline);
 
 % Create ORICA timer 
 oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,handles.streamName},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');%,'BusyMode','queue');
@@ -198,8 +195,7 @@ end
 funs = [funs;{p.head}];
 end
 
-
-function [handles, calibData] = startup_check_inputs(handles,in)
+function [handles, calibData, customize_pipeline] = startup_check_inputs(handles,in)
 % check channel locations
 if isfield(in{1},'chanlocs')
     handles.chanlocs = in{1}.chanlocs; end
@@ -228,6 +224,13 @@ end
 % if still no chanlocs, error
 if ~isfield(handles,'chanlocs')
     error('REST: No channel location information provided!')
+end
+
+% check whether to open pipeline arg_guipanel
+if isfield(in{1},'customize_pipeline')
+	customize_pipeline = in{1}.customize_pipeline;
+else
+	customize_pipeline = false;
 end
 end
 
@@ -266,7 +269,7 @@ flag_refreshBCILAB = false;
 if ~any(strcmp({contents.name},'flt_orica.m'))
     display('REST: flt_orica.m not present in BCILAB path. Attempting to create copy. This will only happen the first time visEEG is run.')
     destination = env_translatepath('functions:/filters/flt_orica.m');
-    source = [fileparts(fileparts(which('REST'))) '/flt_orica.m'];
+    source = [fileparts(fileparts(which('REST'))) filesep 'flt_orica.m'];
     if ~exist(source,'file')
         warning('REST cannot find flt_orica.m. REST will likely error soon.')
     else
@@ -401,9 +404,10 @@ catch
     disp('-- no existing pipeline --'); fltPipCfg = {};
 end
 
+% open pipeline configuration gui if no settings found or if user requested
 if customize_pipeline || isempty(fltPipCfg)
     fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
-        'Parameters',[{'signal',calibData} fltPipCfg], ...
+        'Parameters',[{'signal',onl_peek(opts.lsl.StreamName,1,'samples')} fltPipCfg], ...
         'PanelOnly',false);
 end
 
@@ -413,7 +417,7 @@ if isfield(fltPipCfg,'pselchans')
     end
 end
 
-% save the configuration
+% save the configuration %!!! maybe disable this?
 if ~isempty(fltPipCfg)
     if isfield(fltPipCfg,'signal')
         fltPipCfg = rmfield(fltPipCfg,'signal'); end
@@ -421,10 +425,14 @@ if ~isempty(fltPipCfg)
         '-struct','fltPipCfg');
 end
 
-% grab calib data from online stream
+% grab calib data from online stream if there is none
+if isempty(calibData)
 disp('Collecting calibration data from online stream... please wait 10 seconds...');
 pause(10-toc); % uh oh!
 calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
+end
+
+% check for bad channels
 calibData = warmStartWithBadChRemoved(calibData);
 
 % run pipline on calibration data
