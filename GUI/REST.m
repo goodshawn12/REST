@@ -73,33 +73,11 @@ handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
-if isfield(varargin{1},'chanlocs')
-    handles.chanlocs = varargin{1}.chanlocs; end
-if isfield(varargin{1},'calibration_data')
-    calibData = varargin{1}.calibration_data;
-    if ~isfield(handles,'chanlocs') && isfield(calibData,'chanlocs') && ~isempty(calibData.chanlocs)
-        handles.chanlocs = calibData.chanlocs; end
-else
-    calibData = [];
-end
-% Check if localization is possible and adjust GUI accordingly
-handles = startup_check_localization(handles,varargin{1});
-if ~isfield(handles,'chanlocs') && isfield(handles,'headModel')
-    for it = 1:size(handles.headModel.channelSpace,1)
-        handles.chanlocs(it).labels = handles.headModel.channelLabel{it};
-        handles.chanlocs(it).X = handles.headModel.channelSpace(it,1);
-        handles.chanlocs(it).Y = handles.headModel.channelSpace(it,2);
-        handles.chanlocs(it).Z = handles.headModel.channelSpace(it,3);
-    end
-end
-% if still no chanlocs, error
-if ~isfield(handles,'chanlocs')
-    error('REST: No channel location information provided!')
-end
+[handles, calibData] = startup_check_inputs(handles,varargin);
 
 % !!! have to deal with no calibData case
 % !!! have to add option to change pipeline
-
+% !!! srate????
 
 
 % check for bcilab in path
@@ -221,6 +199,38 @@ funs = [funs;{p.head}];
 end
 
 
+function [handles, calibData] = startup_check_inputs(handles,in)
+% check channel locations
+if isfield(in{1},'chanlocs')
+    handles.chanlocs = in{1}.chanlocs; end
+
+% check calibration data
+if isfield(in{1},'calibration_data')
+    calibData = in{1}.calibration_data;
+    if ~isfield(handles,'chanlocs') && isfield(calibData,'chanlocs') && ~isempty(calibData.chanlocs)
+        handles.chanlocs = calibData.chanlocs; end
+else
+    calibData = [];
+end
+
+% check if localization is possible and adjust GUI accordingly
+handles = startup_check_localization(handles,in{1});
+
+if ~isfield(handles,'chanlocs') && isfield(handles,'headModel')
+    for it = 1:size(handles.headModel.channelSpace,1)
+        handles.chanlocs(it).labels = handles.headModel.channelLabel{it};
+        handles.chanlocs(it).X = handles.headModel.channelSpace(it,1);
+        handles.chanlocs(it).Y = handles.headModel.channelSpace(it,2);
+        handles.chanlocs(it).Z = handles.headModel.channelSpace(it,3);
+    end
+end
+
+% if still no chanlocs, error
+if ~isfield(handles,'chanlocs')
+    error('REST: No channel location information provided!')
+end
+end
+
 function startup_check_bcilab
 bcilab_path = which('bcilab.m');
 % if not present, look in bcilab_path.txt
@@ -247,7 +257,6 @@ else
         'or save the BCILAB path in the file bcilab_path.txt (recommended).'])
 end
 end
-
 
 function startup_check_flt_files
 % check if orica/arica are already in the BCILAB path
@@ -345,7 +354,7 @@ elseif isa(in.headModel,'headModel')
 end
 end
 
-function handles = initializeORICA(handles,calibData)
+function handles = initializeORICA(handles,calibData,customize_pipeline)
 
 % create/refresh convergence buffers
 bufflen = 60; % seconds
@@ -386,11 +395,17 @@ opts.BCILAB_PipelineConfigFile = ...
 
 % define the pipeline configuration
 tic
-try    fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));
-catch, disp('-- no existing pipeline --'); fltPipCfg = {}; end
-fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
-    'Parameters',[{'signal',calibData} fltPipCfg], ...
-    'PanelOnly',false);
+try
+    fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));
+catch
+    disp('-- no existing pipeline --'); fltPipCfg = {};
+end
+
+if customize_pipeline || isempty(fltPipCfg)
+    fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
+        'Parameters',[{'signal',calibData} fltPipCfg], ...
+        'PanelOnly',false);
+end
 
 if isfield(fltPipCfg,'pselchans')
     if isfield(calibData.etc,'badChLabels')
@@ -400,8 +415,9 @@ end
 
 % save the configuration
 if ~isempty(fltPipCfg)
-    if isfield(fltPipCfg,'signal'); fltPipCfg = rmfield(fltPipCfg,'signal'); end
-    save(env_translatepath(opts.BCILAB_PipelineConfigFile),...
+    if isfield(fltPipCfg,'signal')
+        fltPipCfg = rmfield(fltPipCfg,'signal'); end
+    save(env_translatepath(opts.BCILAB_PipelineConfigFile), ...
         '-struct','fltPipCfg');
 end
 
