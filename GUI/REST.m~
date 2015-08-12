@@ -60,6 +60,9 @@ function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to REST (see VARARGIN)
+%   1: channel locations
+
+
 
 % Parse varargsin
 handles.ntopo = 8;
@@ -72,7 +75,7 @@ calibData = varargin{1}.calibration_data;
 handles.chanlocs = calibData.chanlocs;
 
 % check for bcilab in path
-startup_check_bcilab();
+
     
 % Check for orica.m and arica.m in bcilab path
 startup_check_flt_files();
@@ -189,34 +192,6 @@ if p.subnodes
 end
 % build the outputs
 funs = [funs;{p.head}];
-end
-
-
-function startup_check_bcilab
-bcilab_path = which('bcilab.m');
-% if not present, look in bcilab_path.txt
-if isempty(bcilab_path)
-    REST_path = fileparts(fileparts(which('REST.m')));
-    fid = fopen([REST_path filesep 'bcilab_path.txt']);
-    bcilab_path = fgetl(fid);
-    % correct the path
-    [temp_path,~,temp_ext] = fileparts(bcilab_path);
-    if ~isempty(temp_ext)
-        bcilab_path = temp_path; end
-    % add path
-    addpath(bcilab_path)
-end
-% if bcilab found
-if ~isempty(bcilab_path)
-    % start bcilab if it isn't running
-    if ~any(strcmp(who('global'),'tracking'))
-        bcilab('menu',false); end
-% if bcilab not found, error
-else
-    error(['REST: Could not find BCILAB. Either start BCILAB manually, ' ...
-        'add the BCILAB folder to the path manually, ' ...
-        'or save the BCILAB path in the file bcilab_path.txt (recommended).'])
-end
 end
 
 
