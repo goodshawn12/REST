@@ -109,24 +109,26 @@ cd(dir_original);
 
 %% solving the inverse problem with sLORETA
 % K: lead field matrix
-% L: Laplaciian operator
+% L: Laplacian operator
 % rmIndices: indices to be removed (the Thalamus)
 % surfData(3).vertices: source space
 
-% addpath(genpath('/home/lpiontonachini/Desktop/eeglab/plugins/mobilab/dependency/'))
-% 
-% [sourceSpace,K,L,rmIndices] = getSourceSpace4PEB(hmObj);
-% 
-% %--
-% [U,S,V] = svd(K/L,'econ');
-% Ut = U';
-% s2 = diag(S).^2;
-% iLV = L\V;
 
-% eval([name '_HeadModel = hmObj;']);
-% save([output_dir filesep name '_HeadModel'],[name 'HeadModel'])
-% save([output_dir filesep name '_LFMetc'],'K','L','rmIndices','Ut','s2','iLV')
 
+%--
+[U,S,V] = svd(K/L,'econ');
+Ut = U';
+s2 = diag(S).^2;
+iLV = L\V;
+
+
+
+eval([name '_HeadModel = hmObj;']);
+save([output_dir filesep name '_HeadModel'],[name 'HeadModel'])
+% save headModel
 hmObj.saveToFile([fileparts(output_dir) filesep name])
 
-
+% save LFM and Laplacian for cropped cortex
+[~,K,L,rmIndices] = getSourceSpace4PEB(hmObj);
+hmInd = setdiff(1:handles.nVertices,rmIndices);
+save([output_dir filesep name '_SSPEB'],'K','L','hmInd')

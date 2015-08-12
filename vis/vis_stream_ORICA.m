@@ -191,7 +191,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                     [stream.nbchan,stream.pnts,stream.trials] = size(stream.data{end});
                     stream.xmax = stream.smax/stream.srate;
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
-                    ind = setdiff(1:length(W),handles.exclude);
+                    ind = setdiff(1:length(W),handles.reject);
                     plotdata = Winv(:,ind)*plotica(ind,:);
                 end
                 
@@ -266,7 +266,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                         lines = plot(ax,plottime,plotdata);
                         title(ax,opts.streamname,'interpreter','none');
                         xlabel(ax,'Time (sec)','FontSize',12);
-                        ylabel(ax,'Activation','FontSize',12);
+                        ylabel(ax,'Activations','FontSize',12);
                     else
                         for k=1:length(lines)
                             if k <= size(plotdata,2);

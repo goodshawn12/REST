@@ -6,9 +6,16 @@ function varargout = REST(varargin)
 %           - calibration_data (required): EEGLAB EEG structure with some
 %             the channel locations structure chanlocs present, as well as
 %             some initial data (optional).
-%           - localization (optional): MoBILAB headModel object. Can be
-%             made using the included function make_headModel. Required to
-%             do source localization.
+%           - headModel (optional): MoBILAB headModel object or path to 
+%             saved headModel file. headModels be made using the included 
+%             function make_headModel. Required to do source localization.
+%             - K (optional): if headModel is an object, then it is 
+%               advisable to attach the cropped lead-field matrix
+%             - L (optional): if headModel is an object, then it is 
+%               advisable to attach the cropped laplacian matrix
+%             - hmInd (optional): if headModel is an object, then it is 
+%               advisable to attach the remaining indices used in the 
+%               headModel
 %
 %      REST('Property','Value',...) creates a new REST or raises the
 %      existing singleton*.  Starting from the left, property value pairs are
@@ -47,7 +54,7 @@ end
 
 
 % --- Executes just before REST is made visible.
-function REST_OpeningFcn(hObject, eventdata, handles, varargin)
+function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % This function has no output args, see OutputFcn.
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -59,7 +66,6 @@ function REST_OpeningFcn(hObject, eventdata, handles, varargin)
 
 % Parse varargsin
 handles.ntopo = 8;
-% handles.streamName = 'RESTst';
 handles.curIC = 1;
 handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
@@ -72,7 +78,7 @@ handles.chanlocs = calibData.chanlocs;
 startup_check_flt_files();
 
 % Check if localization is possible and adjust GUI accordingly
-handles = startup_check_localization(handles,calibData);
+handles = startup_check_localization(handles,varargin{1});
 
 % Intialize ORICA
 handles = initializeORICA(handles,calibData);
@@ -102,8 +108,9 @@ assignin('base',handles.bufferName,buffer);
 % Find if channels have been removed
 funsstr = cellfun(@func2str,funs,'uniformoutput',false');
 if any(strcmp(funsstr,'flt_selchans'))
-    pipeline = evalin('base','pipeline');
-    removed = pipeline.parts{2}.parts{2}.parts{4}; % !!! generalize
+    pipeline = evalin('base','pipeline'); %#ok<NASGU>
+    numparts = find(flipud(strcmp(funsstr,'flt_selchans')))-1;
+    eval(['removed = pipeline' repmat('.parts{2}',1,numparts) '.parts{4};']);
     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
     % adjust chanlocs
     handles.urchanlocs = handles.chanlocs;
@@ -170,8 +177,6 @@ start(topoTimer);
 start(infoTimer);
 end
 
-% UIWAIT makes REST wait for user response (see UIRESUME)
-% uiwait(handles.figure1);
 
 function [funs] = get_pipeline_functions(p)
 if ~exist('p','var')
@@ -188,8 +193,10 @@ end
 
 
 function startup_check_flt_files
+% check if orica/arica are already in the BCILAB path
 contents = dir(env_translatepath('functions:/filters/flt_*.m'));
 flag_refreshBCILAB = false;
+% if orica is no there, copy it from REST path
 if ~any(strcmp({contents.name},'flt_orica.m'))
     display('REST: flt_orica.m not present in BCILAB path. Attempting to create copy. This will only happen the first time visEEG is run.')
     destination = env_translatepath('functions:/filters/flt_orica.m');
@@ -205,6 +212,7 @@ if ~any(strcmp({contents.name},'flt_orica.m'))
         end
     end
 end
+% if arica is no there, copy it from REST path
 if ~any(strcmp({contents.name},'flt_arica.m'))
     display('REST: flt_arica.m not present in BCILAB path. Attempting to create copy. This will only happen the first time visEEG is run.')
     destination = env_translatepath('functions:/filters/flt_arica.m');
@@ -220,63 +228,62 @@ if ~any(strcmp({contents.name},'flt_arica.m'))
         end
     end
 end
-
+% tell BCILAB to refresh
 if flag_refreshBCILAB
     flt_pipeline('update');
 end
 end
 
-function handles = startup_check_localization(handles,calibData)
-
-if ~isfield(calibData,'headModel') || isempty(calibData.headModel)
+function handles = startup_check_localization(handles,in) % !!! combine headmodel in localization
+% if no headModel provided, remove localization button
+if ~isfield(in,'headModel') || isempty(in.headModel)
     set(handles.pushbuttonLocalize,'HitTest','off','visible','off')
-elseif ischar(calibData.headModel)
-    handles.headModel = headModel.loadFromFile(calibData.headModel);
+    
+% if the provided headModel is a string, load the headModel
+elseif ischar(in.headModel)
+    handles.headModel = headModel.loadFromFile(in.headModel);
     temp = load(handles.headModel.surfaces);
     handles.nVertices = size(temp.surfData(3).vertices,1);
-    [~,handles.K,handles.L,rmIndices] = getSourceSpace4PEB(handles.headModel);
-    handles.hmInd = setdiff(1:handles.nVertices,rmIndices);
-%     temp = load(handles.headModel.leadFieldFile);
-%     handles.K = temp.K;
-else
-    handles.headModel = calibData.headModel;
-    % if calibData does not contain field 'localization' with lead field
-    % matrix, laplacian matrix, number of vertices in cortex model, and
-    % valid vertex indeces, then calulate them. (takes a while).
-    if ~isfield(calibData.localization,'nVertices')
-        if ischar(handles.headModel.surfaces)
-            temp = load(handles.headModel.surfaces);
-            handles.nVertices = size(temp.surfData(3).vertices,1);
-        else
-            handles.nVertices = size(handles.headModel.surfaces(3).vertices,1);
-        end
+    
+    % if there is not an accompanying *_SSPEB.mat file containing the
+    % cropped lead-field matrix, laplacian matrix, and valid vertex indices,
+    % then calulate them. (takes a while).
+    if ~exist([in.headModel '_SSPEB.mat'],'file')
+        [~,K,L,rmIndices] = getSourceSpace4PEB(handles.headModel);
+        hmInd = setdiff(1:handles.nVertices,rmIndices);
+        save([in.headModel '_SSPEB.mat'],'K','L','hmInd')
+
+        handles.K = K;
+        handles.L = L;
+        handles.hmInd = hmInd;
     else
-        handles.nVertices = calibData.localization.nVertices;
+        temp = load([in.headModel '_SSPEB.mat']);
+        handles.K = temp.K;
+        handles.L = temp.L;
+        handles.hmInd = temp.hmInd;
     end
     
-    if ~isfield(calibData,'localization') || ...
-            ~isfield(calibData.localization,'L')
-            
+% if the provided headModel is an object, use it
+else
+    handles.headModel = in.headModel;
+    
+    % find the number of vertices in the model
+    if ischar(handles.headModel.surfaces)
+        temp = load(handles.headModel.surfaces);
+        handles.nVertices = size(temp.surfData(3).vertices,1);
+    else
+        handles.nVertices = size(handles.headModel.surfaces(3).vertices,1);
+    end
+    
+    % if K, L, and hmInd are not provided in opts, then calulate them.
+    if ~isfield(in,'K') || ~isfield(in,'L') || ~isfield(in,'hmInd')
         [~,handles.K,handles.L,rmIndices] = ...
             getSourceSpace4PEB(handles.headModel);
         handles.hmInd = setdiff(1:handles.nVertices,rmIndices);
     else
-        if ~isfield(calibData.localization,'K')
-            temp = load(handles.headModel.leadFieldFile);
-            handles.K = temp.K;
-        else
-            handles.K = calibData.localization.K;
-        end
-        handles.L = calibData.localization.L;
-        if isfield(calibData.localization,'ind') || isfield(calibData.localization,'rmIndices')
-            try
-                handles.hmInd = calibData.localization.ind;
-            catch
-                handles.hmInd = setdiff(1:handles.nVertices,calibData.localization.rmIndices);
-            end
-        else
-            handles.hmInd = 1:handles.nVertices;
-        end
+        handles.K = in.K;
+        handles.L = in.L;
+        handles.hmInd = in.hmInd;
     end
 end
 end
@@ -285,7 +292,7 @@ function handles = initializeORICA(handles,calibData)
 
 % create/refresh convergence buffers
 bufflen = 60; % seconds
-assignin('base','conv_statIdx',nan(1,bufflen*calibData.srate)); % !!! clean output
+% assignin('base','conv_statIdx',nan(1,bufflen*calibData.srate));
 assignin('base','conv_mir',nan(1,bufflen*calibData.srate));
 assignin('base','learning_rate',nan(1,bufflen*calibData.srate));
 
@@ -385,11 +392,12 @@ try
     data = data(handles.curIC,:);
     
     [data,f] = pwelch(data,[],[],[],srate);
-%     [data,f,conf] = pwelch(data,[],[],[],srate,'ConfidenceLevel',0.95);!!!
+%     [data,f,conf] =
+%     pwelch(data,[],[],[],srate,'ConfidenceLevel',0.95);!!! incorporate ci and iterative update
     
     maxFreq = 50;
     ind = f <= maxFreq;
-    plot(handles.axisInfo,f(ind),db(data(ind))) % !!!
+    plot(handles.axisInfo,f(ind),db(data(ind))) % !!!?
     grid(handles.axisInfo,'on');
     xlabel(handles.axisInfo,'Frequency (Hz)')
     ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
@@ -409,10 +417,10 @@ handle_panelInfo = varargin{4};
 
 % load convergence statistics
 % conv_statIdx = evalin('base','conv_statIdx');
-conv_mir = evalin('base','conv_mir');
+% conv_mir = evalin('base','conv_mir');
 learning_rate = evalin('base','learning_rate');
 
-ylim_mir = minmax(conv_mir);
+% ylim_mir = minmax(conv_mir);
 ylim_lr = minmax(learning_rate);
 % set(get(handle_mir,'parent'),'YLim',ylim_mir,'YTick',linspace(ylim_mir(1),ylim_mir(2),5))
 set(get(handle_learning_rate,'parent'),'YLim',ylim_lr,'YTick',linspace(ylim_lr(1),ylim_lr(2),5))
@@ -422,7 +430,7 @@ set(get(handle_learning_rate,'parent'),'YLim',ylim_lr,'YTick',linspace(ylim_lr(1
 % set(handle_mir,'YData',conv_mir)
 % set(handle_learning_rate,'YData',learning_rate)
 set(handle_learning_rate,'YData',learning_rate)
-set(handle_panelInfo,'Title',['Adaptive Learning Rate'])
+set(handle_panelInfo,'Title','Adaptive Learning Rate')
 
 
 

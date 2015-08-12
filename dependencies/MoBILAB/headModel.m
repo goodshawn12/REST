@@ -357,7 +357,7 @@ classdef headModel < handle
             if nargin < 2, error('Not enough input arguments');end
             if nargin < 3, V = [];end
             if nargin < 4, figureTitle = '';end
-            if isa(obj,'pcdStream'), channelLabels = obj.parent.label;else channelLabels = obj.label;end
+            if isa(obj,'pcdStream'), channelLabels = obj.parent.channelLabel;else channelLabels = obj.channelLabel;end
             hFigureObj = currentSourceViewer(obj,J,V,figureTitle,channelLabels);
         end
        %%

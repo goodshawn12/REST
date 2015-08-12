@@ -9,6 +9,13 @@ function varargout = REST(varargin)
 %           - headModel (optional): MoBILAB headModel object or path to 
 %             saved headModel file. headModels be made using the included 
 %             function make_headModel. Required to do source localization.
+%             - K (optional): if headModel is an object, then it is 
+%               advisable to attach the cropped lead-field matrix
+%             - L (optional): if headModel is an object, then it is 
+%               advisable to attach the cropped laplacian matrix
+%             - hmInd (optional): if headModel is an object, then it is 
+%               advisable to attach the remaining indices used in the 
+%               headModel
 %
 %      REST('Property','Value',...) creates a new REST or raises the
 %      existing singleton*.  Starting from the left, property value pairs are
@@ -59,7 +66,6 @@ function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 
 % Parse varargsin
 handles.ntopo = 8;
-% handles.streamName = 'RESTst';
 handles.curIC = 1;
 handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
@@ -73,6 +79,7 @@ startup_check_flt_files();
 
 % Check if localization is possible and adjust GUI accordingly
 handles = startup_check_localization(handles,varargin{1});
+
 % Intialize ORICA
 handles = initializeORICA(handles,calibData);
 
@@ -186,8 +193,10 @@ end
 
 
 function startup_check_flt_files
+% check if orica/arica are already in the BCILAB path
 contents = dir(env_translatepath('functions:/filters/flt_*.m'));
 flag_refreshBCILAB = false;
+% if orica is no there, copy it from REST path
 if ~any(strcmp({contents.name},'flt_orica.m'))
     display('REST: flt_orica.m not present in BCILAB path. Attempting to create copy. This will only happen the first time visEEG is run.')
     destination = env_translatepath('functions:/filters/flt_orica.m');
@@ -203,6 +212,7 @@ if ~any(strcmp({contents.name},'flt_orica.m'))
         end
     end
 end
+% if arica is no there, copy it from REST path
 if ~any(strcmp({contents.name},'flt_arica.m'))
     display('REST: flt_arica.m not present in BCILAB path. Attempting to create copy. This will only happen the first time visEEG is run.')
     destination = env_translatepath('functions:/filters/flt_arica.m');
@@ -218,63 +228,62 @@ if ~any(strcmp({contents.name},'flt_arica.m'))
         end
     end
 end
-
+% tell BCILAB to refresh
 if flag_refreshBCILAB
     flt_pipeline('update');
 end
 end
 
 function handles = startup_check_localization(handles,in) % !!! combine headmodel in localization
-
+% if no headModel provided, remove localization button
 if ~isfield(in,'headModel') || isempty(in.headModel)
     set(handles.pushbuttonLocalize,'HitTest','off','visible','off')
+    
+% if the provided headModel is a string, load the headModel
 elseif ischar(in.headModel)
     handles.headModel = headModel.loadFromFile(in.headModel);
     temp = load(handles.headModel.surfaces);
     handles.nVertices = size(temp.surfData(3).vertices,1);
-    [~,handles.K,handles.L,rmIndices] = getSourceSpace4PEB(handles.headModel);
-    handles.hmInd = setdiff(1:handles.nVertices,rmIndices);
-%     temp = load(handles.headModel.leadFieldFile);
-%     handles.K = temp.K;
-else
-    handles.headModel = in.headModel;
-    % if calibData does not contain field 'localization' with lead field
-    % matrix, laplacian matrix, number of vertices in cortex model, and
-    % valid vertex indeces, then calulate them. (takes a while).
-    if ~isfield(in.localization,'nVertices')
-        if ischar(handles.headModel.surfaces)
-            temp = load(handles.headModel.surfaces);
-            handles.nVertices = size(temp.surfData(3).vertices,1);
-        else
-            handles.nVertices = size(handles.headModel.surfaces(3).vertices,1);
-        end
+    
+    % if there is not an accompanying *_SSPEB.mat file containing the
+    % cropped lead-field matrix, laplacian matrix, and valid vertex indices,
+    % then calulate them. (takes a while).
+    if ~exist([in.headModel '_SSPEB.mat'],'file')
+        [~,K,L,rmIndices] = getSourceSpace4PEB(handles.headModel);
+        hmInd = setdiff(1:handles.nVertices,rmIndices);
+        save([in.headModel '_SSPEB.mat'],'K','L','hmInd')
+
+        handles.K = K;
+        handles.L = L;
+        handles.hmInd = hmInd;
     else
-        handles.nVertices = in.localization.nVertices;
+        temp = load([in.headModel '_SSPEB.mat']);
+        handles.K = temp.K;
+        handles.L = temp.L;
+        handles.hmInd = temp.hmInd;
     end
     
-    if ~isfield(in,'localization') || ...
-            ~isfield(in.localization,'L')
-            
+% if the provided headModel is an object, use it
+else
+    handles.headModel = in.headModel;
+    
+    % find the number of vertices in the model
+    if ischar(handles.headModel.surfaces)
+        temp = load(handles.headModel.surfaces);
+        handles.nVertices = size(temp.surfData(3).vertices,1);
+    else
+        handles.nVertices = size(handles.headModel.surfaces(3).vertices,1);
+    end
+    
+    % if K, L, and hmInd are not provided in opts, then calulate them.
+    if ~isfield(in,'K') || ~isfield(in,'L') || ~isfield(in,'hmInd')
         [~,handles.K,handles.L,rmIndices] = ...
             getSourceSpace4PEB(handles.headModel);
         handles.hmInd = setdiff(1:handles.nVertices,rmIndices);
     else
-        if ~isfield(in.localization,'K')
-            temp = load(handles.headModel.leadFieldFile);
-            handles.K = temp.K;
-        else
-            handles.K = in.localization.K;
-        end
-        handles.L = in.localization.L;
-        if isfield(in.localization,'ind') || isfield(in.localization,'rmIndices')
-            try
-                handles.hmInd = in.localization.ind;
-            catch
-                handles.hmInd = setdiff(1:handles.nVertices,in.localization.rmIndices);
-            end
-        else
-            handles.hmInd = 1:handles.nVertices;
-        end
+        handles.K = in.K;
+        handles.L = in.L;
+        handles.hmInd = in.hmInd;
     end
 end
 end
@@ -898,19 +907,12 @@ end
 handles = guidata(hObject);
 if get(button,'Value') % turned lock on
     handles.lock = sort([handles.lock ic]);
-%     set(button,'BackgroundColor',[0.5 1 0.5])
+    set(button,'BackgroundColor',[0.5 1 0.5])
     if isfield(handles,'figIC')
         set(handles.figIC.buttonLock(ic),'Value',1,'BackgroundColor',handles.color_lock); end
-%     if any(handles.reject==ic)
-%         handles.reject(handles.reject==ic) = [];
-%         % update fig
-%         if isfield(handles,'figIC')
-%             set(handles.figIC.buttonReject(ic),'Value',0,...
-%                 'BackgroundColor',handles.color_bg);
-%         end
-%     end
 else % turned lock off
     handles.lock(handles.lock==ic) = [];
+    set(button,'BackgroundColor',handles.color_bg)
     if isfield(handles,'figIC')
         set(handles.figIC.buttonLock(ic),'value',0,'BackgroundColor',handles.color_bg); end
 end
@@ -933,26 +935,17 @@ end
 handles = guidata(hObject);
 if get(button,'Value') % turned reject on
     handles.reject = sort([handles.reject ic]);
-%     set(button,'BackgroundColor',[1 0.5 0.5])
+    set(button,'BackgroundColor',[1 0.5 0.5])
     if isfield(handles,'figIC')
         set(handles.figIC.buttonReject(ic),'Value',1,'BackgroundColor',handles.color_reject); end
-%     if any(handles.lock==ic)
-%         handles.lock(handles.lock==ic) = [];
-%         % update fig
-%         if isfield(handles,'figIC')
-%             set(handles.figIC.buttonLock(ic),'Value',0,...
-%                 'BackgroundColor',handles.color_bg);
-%         end
-%     end
 else % turned reject off
     handles.reject(handles.reject==ic) = [];
+    set(button,'BackgroundColor',handles.color_bg)
     if isfield(handles,'figIC')
         set(handles.figIC.buttonReject(ic),'value',0,'BackgroundColor',handles.color_bg); end
 end
 % save handles
 guidata(hObject,handles);
-% update ics to plot
-updateICs(hObject,false)
 end
 
 

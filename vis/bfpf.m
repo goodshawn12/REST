@@ -13,7 +13,7 @@ if ~exist('Q_location','var') || isempty(Q_location)
     Q_location = 1*eye(3); end
 if ~exist('Q_data','var') || isempty(Q_data)
     Q_data = 3*nChan*eye(nChan); end
-rng(0);
+% rng(0);
 if exist('state','var') && ~isempty(state)
     flag_state = true;
 else
