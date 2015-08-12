@@ -1,4 +1,4 @@
-%% Run visGUI
+%% Run REST
 clear
 close all
 delete(timerfind)
@@ -17,7 +17,7 @@ opts.calibration_data = pop_select(opts.calibration_data,'time',[0 1]);
 
 if playback
     if exist('playbackStream','var')
-        try
+        try %#ok<TRYNC>
             stop(playbackStream)
             delete(playbackStream)
         end

@@ -79,9 +79,7 @@ vol.bnd.pnt = surfData(3).vertices;
 vol.bnd.tri = surfData(3).faces;
 index = num2str(randi(1e5));
 save(['temp' index],'vol')
-% rmpath(genpath([mobilabPath '/dependency/iso2mesh']))
 electrodes = coregister(chanlocs,template_models(2).chanfile,'mesh',['temp' index]);
-% addpath(genpath([mobilabPath '/dependency/iso2mesh']))
 delete(['temp' index '.mat'])
 
 elec = electrodes.pnt;
@@ -111,20 +109,7 @@ cd(dir_original);
 % K: lead field matrix
 % L: Laplacian operator
 % rmIndices: indices to be removed (the Thalamus)
-% surfData(3).vertices: source space
 
-
-
-%--
-[U,S,V] = svd(K/L,'econ');
-Ut = U';
-s2 = diag(S).^2;
-iLV = L\V;
-
-
-
-eval([name '_HeadModel = hmObj;']);
-save([output_dir filesep name '_HeadModel'],[name 'HeadModel'])
 % save headModel
 hmObj.saveToFile([fileparts(output_dir) filesep name])
 
