@@ -3,7 +3,11 @@ function varargout = REST(varargin)
 %
 %      REST(opts) starts the Real-time EEG Source-mapping Toolbox.
 %       - OPTS is a structure with 2 possible fields:
-%           - calibration_data (required): EEGLAB EEG structure with some
+%           - chanlocs (possibly required): EEGALAB channel locations
+%             structure. This information could also be present in
+%             calibration_data or in headModel, in which case chanlocs is
+%             not required.
+%           - calibration_data (optional): EEGLAB EEG structure with some
 %             the channel locations structure chanlocs present, as well as
 %             some initial data (optional).
 %           - headModel (optional): MoBILAB headModel object or path to 
@@ -16,6 +20,11 @@ function varargout = REST(varargin)
 %             - hmInd (optional): if headModel is an object, then it is 
 %               advisable to attach the remaining indices used in the 
 %               headModel
+%           - custom_pipeline (optional): a value of "true" will bring up a
+%             dialog for customizing the pipeline. Be warned: the pipeline
+%             must end with flt_orica or flt_arica and may be brittle to
+%             other changes as well. This is largely untested but provided
+%             as an option for the brave who wish to experiment (default:0) 
 %
 %      REST('Property','Value',...) creates a new REST or raises the
 %      existing singleton*.  Starting from the left, property value pairs are
@@ -27,10 +36,6 @@ function varargout = REST(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
-
-% Edit the above text to modify the response to help REST
-
-% Last Modified by GUIDE v2.5 07-Aug-2015 15:35:37
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -68,8 +73,34 @@ handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
-calibData = varargin{1}.calibration_data;
-handles.chanlocs = calibData.chanlocs;
+if isfield(varargin{1},'chanlocs')
+    handles.chanlocs = varargin{1}.chanlocs; end
+if isfield(varargin{1},'calibration_data')
+    calibData = varargin{1}.calibration_data;
+    if ~isfield(handles,'chanlocs') && isfield(calibData,'chanlocs') && ~isempty(calibData.chanlocs)
+        handles.chanlocs = calibData.chanlocs; end
+else
+    calibData = [];
+end
+% Check if localization is possible and adjust GUI accordingly
+handles = startup_check_localization(handles,varargin{1});
+if ~isfield(handles,'chanlocs') && isfield(handles,'headModel')
+    for it = 1:size(handles.headModel.channelSpace,1)
+        handles.chanlocs(it).labels = handles.headModel.channelLabel{it};
+        handles.chanlocs(it).X = handles.headModel.channelSpace(it,1);
+        handles.chanlocs(it).Y = handles.headModel.channelSpace(it,2);
+        handles.chanlocs(it).Z = handles.headModel.channelSpace(it,3);
+    end
+end
+% if still no chanlocs, error
+if ~isfield(handles,'chanlocs')
+    error('REST: No channel location information provided!')
+end
+
+% !!! have to deal with no calibData case
+% !!! have to add option to change pipeline
+
+
 
 % check for bcilab in path
 startup_check_bcilab();
@@ -77,8 +108,6 @@ startup_check_bcilab();
 % Check for orica.m and arica.m in bcilab path
 startup_check_flt_files();
 
-% Check if localization is possible and adjust GUI accordingly
-handles = startup_check_localization(handles,varargin{1});
 
 % Intialize ORICA
 handles = initializeORICA(handles,calibData);
@@ -268,7 +297,7 @@ if ~isfield(in,'headModel') || isempty(in.headModel)
     set(handles.pushbuttonLocalize,'HitTest','off','visible','off')
     
 % if the provided headModel is a string, load the headModel
-elseif ischar(in.headModel)
+elseif isa(in.headModel,'char')
     handles.headModel = headModel.loadFromFile(in.headModel);
     temp = load(handles.headModel.surfaces);
     handles.nVertices = size(temp.surfData(3).vertices,1);
@@ -292,7 +321,7 @@ elseif ischar(in.headModel)
     end
     
 % if the provided headModel is an object, use it
-else
+elseif isa(in.headModel,'headModel')
     handles.headModel = in.headModel;
     
     % find the number of vertices in the model

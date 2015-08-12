@@ -3,7 +3,11 @@ function varargout = REST(varargin)
 %
 %      REST(opts) starts the Real-time EEG Source-mapping Toolbox.
 %       - OPTS is a structure with 2 possible fields:
-%           - calibration_data (required): EEGLAB EEG structure with some
+%           - chanlocs (possibly required): EEGALAB channel locations
+%             structure. This information could also be present in
+%             calibration_data or in headModel, in which case chanlocs is
+%             not required.
+%           - calibration_data (optional): EEGLAB EEG structure with some
 %             the channel locations structure chanlocs present, as well as
 %             some initial data (optional).
 %           - headModel (optional): MoBILAB headModel object or path to 
@@ -16,6 +20,11 @@ function varargout = REST(varargin)
 %             - hmInd (optional): if headModel is an object, then it is 
 %               advisable to attach the remaining indices used in the 
 %               headModel
+%           - custom_pipeline (optional): a value of "true" will bring up a
+%             dialog for customizing the pipeline. Be warned: the pipeline
+%             must end with flt_orica or flt_arica and may be brittle to
+%             other changes as well. This is largely untested but provided
+%             as an option for the brave who wish to experiment (default:0) 
 %
 %      REST('Property','Value',...) creates a new REST or raises the
 %      existing singleton*.  Starting from the left, property value pairs are
@@ -27,10 +36,6 @@ function varargout = REST(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
-
-% Edit the above text to modify the response to help REST
-
-% Last Modified by GUIDE v2.5 07-Aug-2015 15:35:37
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -60,9 +65,6 @@ function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to REST (see VARARGIN)
-%   1: channel locations
-
-
 
 % Parse varargsin
 handles.ntopo = 8;
@@ -71,17 +73,42 @@ handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
+if isfield(varargin{1},'chanlocs')
+    handles.chanlocs = varargin{1}.chanlocs; end
+if isfield(varargin{1},'calibration_data')
+    calibData = varargin{1}.calibration_data;
+    if ~isfield(handles,'chanlocs') && isfield(calibData,'chanlocs') && ~isempty(calibData.chanlocs)
+        handles.chanlocs = calibData.chanlocs; end
+else
+    calibData = [];
+end
+% Check if localization is possible and adjust GUI accordingly
+handles = startup_check_localization(handles,varargin{1});
+% add channel info to handles if not present
+if ~isfield(handles,'chanlocs')
+    for it = 1:size(handles.headModel.channelSpace,1)
+        chanlocs(it).labels = handles.headModel.channelLabel{it};
+        chanlocs(it).X = handles.headModel.channelSpace(it,1);
+        chanlocs(it).Y = handles.headModel.channelSpace(it,2);
+        chanlocs(it).Z = handles.headModel.channelSpace(it,3);
+    end
+    handles.chanlocs = chanlocs;
+end
+
+
 calibData = varargin{1}.calibration_data;
 handles.chanlocs = calibData.chanlocs;
 
-% check for bcilab in path
 
+
+
+
+% check for bcilab in path
+startup_check_bcilab();
     
 % Check for orica.m and arica.m in bcilab path
 startup_check_flt_files();
 
-% Check if localization is possible and adjust GUI accordingly
-handles = startup_check_localization(handles,varargin{1});
 
 % Intialize ORICA
 handles = initializeORICA(handles,calibData);
@@ -195,6 +222,34 @@ funs = [funs;{p.head}];
 end
 
 
+function startup_check_bcilab
+bcilab_path = which('bcilab.m');
+% if not present, look in bcilab_path.txt
+if isempty(bcilab_path)
+    REST_path = fileparts(fileparts(which('REST.m')));
+    fid = fopen([REST_path filesep 'bcilab_path.txt']);
+    bcilab_path = fgetl(fid);
+    % correct the path
+    [temp_path,~,temp_ext] = fileparts(bcilab_path);
+    if ~isempty(temp_ext)
+        bcilab_path = temp_path; end
+    % add path
+    addpath(bcilab_path)
+end
+% if bcilab found
+if ~isempty(bcilab_path)
+    % start bcilab if it isn't running
+    if ~any(strcmp(who('global'),'tracking'))
+        bcilab('menu',false); end
+% if bcilab not found, error
+else
+    error(['REST: Could not find BCILAB. Either start BCILAB manually, ' ...
+        'add the BCILAB folder to the path manually, ' ...
+        'or save the BCILAB path in the file bcilab_path.txt (recommended).'])
+end
+end
+
+
 function startup_check_flt_files
 % check if orica/arica are already in the BCILAB path
 contents = dir(env_translatepath('functions:/filters/flt_*.m'));
@@ -243,7 +298,7 @@ if ~isfield(in,'headModel') || isempty(in.headModel)
     set(handles.pushbuttonLocalize,'HitTest','off','visible','off')
     
 % if the provided headModel is a string, load the headModel
-elseif ischar(in.headModel)
+elseif isa(in.headModel,'char')
     handles.headModel = headModel.loadFromFile(in.headModel);
     temp = load(handles.headModel.surfaces);
     handles.nVertices = size(temp.surfData(3).vertices,1);
@@ -267,7 +322,7 @@ elseif ischar(in.headModel)
     end
     
 % if the provided headModel is an object, use it
-else
+elseif isa(in.headModel,'headModel')
     handles.headModel = in.headModel;
     
     % find the number of vertices in the model
