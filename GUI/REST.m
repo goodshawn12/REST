@@ -76,8 +76,6 @@ handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
 [handles,calibData,customize_pipeline] = startup_check_inputs(handles,varargin);
 
-% !!! srate????
-
 % check for bcilab in path
 startup_check_bcilab();
     
@@ -85,7 +83,7 @@ startup_check_bcilab();
 startup_check_flt_files();
 
 % Intialize ORICA
-handles = initializeORICA(handles,calibData,customize_pipeline);
+handles = startup_initializeORICA(handles,calibData,customize_pipeline);
 
 % Create ORICA timer 
 oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,handles.streamName},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');%,'BusyMode','queue');
@@ -195,6 +193,7 @@ end
 funs = [funs;{p.head}];
 end
 
+
 function [handles, calibData, customize_pipeline] = startup_check_inputs(handles,in)
 % check channel locations
 if isfield(in{1},'chanlocs')
@@ -234,6 +233,7 @@ else
 end
 end
 
+
 function startup_check_bcilab
 bcilab_path = which('bcilab.m');
 % if not present, look in bcilab_path.txt
@@ -260,6 +260,7 @@ else
         'or save the BCILAB path in the file bcilab_path.txt (recommended).'])
 end
 end
+
 
 function startup_check_flt_files
 % check if orica/arica are already in the BCILAB path
@@ -302,6 +303,7 @@ if flag_refreshBCILAB
     flt_pipeline('update');
 end
 end
+
 
 function handles = startup_check_localization(handles,in) % !!! combine headmodel in localization
 % if no headModel provided, remove localization button
@@ -357,11 +359,8 @@ elseif isa(in.headModel,'headModel')
 end
 end
 
-function handles = initializeORICA(handles,calibData,customize_pipeline)
 
-% create/refresh convergence buffers
-bufflen = 60; % seconds
-assignin('base','learning_rate',nan(1,bufflen*calibData.srate));
+function handles = startup_initializeORICA(handles,calibData,customize_pipeline)
 
 % load LSL
 if ~exist('env_translatepath','file')
@@ -386,10 +385,16 @@ else
     streamnames = streamnames{1};
 end
 run_readlsl_ORICA('MatlabStream',streamnames,'DataStreamQuery', ['name=''' streamnames '''']);
-
 if ~isvarname(streamnames), streamnames = streamnames(~isspace(streamnames)); end
 handles.streamName = streamnames;
 opts.lsl.StreamName = streamnames;
+
+% create learning rate buffer
+bufflen = 60; % seconds
+handles.srate = getfield(onl_peek(opts.lsl.StreamName,1,'samples'),'srate');
+assignin('base','learning_rate',nan(1,bufflen*handles.srate));
+
+% look for pre-existing config file for pipeline
 REST_path = fileparts(fileparts(which('REST')));
 opts.BCILAB_PipelineConfigFile = ...
     [REST_path filesep 'data' filesep 'config' filesep 'ORICA_pipeline_config_realtime.mat']; % make sure this file doesn't have 'signal' entry
@@ -445,7 +450,7 @@ end
 function infoPSD(varargin)
 
 % plot PSD of selected IC
-try
+try  %#ok<*TRYNC>
     secs2samp = 5; % seconds
     
     W = evalin('base','pipeline.state.icaweights');
@@ -585,7 +590,7 @@ end
 
 
 % --- Executes during object creation, after setting all properties.
-function popupmenuEEG_CreateFcn(hObject, eventdata, handles)
+function popupmenuEEG_CreateFcn(hObject, eventdata, handles) %#ok<*INUSD,*DEFNU>
 % hObject    handle to popupmenuEEG (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
@@ -627,7 +632,7 @@ switch method
         figLoc_gen_dipolefit(hObject,handles)
 end
 
-if flag_resume
+if flag_resume %#ok<*ALIGN>
     handles = guidata(hObject);
     start(handles.pauseTimers); end
 
