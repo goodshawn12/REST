@@ -62,13 +62,9 @@ end
 assignin('base','pipeline',p);
 
 % save convergence info in base workspace % !!! clean for output
-% conv_statIdx = evalin('base','conv_statIdx');
-% conv_mir = evalin('base','conv_mir');
 learning_rate = evalin('base','learning_rate');
 if isfield(chunk,'statIdx')
     len = length(chunk.statIdx);
-%     assignin('base','conv_statIdx',[conv_statIdx(len+1:end) chunk.statIdx]);
-%     assignin('base','conv_mir',[conv_mir(len+1:end) chunk.mir]);
     assignin('base','learning_rate',[learning_rate(len+1:end) db(chunk.lambda_k)]);
 end
 
