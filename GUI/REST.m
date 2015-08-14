@@ -8,8 +8,8 @@ function varargout = REST(varargin)
 %             calibration_data or in headModel, in which case chanlocs is
 %             not required.
 %           - calibration_data (optional): EEGLAB EEG structure with some
-%             the channel locations structure chanlocs present, as well as
-%             some initial data (optional).
+%             initaial data or a string containing the path to the *.set
+%             file containing the calibration data (optional).
 %           - headModel (optional): MoBILAB headModel object or path to 
 %             saved headModel file. headModels be made using the included 
 %             function make_headModel. Required to do source localization.
@@ -25,7 +25,18 @@ function varargout = REST(varargin)
 %             pipeline must end with flt_orica or flt_arica and may be
 %             brittle to other changes as well. This is largely untested
 %             but provided as an option for the brave who wish to
-%             experiment (default: false) 
+%             experiment (default: false)
+%           - playback (optional): a value of "true" will cause REST to
+%             stream the calibration data (looping) and treat it as a
+%             real-time data stream for testing purposes. (default: false)
+%           - calibration_window (optional): if you do not want to use all
+%             the provided calibration data to initialze the online ICA
+%             pipeline, you may use this option to shorten it. A scalar
+%             will take that many seconds from the recording and throw away
+%             the rest. A vector with two elements defines a start and stop
+%             time (in seconds) to take from the data. This is usefule for
+%             playback as you can have a large playback dataset and a small
+%             calibration dataset.
 %
 %      REST('Property','Value',...) creates a new REST or raises the
 %      existing singleton*.  Starting from the left, property value pairs are
@@ -67,17 +78,20 @@ function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to REST (see VARARGIN)
 
-% Parse varargsin
+% Set parameters
 handles.ntopo = 8;
 handles.curIC = 1;
 handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
-[handles,calibData,customize_pipeline] = startup_check_inputs(handles,varargin);
 
-% check for bcilab in path
+
+% Check for bcilab in path
 startup_check_bcilab();
+
+% Parse varagin
+[handles,calibData,customize_pipeline] = startup_check_inputs(handles,varargin);
     
 % Check for orica.m and arica.m in bcilab path
 startup_check_flt_files();
@@ -195,17 +209,36 @@ end
 
 
 function [handles, calibData, customize_pipeline] = startup_check_inputs(handles,in)
+% !!! need to add appropriate errors and explanations
+
 % check channel locations
 if isfield(in{1},'chanlocs')
     handles.chanlocs = in{1}.chanlocs; end
 
 % check calibration data
 if isfield(in{1},'calibration_data')
-    calibData = in{1}.calibration_data;
+    if isstruct(in{1}.calibration_data)
+        calibData = in{1}.calibration_data;
+    elseif ischar(in{1}.calibration_data)
+        calibData = pop_loadset(in{1}.calibration_data);
+    end
     if ~isfield(handles,'chanlocs') && isfield(calibData,'chanlocs') && ~isempty(calibData.chanlocs)
         handles.chanlocs = calibData.chanlocs; end
 else
     calibData = [];
+end
+
+% check if playback is requested
+if isfield(in{1},'playback') && in{1}.playback
+    playbackStream = play_eegset_lsl(calibData,'REST_playback','REST_playback_markers',[],true); end
+
+% shorten calibration data if requested
+if isfield(in{1},'calibration_window')
+    if isscalar(in{1}.calibration_window)
+        calibData = pop_select(calibData,'time',[0 in{1}.calibration_window]);
+    else
+        calibData = pop_select(calibData,'time',in{1}.calibration_window);
+    end
 end
 
 % check if localization is possible and adjust GUI accordingly
