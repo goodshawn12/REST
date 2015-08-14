@@ -230,7 +230,7 @@ end
 
 % check if playback is requested
 if isfield(in{1},'playback') && in{1}.playback
-    playbackStream = play_eegset_lsl(calibData,'REST_playback','REST_playback_markers',[],true); end
+    playbackStream = play_eegset_lsl(calibData,'REST_playback_data','REST_playback_markers',[],true); end
 
 % shorten calibration data if requested
 if isfield(in{1},'calibration_window')

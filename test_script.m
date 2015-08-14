@@ -11,34 +11,22 @@ delete(timerfind)
 addpath(genpath(['.' filesep]));
 % start bcilab or add it to the path as well
 
-%% load data and create opts structure
+%% define opts structure
 % point to headModel
 opts.headModel = ['data' filesep 'head_models' filesep 'emotivHeadModel_file'];
 
-% load calibration data
-data_location = ['data' filesep 'Demo_EmotivEPOC_EyeClose.set'];
-opts.calibration_data = exp_eval_optimized(io_loadset(data_location, ...
-        'markerchannel',{'remove_eventchns',false}));
-opts.calibration_data = pop_select(opts.calibration_data,'time',[0 10]);
+% (optional) path to calibration data and select time window
+opts.calibration_data = ['data' filesep 'Demo_EmotivEPOC_EyeClose.set'];
+opts.calibration_window = [0,60]; % sec
 
-%% create LSL stream for online EEG data playback
-playback = 1;
-if playback
-    if exist('playbackStream','var')
-        try %#ok<TRYNC>
-            stop(playbackStream)
-            delete(playbackStream)
-        end
-    end
-    EEG = pop_loadset(data_location);
-    playbackStream = play_eegset_lsl(EEG,'REST_test_data','REST_test_markers',[],true);
-end
+% use playback data
+opts.playback = 1;
 
 %% start REST
 REST(opts)
 
 %% delete playback stream
-if playback
-    stop(playbackStream)
-    delete(playbackStream)
-end
+% if playback
+%     stop(playbackStream)
+%     delete(playbackStream)
+% end
