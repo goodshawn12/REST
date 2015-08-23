@@ -303,29 +303,13 @@ flag_refreshBCILAB = false;
 if ~any(strcmp({contents.name},'flt_orica.m'))
     display('REST: flt_orica.m not present in BCILAB path. Attempting to create copy. This will only happen the first time visEEG is run.')
     destination = env_translatepath('functions:/filters/flt_orica.m');
-    source = [fileparts(fileparts(which('REST'))) filesep 'flt_orica.m'];
+    source = which('flt_orica.m');
     if ~exist(source,'file')
         warning('REST cannot find flt_orica.m. REST will likely error soon.')
     else
         [status, message] = copyfile(source,destination);
         if ~status
             warning('REST cannot copy flt_orica.m into BCILAB. REST will likely error soon.\n%s',message)
-        else
-            flag_refreshBCILAB = true;
-        end
-    end
-end
-% if arica is no there, copy it from REST path
-if ~any(strcmp({contents.name},'flt_arica.m'))
-    display('REST: flt_arica.m not present in BCILAB path. Attempting to create copy. This will only happen the first time visEEG is run.')
-    destination = env_translatepath('functions:/filters/flt_arica.m');
-    source = [fileparts(fileparts(which('REST'))) '/flt_arica.m'];
-    if ~exist(source,'file')
-        warning('REST cannot find flt_arica.m. REST will likely error soon.')
-    else
-        [status, message] = copyfile(source,destination);
-        if ~status
-            warning('REST cannot copy flt_arica.m into BCILAB. REST will likely error soon.\n%s',message)
         else
             flag_refreshBCILAB = true;
         end
@@ -790,7 +774,7 @@ set(fhandle.hFigure,'DeleteFcn',{@closeFigLoc,hObject},'name',['IC' num2str(hand
 hold(fhandle.hAxes,'on');
 
 % dipole fit
-[dipoles, ~, ~, rv, state] = dipole_fit(Winv(:,handles.curIC),handles.K,vertices);
+[dipoles, ~, moments, rv, state] = dipole_fit(Winv(:,handles.curIC),handles.K,vertices);
 
 % set scalp potentials
 set(fhandle.hScalp,'FaceVertexCData',scalp*Winv(:,handles.curIC),'facecolor','interp')
@@ -943,7 +927,7 @@ for it = 1:handles.nic
     h(it) = subaxis(rowcols(1),rowcols(2),it,'MR',.025,'ML',.025,'MT',.025,'MB',.025,'SH',0,'SV',0.02);
     tempPos = get(h(it),'Position');
     set(h(it),'position',get(h(it),'position')*scaleMatTopo)
-    topoplotFast(Winv(:,it),handles.chanlocs);
+    topoplotFast_LRBF(Winv(:,it),handles.chanlocs);
     title(['IC' int2str(it)])
     
     lock = any(handles.lock==it);

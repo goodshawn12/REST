@@ -12,6 +12,8 @@ addpath(genpath(['.' filesep]));
 % start bcilab or add it to the path as well
 
 %% define opts structure
+opts.customize_pipeline = true;
+
 % point to headModel
 opts.headModel = ['data' filesep 'head_models' filesep 'emotivHeadModel_file'];
 
