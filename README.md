@@ -1,5 +1,5 @@
 # REST (Real-time EEG Source-mapping Toolbox): 
-# Online ICA and Source Localization
+Online ICA and Source Localization
 ---
 REST provides an easy-to-use and interactive platform to perform source-space analysis on live-streaming electroencephalographic (EEG) data in near real-time with visualizations of estimated independent source activations, corresponding source scalp topographies, source locations, as well as other measures.
 
