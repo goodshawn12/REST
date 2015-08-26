@@ -63,8 +63,8 @@ assignin('base','pipeline',p);
 
 % save convergence info in base workspace % !!! clean for output
 learning_rate = evalin('base','learning_rate');
-if isfield(chunk,'statIdx')
-    len = length(chunk.statIdx);
+if isfield(chunk,'lambda_k')
+    len = length(chunk.lambda_k);
     assignin('base','learning_rate',[learning_rate(len+1:end) db(chunk.lambda_k)]);
 end
 
