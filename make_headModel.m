@@ -1,14 +1,14 @@
 %{
 make_headModel    Wrapper function to generate MoBILAB headModel object to 
-                  use with REST.
+                  use with REST. Requires openMEEG and EEGLAB.
 
 *Requires openMEEG*
     
-HMOBJ = makeHeadModel(NAME,CHANLOCS,OUTPUT_DIR,SURFACES_FILE,CONDUCTIVITY)
+HMOBJ = make_headModel(NAME,CHANLOCS,OUTPUT_DIR,SURFACES_FILE,CONDUCTIVITY)
 
 Inputs:
-    NAME:           Name to use for output files (defualt: none)
-    CHANLOCS:       EEGLAB format channel locations structure (defualt: none)
+    NAME:           Name to use for output files (required)
+    CHANLOCS:       EEGLAB format channel locations structure (required)
     NORMAL2SURFACE: True if the model constrains sources in the cortex to
                     be normal to the cortical surface
                     False if sources are free to point in any direction
@@ -35,9 +35,13 @@ Outputs:
     HMOBJ:          headModel object generated. Also stored in a file.
 
 *Requires openMEEG*
+*Requires EEGLAB*
 %}
+
+
 function hmObj = make_headModel(name,chanlocs,normal2surface,output_dir,surfaces_file,conductivity)
 %% check inputs
+
 if ~ischar(name)
     error('make_headModel: name must be a string'); end
 if ~exist('chanlocs','var') || isempty(chanlocs)
@@ -53,27 +57,31 @@ if ~exist('conductivity','var') || isempty(conductivity)
                                   % Valdes-Hernandez et al., 2009, Oostendrop TF, 2000; Wendel and Malmivuo, 2006
 end
 
+addpath(genpath('dependencies'))
+
 
 %% load meshes and other data
+
 if ~exist('surfaces_file','var') || isempty(surfaces_file)
     % use Colin27 head
     disp('Using Colin27 head mesh')
     mobilabPath = fileparts(which('headModel'));
-    templateFile = [mobilabPath filesep 'data' filesep 'head_modelColin27_4825.mat'];
-    template = load([mobilabPath filesep 'data' filesep 'head_modelColin27_4825.mat']);
-    surfFile = [name '_Colin27_4825.mat'];
+    surfaces_file = [mobilabPath filesep 'data' filesep 'head_modelColin27_4825.mat'];
+    template = load(surfaces_file);
+    surfFile = fullfile(cd,[name '_Colin27_4825.mat']);
     surfData = template.surfData;
 else
     % use provided head
     disp('Using provided head mesh')
-    templateFile = [mobilabPath filesep 'data' filesep 'head_modelColin27_4825.mat'];
-    template = load([mobilabPath filesep 'data' filesep 'head_modelColin27_4825.mat']);
-    surfFile = [name '_Colin27_4825.mat'];
+    template = load(surfaces_file);
+    surfFile = fullfile(cd,[name '_Colin27_4825.mat']);
     surfData = template.surfData;
 end
 
+nVertices = size(surfData(3).vertices,1);
 
-%% display template head model: Colin27 + aal atlas + emotiv montage
+%% coregister electrodes to surface
+
 dipfitdefs;
 vol.bnd.pnt = surfData(3).vertices;
 vol.bnd.tri = surfData(3).faces;
@@ -92,17 +100,13 @@ end
 
 
 %% warping channel space to template
-aff = hmObj.warpChannelSpace2Template(templateFile,surfFile,'affine');
+
+aff = hmObj.warpChannelSpace2Template(surfaces_file,surfFile,'affine');
 
 
 %% solving the forward problem with OpenMEEG
 
-dir_original = cd;
-cd(output_dir);
-
 hmObj.computeLeadFieldBEM(conductivity,normal2surface);
-
-cd(dir_original);
 
 
 %% solving the inverse problem with sLORETA
@@ -111,9 +115,12 @@ cd(dir_original);
 % rmIndices: indices to be removed (the Thalamus)
 
 % save headModel
-hmObj.saveToFile([fileparts(output_dir) filesep name])
+hmObj.saveToFile(fullfile(output_dir,name))
+
+% delete surface file
+delete(surfFile);
 
 % save LFM and Laplacian for cropped cortex
 [~,K,L,rmIndices] = getSourceSpace4PEB(hmObj);
-hmInd = setdiff(1:handles.nVertices,rmIndices);
+hmInd = setdiff(1:nVertices,rmIndices);
 save([output_dir filesep name '_SSPEB'],'K','L','hmInd')
