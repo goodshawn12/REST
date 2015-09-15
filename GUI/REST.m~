@@ -250,8 +250,10 @@ if ~isfield(handles,'chanlocs') && isfield(handles,'headModel')
         handles.chanlocs(it).X = handles.headModel.channelSpace(it,1);
         handles.chanlocs(it).Y = handles.headModel.channelSpace(it,2);
         handles.chanlocs(it).Z = handles.headModel.channelSpace(it,3);
+        [handles.chanlocs(it).
+    sph_phi
+    sph_radius
     end
-    handles.chanlocs = convertlocs(handles.chanlocs);
 end
 
 % if still no chanlocs, error
