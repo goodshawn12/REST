@@ -4,7 +4,7 @@ make_headModel    Wrapper function to generate MoBILAB headModel object to
 
 *Requires openMEEG*
     
-HMOBJ = makeHeadModel(NAME,CHANLOCS,OUTPUT_DIR,SURFACES_FILE,CONDUCTIVITY)
+HMOBJ = make_headModel(NAME,CHANLOCS,OUTPUT_DIR,SURFACES_FILE,CONDUCTIVITY)
 
 Inputs:
     NAME:           Name to use for output files (defualt: none)

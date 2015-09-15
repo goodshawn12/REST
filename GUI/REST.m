@@ -264,6 +264,13 @@ if isfield(in{1},'customize_pipeline')
 else
 	customize_pipeline = false;
 end
+
+% check if config file is defined
+if isfield(in{1},'config')
+    handles.config = in{1}.config;
+else
+    handles.config = 'Config_ORICA';
+end
 end
 
 
@@ -414,7 +421,7 @@ assignin('base','learning_rate',nan(1,bufflen*handles.srate));
 % look for pre-existing config file for pipeline
 REST_path = fileparts(fileparts(which('REST')));
 opts.BCILAB_PipelineConfigFile = ...
-    [REST_path filesep 'data' filesep 'config' filesep 'ORICA_pipeline_config_realtime.mat']; % make sure this file doesn't have 'signal' entry
+    [REST_path filesep 'data' filesep 'config' filesep handles.config '.mat']; % make sure this file doesn't have 'signal' entry
 
 % define the pipeline configuration
 tic
@@ -724,8 +731,9 @@ options = handles.figLoc.options;
 [J,sigma2,tau2] = dynamicLoreta(Winv(:,handles.figLoc.IC), Ut, s2,iLV,sigma2,tau2, options);
 
 % update figure and related object values
-if handles.nVertices == length(J)
-    Jest = J;
+if length(handles.hmInd) == length(J)
+    Jest = zeros(handles.nVertices,1);
+    Jest(handles.hmInd) = J;
     handles.figLoc.handle.sourceMagnitud = Jest;
     set(handles.figLoc.handle.hCortex,'FaceVertexCData',handles.figLoc.handle.sourceMagnitud)
 else

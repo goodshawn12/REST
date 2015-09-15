@@ -190,7 +190,7 @@
 % 03-25-02 added 'labelpoint' options and allow Values=[] -ad &sm
 % 03-25-02 added details to "Unknown parameter" warning -sm & ad
 
-function [handle,Zi,grid,Xi,Yi,intx,inty] = topoplot(Values,loc_file,varargin)
+function [handle,Zi,grid,Xi,Yi,intx,inty] = topoplotFast_LRBF(Values,loc_file,varargin)
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%% Set defaults %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
