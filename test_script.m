@@ -33,9 +33,3 @@ opts.playback = 1;
 
 %% start REST
 REST(opts)
-
-%% delete playback stream
-% if playback
-%     stop(playbackStream)
-%     delete(playbackStream)
-% end

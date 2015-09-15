@@ -28,6 +28,9 @@ REST provides an easy-to-use and interactive platform to perform source-space an
 - /data/			- Demo datasets, channel locations, head models, and config files.
 - /dependencies/		- Necessary functions from MoBILAB and other sources. 
 
+### Video Tutorials
+There are some video primers on how to use REST available on YouTube. The (first video)[https://www.youtube.com/watch?v=W5mAAS0xxio] is an overview of the layout and basic features of REST. The (second video)[https://www.youtube.com/watch?v=Ud2XNQy1FkE] is an example of how to use REST for real-time eye-component rejection. More videos may come.
+
 ### References
 L. Pion-Tonachini, S.-H. Hsu, S. Makeig, T.-P. Jung, G. Cauwenberghs, "Real-Time EEG Source-Mapping Toolbox (REST): Online ICA and Source Localization," in *IEEE EMBS*, 2015.
 
