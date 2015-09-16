@@ -413,7 +413,7 @@ else
     streamnames = streamnames{1};
 end
 run_readlsl_ORICA('MatlabStream',streamnames,'DataStreamQuery', ['name=''' streamnames '''']);
-if ~isvarname(streamnames), streamnames = streamnames(~isspace(streamnames)); end
+if ~isvarname(streamnames), streamnames = streamnames(~ismember(streamnames,['-' ' '])); end
 handles.streamName = streamnames;
 opts.lsl.StreamName = streamnames;
 
@@ -1104,7 +1104,8 @@ switch contents{get(handles.popupmenuInfo,'Value')}
         line1 = get(handles.axisInfo,'children');
         set(get(get(handles.axisInfo(1),'parent'),'XLabel'),'String','Time (seconds)')
         set(get(get(handles.axisInfo(1),'parent'),'YLabel'),'String','Learning Rate (dB)')
-        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoConverge,handles.axisInfo,handles.panelInfo},'StartDelay',0);
+        set(infoTimer,'Period',1,'ExecutionMode','fixedRate', ...
+            'TimerFcn',{@infoConverge,handles.axisInfo,handles.panelInfo},'StartDelay',0);
         axis(get(handles.axisInfo,'parent'),'tight')
         start(infoTimer)
     otherwise

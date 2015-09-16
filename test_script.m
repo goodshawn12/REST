@@ -29,7 +29,7 @@ opts.calibration_data = ['data' filesep 'quick20_calib_EyeOpen.set'];
 opts.calibration_window = [0,60]; % sec
 
 % use playback data
-opts.playback = 1;
+opts.playback = 0;
 
 %% start REST
 REST(opts)
