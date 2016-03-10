@@ -175,7 +175,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
                     stream.xmax = stream.smax/stream.srate;
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
                     plotdata = stream.data{plot_content}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
-                    if plot_content==length(stream.data) % plotting ORICA results
+                    if plot_content==length(stream.data) % plotting ORICA results 
                         W = evalin('base','pipeline.state.icaweights');
                         sphere = evalin('base','pipeline.state.icasphere');
                         stream.opts.datascale = stream.opts.datascale*mean(sqrt(mean((W*sphere).^2)));%component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));

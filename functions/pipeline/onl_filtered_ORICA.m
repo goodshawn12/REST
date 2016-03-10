@@ -50,6 +50,7 @@ function onl_filtered_ORICA(~,~,stream_name)
 %                                2012-05-13
 
 p = evalin('base','pipeline');
+p2 = p;
 
 % run update_pipeline() with appropriate options
 [console_output,chunk,p] = evalc('hlp_scope({''disable_expressions'',1,''is_online'',1},@update_pipeline,p)'); %#ok<ASGLU>
