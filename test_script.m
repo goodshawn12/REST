@@ -3,9 +3,9 @@
 %% refresh workspace
 % clear all will break bcilab and require it to restart as it uses global
 % variables 
-clear
 close all
 delete(timerfind)
+clear
 
 %% set path and 
 addpath(genpath(['.' filesep]));
