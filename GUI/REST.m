@@ -927,7 +927,7 @@ end
 
 function genICSelectGUI(hObject,handles)
 temp = get(handles.figure1,'Position');
-fhandle = figure('toolbar','none','Menubar','none','Name','IC Select','position',[1 1 temp(3:4)],'Resize','on','DeleteFcn',{@closeFigIC,hObject});
+fhandle = figure('toolbar','none','Menubar','none','Name','IC Select','position',[1 1 temp(3:4)],'Resize','on','Colormap',colormap('jet'),'DeleteFcn',{@closeFigIC,hObject});
 W = evalin('base','pipeline.state.icaweights');
 sphere = evalin('base','pipeline.state.icasphere');
 Winv = inv(W*sphere);
