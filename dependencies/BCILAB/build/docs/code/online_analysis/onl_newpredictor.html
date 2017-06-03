@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+                "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+  <title>Description of onl_newpredictor</title>
+  <meta name="keywords" content="onl_newpredictor">
+  <meta name="description" content="Create a new predictor from a predictive model, and tie it to some stream(s).">
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <meta name="generator" content="m2html v1.5 &copy; 2003-2005 Guillaume Flandin">
+  <meta name="robots" content="index, follow">
+  <link type="text/css" rel="stylesheet" href="../../m2html.css">
+</head>
+<body>
+<a name="_top"></a>
+<div><a href="../../index.html">Home</a> &gt;  <a href="#">code</a> &gt; <a href="index.html">online_analysis</a> &gt; onl_newpredictor.m</div>
+
+<!--<table width="100%"><tr><td align="left"><a href="../../index.html"><img alt="<" border="0" src="../../left.png">&nbsp;Master index</a></td>
+<td align="right"><a href="index.html">Index for code/online_analysis&nbsp;<img alt=">" border="0" src="../../right.png"></a></td></tr></table>-->
+
+<h1>onl_newpredictor
+
+</h1>
+
+<h2><a name="_name"></a>PURPOSE <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="box"><strong>Create a new predictor from a predictive model, and tie it to some stream(s).</strong></div>
+
+<h2><a name="_synopsis"></a>SYNOPSIS <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="box"><strong>function id = onl_newpredictor(name, model, streams, predict_at) </strong></div>
+
+<h2><a name="_description"></a>DESCRIPTION <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="fragment"><pre class="comment"> Create a new predictor from a predictive model, and tie it to some stream(s).
+ Id = onl_newpredictor(PredictorName,Model,StreamNames,PredictAt)
+
+ A predictor is created from a predictive model (which was previously calibrated via bci_train or
+ the GUI), and linked to streams, from which it reads data. Once data is available (after some data
+ was supplied via onl_append()), the predictor can be queried for its prediction, given the most
+ recently supplied data.
+ 
+ In:
+   PredictorName : name of the predictor to be created; a variable of this name will be created in 
+                   the MATLAB base workspace to hold the predictor's state.
+
+   Model : A model data structure (as obtained from bci_train) based on which the predictor shall be 
+           created; typically this is a model struct, but for convenience it can be a file name, 
+           variable name in the base workspace, or a cell array of {file name, variable name} to 
+           refer to a variable inside a .mat file. The model is not modified by this function.
+
+   SourceStreamNames : Optional names of stream data structures in the MATLAB base workspace to
+                       consider as possible data sources (previously created with onl_newstream); 
+                       if a stream contains all channels that are needed by the predictor, or 
+                       alternatively has the right number and type of channels it will be considered 
+                       as a potential source stream unless ambiguous.
+
+   PredictAt : Determines where predictions are made when onl_predict is called; if {}, the
+               prediction is made at the most recently added sample of the stream, and if nonempty
+               a prediction is made for every marker in the stream that matches the given cell
+               array of event types (which may also contain wildcard characters).
+
+ Out:
+   Id : a unique id number for the predictor; same as PredictorName.predictorid
+
+ Notes:
+   When a detector gets linked to a stream, it will stop to function after the stream has been 
+   deleted. 
+   
+   Appends the following fields to the model: 
+    .pipelines --&gt; a cell array of filter chains (with buffers), each formatted as a recursive 
+                   filter expression 
+    .name --&gt; name of the predictor
+
+   Resolves the rawdata(...) expression into the form rawdata(stream_name) where 
+   stream_name is the name of the stream that is the source.
+ 
+ See also:
+   <a href="onl_newstream.html" class="code" title="function id = onl_newstream(name,varargin)">onl_newstream</a>, <a href="onl_append.html" class="code" title="function onl_append(name, chunk, markers, stamp)">onl_append</a>, <a href="onl_predict.html" class="code" title="function y = onl_predict(name,outfmt,suppress_console_output,empty_result_value)">onl_predict</a>
+
+ Examples:
+   % assuming that the required channels are present in some previously created online stream,
+   % and that a model has been computed previously, create a new predictor from it for online processing
+   onl_newpredictor('mypredictor',lastmodel)
+
+   % if there are multiple applicable streams, directly pass the set of data streams that should be
+   % used as source data
+   onl_newpredictor('mypredictor',lastmodel,{'mystream1','mystream2'})
+
+
+                                Christian Kothe, Swartz Center for Computational Neuroscience, UCSD
+                                2010-06-21</pre></div>
+
+<!-- crossreference -->
+<h2><a name="_cross"></a>CROSS-REFERENCE INFORMATION <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+This function calls:
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="onl_newpipeline.html" class="code" title="function pipeline = onl_newpipeline(filterapp, streams, needed_channels)">onl_newpipeline</a>	Create a new filter pipeline from a filter expression and a set of stream names to bind to.</li>
+</ul>
+This function is called by:
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="onl_simulate.html" class="code" title="function [predictions,predict_at,timings] = onl_simulate(varargin)">onl_simulate</a>	Apply a predictive model to some raw data set at specified time points.</li>
+<li><a href="onl_write_background.html" class="code" title="function onl_write_background(varargin)">onl_write_background</a>	Periodically process data using a predictive model, and write results to some external device.</li>
+</ul>
+<!-- crossreference -->
+
+
+
+
+
+
+<h2><a name="_source"></a>SOURCE CODE <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="fragment"><pre>0001 <a name="_sub0" href="#_subfunctions" class="code">function id = onl_newpredictor(name, model, streams, predict_at)</a>
+0002 <span class="comment">% Create a new predictor from a predictive model, and tie it to some stream(s).</span>
+0003 <span class="comment">% Id = onl_newpredictor(PredictorName,Model,StreamNames,PredictAt)</span>
+0004 <span class="comment">%</span>
+0005 <span class="comment">% A predictor is created from a predictive model (which was previously calibrated via bci_train or</span>
+0006 <span class="comment">% the GUI), and linked to streams, from which it reads data. Once data is available (after some data</span>
+0007 <span class="comment">% was supplied via onl_append()), the predictor can be queried for its prediction, given the most</span>
+0008 <span class="comment">% recently supplied data.</span>
+0009 <span class="comment">%</span>
+0010 <span class="comment">% In:</span>
+0011 <span class="comment">%   PredictorName : name of the predictor to be created; a variable of this name will be created in</span>
+0012 <span class="comment">%                   the MATLAB base workspace to hold the predictor's state.</span>
+0013 <span class="comment">%</span>
+0014 <span class="comment">%   Model : A model data structure (as obtained from bci_train) based on which the predictor shall be</span>
+0015 <span class="comment">%           created; typically this is a model struct, but for convenience it can be a file name,</span>
+0016 <span class="comment">%           variable name in the base workspace, or a cell array of {file name, variable name} to</span>
+0017 <span class="comment">%           refer to a variable inside a .mat file. The model is not modified by this function.</span>
+0018 <span class="comment">%</span>
+0019 <span class="comment">%   SourceStreamNames : Optional names of stream data structures in the MATLAB base workspace to</span>
+0020 <span class="comment">%                       consider as possible data sources (previously created with onl_newstream);</span>
+0021 <span class="comment">%                       if a stream contains all channels that are needed by the predictor, or</span>
+0022 <span class="comment">%                       alternatively has the right number and type of channels it will be considered</span>
+0023 <span class="comment">%                       as a potential source stream unless ambiguous.</span>
+0024 <span class="comment">%</span>
+0025 <span class="comment">%   PredictAt : Determines where predictions are made when onl_predict is called; if {}, the</span>
+0026 <span class="comment">%               prediction is made at the most recently added sample of the stream, and if nonempty</span>
+0027 <span class="comment">%               a prediction is made for every marker in the stream that matches the given cell</span>
+0028 <span class="comment">%               array of event types (which may also contain wildcard characters).</span>
+0029 <span class="comment">%</span>
+0030 <span class="comment">% Out:</span>
+0031 <span class="comment">%   Id : a unique id number for the predictor; same as PredictorName.predictorid</span>
+0032 <span class="comment">%</span>
+0033 <span class="comment">% Notes:</span>
+0034 <span class="comment">%   When a detector gets linked to a stream, it will stop to function after the stream has been</span>
+0035 <span class="comment">%   deleted.</span>
+0036 <span class="comment">%</span>
+0037 <span class="comment">%   Appends the following fields to the model:</span>
+0038 <span class="comment">%    .pipelines --&gt; a cell array of filter chains (with buffers), each formatted as a recursive</span>
+0039 <span class="comment">%                   filter expression</span>
+0040 <span class="comment">%    .name --&gt; name of the predictor</span>
+0041 <span class="comment">%</span>
+0042 <span class="comment">%   Resolves the rawdata(...) expression into the form rawdata(stream_name) where</span>
+0043 <span class="comment">%   stream_name is the name of the stream that is the source.</span>
+0044 <span class="comment">%</span>
+0045 <span class="comment">% See also:</span>
+0046 <span class="comment">%   onl_newstream, onl_append, onl_predict</span>
+0047 <span class="comment">%</span>
+0048 <span class="comment">% Examples:</span>
+0049 <span class="comment">%   % assuming that the required channels are present in some previously created online stream,</span>
+0050 <span class="comment">%   % and that a model has been computed previously, create a new predictor from it for online processing</span>
+0051 <span class="comment">%   onl_newpredictor('mypredictor',lastmodel)</span>
+0052 <span class="comment">%</span>
+0053 <span class="comment">%   % if there are multiple applicable streams, directly pass the set of data streams that should be</span>
+0054 <span class="comment">%   % used as source data</span>
+0055 <span class="comment">%   onl_newpredictor('mypredictor',lastmodel,{'mystream1','mystream2'})</span>
+0056 <span class="comment">%</span>
+0057 <span class="comment">%</span>
+0058 <span class="comment">%                                Christian Kothe, Swartz Center for Computational Neuroscience, UCSD</span>
+0059 <span class="comment">%                                2010-06-21</span>
+0060 
+0061 <span class="keyword">if</span> ~exist(<span class="string">'name'</span>,<span class="string">'var'</span>)
+0062     error(<span class="string">'Please specify a name for the predictor.'</span>); <span class="keyword">end</span>
+0063 <span class="keyword">if</span> ~isvarname(name)
+0064     error(<span class="string">'The name of the predictor must be a valid variable name.'</span>); <span class="keyword">end</span>
+0065 <span class="keyword">if</span> ~exist(<span class="string">'model'</span>,<span class="string">'var'</span>)
+0066     error(<span class="string">'Please specify a model for the predictor.'</span>); <span class="keyword">end</span>
+0067 <span class="keyword">if</span> ~exist(<span class="string">'streams'</span>,<span class="string">'var'</span>)
+0068     streams = []; <span class="keyword">end</span>
+0069 <span class="keyword">if</span> ~exist(<span class="string">'predict_at'</span>,<span class="string">'var'</span>) || isempty(predict_at)
+0070     predict_at = {}; <span class="keyword">end</span>
+0071 
+0072 <span class="comment">% initialize the predictor</span>
+0073 predictor = utl_loadmodel(model);
+0074 predictor.name = name;
+0075 
+0076 <span class="comment">% optionally set up the filter graph to generate epochs relative to desired target markers</span>
+0077 <span class="keyword">if</span> ~isempty(predict_at)
+0078     <span class="comment">% for each pipeline...</span>
+0079     <span class="keyword">for</span> c=1:length(predictor.tracking.filter_graph)
+0080         <span class="comment">% substitute the node set_makepos('signal',x,...,'online_epoching',y,...)</span>
+0081         <span class="comment">% by set_makepos('Signal',set_targetmarkers(x,predict_at),...,'online_epoching','at_targets',...)</span>
+0082         [match,pos] = utl_find_filter(predictor.tracking.filter_graph{c},<span class="string">'set_makepos'</span>);
+0083         <span class="comment">% override the online_epoching argument</span>
+0084         argpos = find(strcmp(match.parts,<span class="string">'online_epoching'</span>))+1;
+0085         <span class="keyword">if</span> isempty(argpos)
+0086             error(<span class="string">'Your model was apparently calculated with a BCILAB distribution that predated the marker streaming capability; please recompute it.'</span>); <span class="keyword">end</span>
+0087         match.parts{argpos} = <span class="string">'at_targets'</span>;
+0088         <span class="comment">% insert set_targetmarkers stage</span>
+0089         idx = find(strcmp(match.parts,<span class="string">'signal'</span>))+1;
+0090         match.parts{idx} = set_targetmarkers(<span class="string">'signal'</span>,match.parts{idx},<span class="string">'eventmap'</span>,predict_at,<span class="string">'epoch_bounds'</span>,[0 0],<span class="string">'eventfield'</span>,<span class="string">'type'</span>,<span class="string">'prune_nontarget'</span>,false,<span class="string">'avoid_boundaries'</span>,false,<span class="string">'arg_direct'</span>,true);
+0091         <span class="comment">% write back</span>
+0092         predictor.tracking.filter_graph{c} = subsasgn(predictor.tracking.filter_graph{c},pos,match);
+0093     <span class="keyword">end</span>
+0094 <span class="keyword">end</span>
+0095 
+0096 <span class="comment">% instantiate pipelines for each output of the filter graph</span>
+0097 <span class="keyword">for</span> k=1:length(predictor.tracking.filter_graph)
+0098     predictor.pipelines{k} = <a href="onl_newpipeline.html" class="code" title="function pipeline = onl_newpipeline(filterapp, streams, needed_channels)">onl_newpipeline</a>(predictor.tracking.filter_graph{k},streams,predictor.tracking.prediction_channels{k}); <span class="keyword">end</span>
+0099 
+0100 <span class="comment">% convert string-valued prediction functions to a callable function</span>
+0101 <span class="keyword">if</span> ischar(predictor.tracking.prediction_function)
+0102     <span class="keyword">if</span> strncmp(predictor.tracking.prediction_function,<span class="string">'Paradigm'</span>,8)
+0103         <span class="comment">% Paradigm class reference: instantiate and get the paradigm's prediction function</span>
+0104         instance = eval(predictor.tracking.prediction_function); <span class="comment">%#ok&lt;NASGU&gt;</span>
+0105         predictor.tracking.prediction_function = eval(<span class="string">'@instance.predict'</span>);
+0106     <span class="keyword">else</span>
+0107         <span class="comment">% cast to a function</span>
+0108         predictor.tracking.prediction_function = str2func(predictor.tracking.prediction_function);
+0109     <span class="keyword">end</span>
+0110 <span class="keyword">end</span>
+0111 
+0112 <span class="comment">% determine whether the prediction function is stateful</span>
+0113 predictor.stateful = is_stateful(predictor.tracking.prediction_function,[],[]);
+0114 
+0115 <span class="comment">% add an .arg_direct field set to true in order to ensure that, if the prediction</span>
+0116 <span class="comment">% function uses arg_define, it does not attempt to use slow parsing on its inputs</span>
+0117 predictor.arg_direct = 1;
+0118 
+0119 <span class="comment">% assign a unique id</span>
+0120 id = fresh_id(<span class="string">'bcilab_predictors'</span>);
+0121 predictor.predictorid = id;
+0122 
+0123 <span class="comment">% assign to base workspace</span>
+0124 assignin(<span class="string">'base'</span>,name,predictor);</pre></div>
+
+<hr><address>Generated on Wed 19-Aug-2015 18:06:23 by <strong><a href="http://www.artefact.tk/software/matlab/m2html/" title="Matlab Documentation in HTML">m2html</a></strong> &copy; 2005</address>
+</body>
+</html>

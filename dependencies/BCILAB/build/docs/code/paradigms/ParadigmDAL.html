@@ -1,0 +1,379 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+                "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+  <title>Description of ParadigmDAL</title>
+  <meta name="keywords" content="ParadigmDAL">
+  <meta name="description" content="">
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <meta name="generator" content="m2html v1.5 &copy; 2003-2005 Guillaume Flandin">
+  <meta name="robots" content="index, follow">
+  <link type="text/css" rel="stylesheet" href="../../m2html.css">
+</head>
+<body>
+<a name="_top"></a>
+<div><a href="../../index.html">Home</a> &gt;  <a href="#">code</a> &gt; <a href="index.html">paradigms</a> &gt; ParadigmDAL.m</div>
+
+<!--<table width="100%"><tr><td align="left"><a href="../../index.html"><img alt="<" border="0" src="../../left.png">&nbsp;Master index</a></td>
+<td align="right"><a href="index.html">Index for code/paradigms&nbsp;<img alt=">" border="0" src="../../right.png"></a></td></tr></table>-->
+
+<h1>ParadigmDAL
+
+</h1>
+
+<h2><a name="_name"></a>PURPOSE <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="box"><strong></strong></div>
+
+<h2><a name="_synopsis"></a>SYNOPSIS <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="box"><strong>This is a script file. </strong></div>
+
+<h2><a name="_description"></a>DESCRIPTION <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="fragment"><pre class="comment"></pre></div>
+
+<!-- crossreference -->
+<h2><a name="_cross"></a>CROSS-REFERENCE INFORMATION <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+This function calls:
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="ParadigmDAL.html" class="code" title="">ParadigmDAL</a>	</li>
+<li><a href="ParadigmDataflowSimplified.html" class="code" title="">ParadigmDataflowSimplified</a>	</li>
+</ul>
+This function is called by:
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="ParadigmDAL.html" class="code" title="">ParadigmDAL</a>	</li>
+</ul>
+<!-- crossreference -->
+
+
+<h2><a name="_subfunctions"></a>SUBFUNCTIONS <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="#_sub1" class="code">function defaults = preprocessing_defaults(self)</a></li>
+<li><a href="#_sub2" class="code">function defaults = machine_learning_defaults(self)</a></li>
+<li><a href="#_sub3" class="code">function [featuremodel,conditioningmodel,predictivemodel] = calibrate_prediction_function(self,varargin)</a></li>
+<li><a href="#_sub4" class="code">function features = feature_extract(self,signal,featuremodel)</a></li>
+<li><a href="#_sub5" class="code">function layout = dialog_layout_defaults(self)</a></li>
+</ul>
+
+
+
+
+<h2><a name="_source"></a>SOURCE CODE <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="fragment"><pre>0001 classdef <a href="ParadigmDAL.html" class="code" title="">ParadigmDAL</a> &lt; <a href="ParadigmDataflowSimplified.html" class="code" title="">ParadigmDataflowSimplified</a>
+0002     <span class="comment">% Advanced paradigm for slow cortical potentials and/or oscillatory processes.</span>
+0003     <span class="comment">%</span>
+0004     <span class="comment">% The DAL paradigm implements the framework described in [1], and can be customized to give</span>
+0005     <span class="comment">% state-of-the-art results in almost any current BCI situation. Note that DAL is the name of the</span>
+0006     <span class="comment">% optimization method [2], and not an accepted or recognized name for BCI paradigms using it (but is</span>
+0007     <span class="comment">% used here for the lack of a better name). Since this method offers a lot of flexibility,</span>
+0008     <span class="comment">% simplified versions are also available, restricting it to either slow cortical potentials</span>
+0009     <span class="comment">% (DALERP) or to oscillatory processes (DALOSC).</span>
+0010     <span class="comment">%</span>
+0011     <span class="comment">% The DAL paradigm can use optional signal (pre-)processing stages, but blurs the boundary between</span>
+0012     <span class="comment">% the subsequent feature extraction and machine learning stages. Features are defined using regions,</span>
+0013     <span class="comment">% in time and frequency, of the data epoch (which must be chosen depending on the task at hand), and</span>
+0014     <span class="comment">% an optimization criterion which includes a 'loss' term and a 'regularization' term, each defined</span>
+0015     <span class="comment">% w.r.t. these features. The loss term can be chosen depending on whether the task is to predict</span>
+0016     <span class="comment">% categories (for classifaction) or real values (for regression). The regularization term allows to</span>
+0017     <span class="comment">% impose assumptions about the structure of the data (in the epoch), and, especially, in what</span>
+0018     <span class="comment">% respect(s) it is assumed to be &quot;simple&quot; (to control for overfitting). Overfitting control</span>
+0019     <span class="comment">% counter-balances the extreme flexibility of the model, which can essentially assign a different</span>
+0020     <span class="comment">% weight for every sample and channel of the data. Regularization is very time-consuming (since a</span>
+0021     <span class="comment">% parameter search is necessary), so that it may be practical to temporarily disable regularization</span>
+0022     <span class="comment">% to get quick (yet suboptimal) results.</span>
+0023     <span class="comment">%</span>
+0024     <span class="comment">% The measure of simplicity depends on the type of data being supplied. For raw sensor-space data,</span>
+0025     <span class="comment">% the assumption is that a) there are only relatively few persistent informative source</span>
+0026     <span class="comment">% constellations over time, which create the patterns measured at sensor sites, and b) there are</span>
+0027     <span class="comment">% relatively few informative temporal activity patterns across activated sources. This assumption is</span>
+0028     <span class="comment">% implemented in the dual-spectral, 'ds', regularizer. For independent component data, the</span>
+0029     <span class="comment">% assumption is usually that only few components are informative (which is the group sparsity with</span>
+0030     <span class="comment">% row groups, 'glr', regularizer); the same regularizer can also be used to select the most</span>
+0031     <span class="comment">% informative sensors. Another possible assumption is that only few channels/components, and only</span>
+0032     <span class="comment">% few time-points (or, e.g. spectral components when operating on spectrally-transformed data) are</span>
+0033     <span class="comment">% relevant; this is the 'l1' regularizer. Despite these powerful constraints, the method can be made</span>
+0034     <span class="comment">% to overfit, especially when many different (possibly irrelevant) regions are configured. Due to</span>
+0035     <span class="comment">% its ability to select the few most relevant structures in the data, the method can not just be</span>
+0036     <span class="comment">% used to obtain predictive models, but also to investigate neuroscientific questions about the</span>
+0037     <span class="comment">% underlying processes - for example, which areas of the brain (or collections of areas) are</span>
+0038     <span class="comment">% information w.r.t. some known latent (condition) variable.</span>
+0039     <span class="comment">%</span>
+0040     <span class="comment">% The region selection includes some advanced parameters (order and norm) which can be customized</span>
+0041     <span class="comment">% and/or parameter-searched if desired (in [1], a parameter search is recommended), but reasonable</span>
+0042     <span class="comment">% defaults are assigned which cover a large fraction of use cases.</span>
+0043     <span class="comment">%</span>
+0044     <span class="comment">% Example 1: Consider the well-known BCI task of classifying motor imagery; the goal is to predict</span>
+0045     <span class="comment">% whether the user is imagining a movement of his left or right hand. A calibration data set would</span>
+0046     <span class="comment">% typically include events with types such as 'left-imag' and 'right-imag', to indicate the time and</span>
+0047     <span class="comment">% type of instruction stimuli presented to the subject (see, e.g. [3]). The subject would then</span>
+0048     <span class="comment">% imagine either one or the other movement over the course of several seconds. Several EEG features</span>
+0049     <span class="comment">% can be used to infer the type of movement, including the readiness potential ([4], which is a slow</span>
+0050     <span class="comment">% cortical potential) and event-related synchronization/desynchronization ([5], which are</span>
+0051     <span class="comment">% oscillatory processes). Depending on the choice of frequency bands (here, separate regions are</span>
+0052     <span class="comment">% used for the readiness potential (0.5-10Hz) and alpha (7-15Hz) and beta (15-30Hz) rhythms),</span>
+0053     <span class="comment">% appropriate order and normalization coefficients are automatically chosen by para_dal, and a</span>
+0054     <span class="comment">% combined feature matrix as in [1] is constructed, from which the relevant portions are</span>
+0055     <span class="comment">% automatically selected. The split in alpha and beta rhythm is here for demonstration purposes; it</span>
+0056     <span class="comment">% is not necessarily a superior choice in practice.</span>
+0057     <span class="comment">%</span>
+0058     <span class="comment">%   calib = io_loadset('data sets/john/gestures.eeg')</span>
+0059     <span class="comment">%   myapproach = {'DAL', 'SignalProcessing',{'EpochExtraction',[0.5 3.5]}, ...</span>
+0060     <span class="comment">%       'Prediction'{'FeatureExtraction',{'WindowFreqs',[0.5 10; 7 15; 15 30]}}};</span>
+0061     <span class="comment">%   [loss,model,stats] = bci_train('Data',calib, 'Approach',myapproach, 'TargetMarkers',{'left-imag','right-imag'})</span>
+0062     <span class="comment">%</span>
+0063     <span class="comment">%</span>
+0064     <span class="comment">% Example 2: Consider the working-memory load example from para_multiband_csp. Here, the assumption</span>
+0065     <span class="comment">% is that at least the theta (4-6Hz) and alpha bands (7-15Hz) are relevant for predicting the number</span>
+0066     <span class="comment">% of items held in working memory by the subject. In this case, we will not pose the problem as one</span>
+0067     <span class="comment">% of classification, but rather as one of regression (where the target variable takes on values in</span>
+0068     <span class="comment">% {1,2,3}).</span>
+0069     <span class="comment">%</span>
+0070     <span class="comment">%   calib = io_loadset('data sets/mary/nback.eeg')</span>
+0071     <span class="comment">%   myapproach = {'DAL', 'SignalProcessing',{'EpochExtraction',[-0.5 2.5]}, ...</span>
+0072     <span class="comment">%       'Prediction'{'FeatureExtraction',{'WindowFreqs',[4 6; 7 15]}, ...</span>
+0073     <span class="comment">%                    'MachineLearning',{'Learner',{'dal' 'LossFunction','squared'}}}};</span>
+0074     <span class="comment">%   [loss,model,stats] = bci_train('Data',calib, 'Approach',myapproach}, 'TargetMarkers',{'n1','n2','n3'});</span>
+0075     <span class="comment">%</span>
+0076     <span class="comment">%</span>
+0077     <span class="comment">% Example 3: Another (hypothetical) scenario would be one in which complex temporal structure in</span>
+0078     <span class="comment">% oscillatory and slow-changing processes is expected, for example during the visual processing of</span>
+0079     <span class="comment">% faces versus houses (see, e.g., [6]). We assume a data set annotated with events of either the</span>
+0080     <span class="comment">% 'face', the 'house', or the 'noise' type, indicating the presentation of a stimulus from the</span>
+0081     <span class="comment">% respective category. It has been shown that there are significant differences in relevant ERP</span>
+0082     <span class="comment">% components, as well as modulations in the 5-15Hz band and further effects, over the course to</span>
+0083     <span class="comment">% 400ms. We first obtain a performance estimate, to find out to what degree these features can be</span>
+0084     <span class="comment">% used for category prediction.</span>
+0085     <span class="comment">%</span>
+0086     <span class="comment">%   calib = io_loadset('data sets/john/facesvshouses.eeg')</span>
+0087     <span class="comment">%   myapproach = {'DAL', 'SignalProcessing',{'EpochExtraction',[0 0.4]}, ...</span>
+0088     <span class="comment">%       'Prediction'{'FeatureExtraction',{'WindowFreqs',[0.5 5; 5 15; 5 15; 5 15],'WindowTimes',[0 0.4; 0.05 0.15; 0.15 0.25; 0.25 0.4]}, ...</span>
+0089     <span class="comment">%                    'MachineLearning',{'Learner',{'dal' 'LossFunction','squared'}}}};</span>
+0090     <span class="comment">%   [loss,model,stats] = bci_train('Data',calib, 'Approach',myapproach, 'TargetMarkers',{'face','house','noise'})</span>
+0091     <span class="comment">%</span>
+0092     <span class="comment">% The resulting model can now be visualized using the techniques detailed in [1] to find the</span>
+0093     <span class="comment">% relevant source projections and their temporal activations.</span>
+0094     <span class="comment">%</span>
+0095     <span class="comment">%</span>
+0096     <span class="comment">% References:</span>
+0097     <span class="comment">%  [1] Ryota Tomioka and Klaus-Robert Mueller, &quot;A regularized discriminative framework for EEG analysis with application to brain-computer interface&quot;,</span>
+0098     <span class="comment">%      Neuroimage, 49 (1) pp. 415-432, 2010.</span>
+0099     <span class="comment">%  [2] Ryota Tomioka &amp; Masashi Sugiyama, &quot;Dual Augmented Lagrangian Method for Efficient Sparse Reconstruction&quot;,</span>
+0100     <span class="comment">%      IEEE Signal Proccesing Letters, 16 (12) pp. 1067-1070, 2009.</span>
+0101     <span class="comment">%  [3] Blankertz, B., Dornhege, G., Krauledat, M., M�ller, K., and Curio,G.</span>
+0102     <span class="comment">%      &quot;The non-invasive Berlin Brain-Computer interface: Fast acquisition of effective performance in untrained subjects.&quot;</span>
+0103     <span class="comment">%      NeuroImage 37, 2 (Aug. 2007), 539?550.</span>
+0104     <span class="comment">%  [4] Deecke, L.; Groezinger, B.; Kornhuber H.H. &quot;Voluntary finger movement in man: Cerebral potentials and theory.&quot;</span>
+0105     <span class="comment">%      Biol Cybern 23: 99?119, 1976</span>
+0106     <span class="comment">%  [5] Pfurtscheller, G., and da Silva, L. &quot;Event-related EEG/MEG synchronizaion and desynchronization: basic principles.&quot;</span>
+0107     <span class="comment">%      Clin Neurophysiol 110 (1999), 1842-1857.</span>
+0108     <span class="comment">%  [6] Guillaume A. Rousselet, Jesse S. Husk, Patrick J. Bennett and Allison B. Sekuler, &quot;Single-trial EEG dynamics of object and face visual processing&quot;</span>
+0109     <span class="comment">%      NeuroImage 36 (3), 843-862, 2007</span>
+0110     <span class="comment">%</span>
+0111     <span class="comment">% Name:</span>
+0112     <span class="comment">%   Dual-Augmented Lagrangian</span>
+0113     <span class="comment">%</span>
+0114     <span class="comment">%                           Christian Kothe, Swartz Center for Computational Neuroscience, UCSD</span>
+0115     <span class="comment">%                           2010-06-25</span>
+0116 
+0117     
+0118     methods
+0119       
+0120         <a name="_sub0" href="#_subfunctions" class="code">function defaults = preprocessing_defaults(self)</a>
+0121             defaults = {<span class="string">'EpochExtraction'</span>,[0.5 3.5], <span class="string">'Resampling'</span>,100};
+0122         <span class="keyword">end</span>
+0123         
+0124         <a name="_sub1" href="#_subfunctions" class="code">function defaults = machine_learning_defaults(self)</a>
+0125             defaults = {<span class="string">'dal'</span>, <span class="string">'Lambdas'</span>,2.^(4:-0.25:-3), <span class="string">'NumFolds'</span>,5,<span class="string">'FoldMargin'</span>,1};
+0126         <span class="keyword">end</span>
+0127         
+0128         <a name="_sub2" href="#_subfunctions" class="code">function [featuremodel,conditioningmodel,predictivemodel] = calibrate_prediction_function(self,varargin)</a>
+0129             args = arg_define(varargin, <span class="keyword">...</span>
+0130                 arg_norep(<span class="string">'signal'</span>), <span class="keyword">...</span>
+0131                 arg_sub({<span class="string">'fex'</span>,<span class="string">'FeatureExtraction'</span>},{},<span class="keyword">...</span>
+0132                     {arg_nogui(<span class="string">'chan_prior'</span>), <span class="keyword">...</span><span class="comment"> </span>
+0133                      arg_nogui(<span class="string">'time_prior'</span>), <span class="keyword">...</span><span class="comment"> </span>
+0134                      arg({<span class="string">'freqwnds'</span>,<span class="string">'WindowFreqs'</span>},[0.5 5; 7 30],[0 0.1 200 1000],<span class="string">'Frequency bands of interest. Matrix containing one row for the start and end of each frequency band on which DAL shall operate. Values in Hz.'</span>,<span class="string">'cat'</span>,<span class="string">'Feature Extraction'</span>), <span class="keyword">...</span>
+0135                      arg({<span class="string">'timewnds'</span>,<span class="string">'WindowTimes'</span>},[],[],<span class="string">'Time intervals of interest. Matrix containing one row for the start and end of the time window for each region. Values in seconds. If both this and the freqwnds parameter are non-empty, they should have the same number of rows.'</span>,<span class="string">'cat'</span>,<span class="string">'Feature Extraction'</span>), <span class="keyword">...</span>
+0136                      arg({<span class="string">'norms'</span>,<span class="string">'WindowNorms'</span>},[],[],<span class="string">'Normalization coefficients. One pair for each window, see [1] (Nx2 matrix, or []).'</span>,<span class="string">'cat'</span>,<span class="string">'Feature Extraction'</span>), <span class="keyword">...</span>
+0137                      arg({<span class="string">'orders'</span>,<span class="string">'WindowOrders'</span>},[],[],<span class="string">'Per-window order. This is the order (1 or 2) for each signal window (Nx1 matrix, or []).'</span>,<span class="string">'cat'</span>,<span class="string">'Feature Extraction'</span>), <span class="keyword">...</span>
+0138                      arg({<span class="string">'winfunc'</span>,<span class="string">'WindowFunction'</span>},<span class="string">'rect'</span>,{<span class="string">'barthann'</span>,<span class="string">'bartlett'</span>,<span class="string">'blackman'</span>,<span class="string">'blackmanharris'</span>,<span class="string">'bohman'</span>,<span class="string">'cheb'</span>,<span class="string">'flattop'</span>,<span class="string">'gauss'</span>,<span class="string">'hamming'</span>,<span class="string">'hann'</span>,<span class="string">'kaiser'</span>,<span class="string">'nuttall'</span>,<span class="string">'parzen'</span>,<span class="string">'rect'</span>,<span class="string">'taylor'</span>,<span class="string">'triang'</span>,<span class="string">'tukey'</span>},<span class="string">'Type of window function. Typical choices are rect (rectangular), hann, gauss, blackman and kaiser; the same window function is assumed for all second-order windows (first-order windows use the rectangular window).'</span>),<span class="keyword">...</span>
+0139                      arg({<span class="string">'winparam'</span>,<span class="string">'WindowParameter'</span>,<span class="string">'param'</span>},[],[],<span class="string">'Parameter of the window function. This is mandatory for cheb, kaiser and tukey and optional for some others.'</span>,<span class="string">'shape'</span>,<span class="string">'scalar'</span>)}, <span class="string">'Parameters for the feature-adaptation function. These parameters control how features are statistically adapted and extracted from the filtered data before they are passed int othe machine learning stage; the same window parameter is assumed for all second-order windows (first-order windows use the rectangular window).'</span>), <span class="keyword">...</span>
+0140                 arg_sub({<span class="string">'cond'</span>,<span class="string">'Conditioning'</span>},{},@self.feature_adapt_conditioning,<span class="string">'Feature conditioning parameters. Allows to further process features for better usability with classifiers.'</span>), <span class="keyword">...</span>
+0141                 arg_sub({<span class="string">'ml'</span>,<span class="string">'MachineLearning'</span>},{<span class="string">'Learner'</span>,self.machine_learning_defaults()},@ml_train,<span class="string">'Machine learning stage of the paradigm. Operates on the feature vectors that are produced by the feature-extraction stage.'</span>));
+0142 
+0143             <span class="keyword">if</span> ~isempty(args.fex.freqwnds) &amp;&amp; ~isempty(args.fex.timewnds) &amp;&amp; size(args.fex.freqwnds,1) ~= size(args.fex.timewnds,1)
+0144                 error(<span class="string">'If both time and frequency windows are specified, both arrays must have the same number of rows (together they define the windows in time and frequency).'</span>); <span class="keyword">end</span>
+0145 
+0146             <span class="comment">% shorten some names...</span>
+0147             [data,learner,twnds,fwnds,norms,orders,chan_prior,time_prior] = deal(args.signal,args.ml.learner,args.fex.timewnds,args.fex.freqwnds,args.fex.norms,args.fex.orders,args.fex.chan_prior,args.fex.time_prior);
+0148             
+0149             <span class="comment">% find out whether we are using a dual-spectral regularizer or not</span>
+0150             dual_spectral = ~(any(strcmp(learner,<span class="string">'regularizer'</span>)) &amp;&amp; ~any(strcmp(learner(find(strcmp(learner,<span class="string">'regularizer'</span>),1,<span class="string">'last'</span>)+1),{<span class="string">'ds'</span>,<span class="string">'dual-spectral'</span>})));
+0151 
+0152             <span class="comment">% replicate empty arrays</span>
+0153             <span class="keyword">if</span> isempty(twnds)
+0154                 twnds = zeros(size(fwnds,1),0); <span class="keyword">end</span>
+0155             <span class="keyword">if</span> isempty(fwnds)
+0156                 fwnds = zeros(size(twnds,1),0); <span class="keyword">end</span>
+0157             <span class="keyword">if</span> isempty(norms)
+0158                 norms = zeros(size(fwnds,1),0); <span class="keyword">end</span>
+0159             <span class="keyword">if</span> isempty(orders)
+0160                 orders = zeros(size(fwnds,1),0); <span class="keyword">end</span>
+0161 
+0162             <span class="comment">% for each region...</span>
+0163             <span class="keyword">for</span> r = 1:max(size(fwnds,1),size(twnds,1))
+0164                 <span class="comment">% start building a region descriptor</span>
+0165                 reg.freq = arg_report(<span class="string">'vals'</span>,@flt_spectrum,{<span class="string">'freq'</span>,fwnds(r,:)});
+0166                 <span class="comment">% we assume the region to be first-order if any retained frequency is below 3, otherwise second-order</span>
+0167                 reg.order = orders(r,:);
+0168                 <span class="keyword">if</span> isempty(reg.order)
+0169                     reg.order = quickif(any(reg.freq.freq&lt;3),1,2); <span class="keyword">end</span>
+0170                 <span class="comment">% we only use the window function &amp; parameter for second-order regions</span>
+0171                 <span class="keyword">if</span> reg.order == 2
+0172                     reg.time = arg_report(<span class="string">'vals'</span>,@flt_window,{<span class="string">'time'</span>,{twnds(r,:),args.fex.winfunc,args.fex.winparam}});
+0173                 <span class="keyword">else</span>
+0174                     reg.time = arg_report(<span class="string">'vals'</span>,@flt_window,{<span class="string">'time'</span>,{twnds(r,:)}});
+0175                 <span class="keyword">end</span>
+0176 
+0177                 <span class="comment">% squared data needs a different power than raw data</span>
+0178                 reg.norm = norms(r,:);                
+0179                 <span class="keyword">if</span> isempty(reg.norm)
+0180                     reg.norm = quickif(reg.order==1,{-0.25,-0.25},{-0.5,-0.5}); <span class="keyword">end</span>
+0181                 <span class="keyword">if</span> isnumeric(reg.norm) &amp;&amp; length(reg.norm)==2
+0182                     reg.norm = {reg.norm(1),reg.norm(2)}; <span class="keyword">end</span>
+0183                 
+0184                 <span class="comment">% compute the filtered data ...</span>
+0185                 flt = exp_eval_optimized(flt_spectrum(<span class="string">'signal'</span>,flt_window(<span class="string">'signal'</span>,data,reg.time),reg.freq));
+0186                 
+0187                 <span class="comment">% and derive the preprocessing matrices from it</span>
+0188                 <span class="keyword">if</span> dual_spectral
+0189                     X = num2cell(flt.data,[1 2]);
+0190                     <span class="comment">% in this case we use matrix powers of the inverse pooled covariance matrices for scaling</span>
+0191                     <span class="keyword">if</span> reg.order == 1
+0192                         <span class="comment">% first-order: spatio-temporal scaling</span>
+0193                         reg.preproc = {hlp_diskcache(<span class="string">'featuremodels'</span>,@cov_shrink,cat(2,X{:})')^reg.norm{1}, hlp_diskcache(<span class="string">'featuremodels'</span>,@cov_shrink,cat(1,X{:}))^reg.norm{2}};
+0194                         <span class="comment">% apply spatio-temporal prior</span>
+0195                         <span class="keyword">if</span> ~isempty(chan_prior)
+0196                             reg.preproc{1} = reg.preproc{1} .* diag(chan_prior); <span class="keyword">end</span>
+0197                         <span class="keyword">if</span> ~isempty(time_prior)
+0198                             reg.preproc{2} = reg.preproc{2} .* diag(time_prior); <span class="keyword">end</span>
+0199                         reg.shape = [size(flt.data,1) size(flt.data,2)];
+0200                     <span class="keyword">else</span>
+0201                         <span class="comment">% second-order: just spatial scaling</span>
+0202                         tmp = cov(cat(2,X{:})');
+0203                         reg.preproc = {tmp^reg.norm{1}, tmp^reg.norm{2}};
+0204                         <span class="comment">% apply spatial prior (temporal one does not apply)</span>
+0205                         <span class="keyword">if</span> ~isempty(chan_prior)
+0206                             reg.preproc{1} = reg.preproc{1} .* diag(chan_prior.^2);
+0207                             reg.preproc{2} = reg.preproc{2} .* diag(chan_prior.^2);
+0208                         <span class="keyword">end</span>
+0209                         <span class="keyword">if</span> ~isempty(time_prior)
+0210                             error(<span class="string">'temporal prior does not apply in the case of a second-order detector'</span>); <span class="keyword">end</span>
+0211                         reg.shape = [size(flt.data,1) size(flt.data,1)];
+0212                     <span class="keyword">end</span>
+0213                 <span class="keyword">else</span>
+0214                     X = flt.data;
+0215                     <span class="comment">% in this case we use per-channel / per-timepoint scaling matrices</span>
+0216                     <span class="keyword">if</span> reg.order == 1
+0217                         <span class="comment">% first-order: spatio-temporal scaling</span>
+0218                         reg.preproc = {diag(mean(squeeze(var(X,[],2)),2))^-0.5, diag(mean(squeeze(var(X,[],1)),2))^-0.5};
+0219                         <span class="comment">% apply spatio-temporal prior</span>
+0220                         <span class="keyword">if</span> ~isempty(chan_prior)
+0221                             reg.preproc{1} = reg.preproc{1} .* diag(chan_prior); <span class="keyword">end</span>
+0222                         <span class="keyword">if</span> ~isempty(time_prior)
+0223                             reg.preproc{2} = reg.preproc{2} .* diag(time_prior); <span class="keyword">end</span>
+0224                         reg.shape = [size(flt.data,1) size(flt.data,2)];
+0225                     <span class="keyword">else</span>
+0226                         <span class="comment">% second-order: just spatial scaling</span>
+0227                         tmp = diag(mean(squeeze(var(X,[],2)),2))^-0.5;
+0228                         reg.preproc = {tmp, tmp};
+0229                         <span class="comment">% apply spatial prior (temporal one does not apply)</span>
+0230                         <span class="keyword">if</span> ~isempty(chan_prior)
+0231                             reg.preproc{1} = reg.preproc{1} .* diag(chan_prior.^2);
+0232                             reg.preproc{2} = reg.preproc{2} .* diag(chan_prior.^2);
+0233                         <span class="keyword">end</span>
+0234                         <span class="keyword">if</span> ~isempty(time_prior)
+0235                             error(<span class="string">'temporal prior does not apply in the case of a second-order detector'</span>); <span class="keyword">end</span>
+0236                         reg.shape = [size(flt.data,1) size(flt.data,2)];
+0237                     <span class="keyword">end</span>
+0238                 <span class="keyword">end</span>
+0239                 
+0240                 <span class="comment">% compute &amp; append the block scale of the region (we want to make sure that the</span>
+0241                 <span class="comment">% data is properly normalized so that our lambda range does not have to be tuned</span>
+0242                 <span class="comment">% to fit the data scale)</span>
+0243                 X = flt.data; [lhs,rhs] = reg.preproc{:};
+0244                 <span class="keyword">if</span> reg.order == 1
+0245                     Y = zeros(size(X));
+0246                     <span class="keyword">for</span> t=1:size(X,3)
+0247                         Y(:,:,t) = lhs*X(:,:,t)*rhs; <span class="keyword">end</span>
+0248                 <span class="keyword">else</span>
+0249                     Y = zeros(size(X,1),size(X,1),size(X,3));
+0250                     <span class="keyword">for</span> t=1:size(X,3)
+0251                         Y(:,:,t) = lhs*cov(X(:,:,t)')*rhs; <span class="keyword">end</span>
+0252                 <span class="keyword">end</span>
+0253                 reg.preproc = [reg.preproc 1/sum(sum(sqrt(var(Y,[],3)))/(size(Y,1)*size(Y,2)))];
+0254                 
+0255                 <span class="comment">% finally aggregate the region descriptors</span>
+0256                 regions{r} = reg;                
+0257             <span class="keyword">end</span>
+0258             vectorize = ~strcmp(learner.arg_selection,<span class="string">'dal'</span>);
+0259             featuremodel = struct(<span class="string">'regions'</span>,{regions}, <span class="string">'vectorize'</span>,{vectorize});
+0260             tmp = cellfun(@(x)x.shape,regions,<span class="string">'UniformOutput'</span>,false);
+0261             <span class="comment">% update machine learning parameters</span>
+0262             args.ml.learner.shape = vertcat(tmp{:});
+0263             args.ml.learner.scaling = <span class="string">'none'</span>;            
+0264             
+0265             <span class="comment">% extract features &amp; target labels</span>
+0266             features = self.feature_extract(args.signal, featuremodel);
+0267             targets = set_gettarget(args.signal);
+0268 
+0269             <span class="comment">% adapt and apply feature conditioning</span>
+0270             conditioningmodel = self.feature_adapt_conditioning(<span class="string">'features'</span>,features,<span class="string">'targets'</span>,targets,args.cond);
+0271             [features,targets] = self.feature_apply_conditioning(features,targets,conditioningmodel);
+0272             
+0273             <span class="comment">% run the machine learning stage</span>
+0274             predictivemodel = ml_train(<span class="string">'data'</span>,{features,targets}, args.ml);
+0275         <span class="keyword">end</span>        
+0276         
+0277         <a name="_sub3" href="#_subfunctions" class="code">function features = feature_extract(self,signal,featuremodel)</a>
+0278             block = cell(1,length(featuremodel.regions));
+0279             <span class="keyword">for</span> r = 1:length(featuremodel.regions)
+0280                 reg = featuremodel.regions{r};
+0281                 <span class="comment">% select a region</span>
+0282                 flt = exp_eval_optimized(flt_spectrum(<span class="string">'signal'</span>,flt_window(<span class="string">'signal'</span>,signal,reg.time),reg.freq));
+0283                 <span class="comment">% scale the features</span>
+0284                 X = flt.data; [lhs,rhs,bs] = reg.preproc{:};
+0285                 <span class="keyword">if</span> reg.order == 1
+0286                     Y = zeros(size(X));
+0287                     <span class="keyword">for</span> t=1:size(X,3)
+0288                         Y(:,:,t) = bs*(lhs*X(:,:,t)*rhs); <span class="keyword">end</span>
+0289                 <span class="keyword">else</span>
+0290                     Y = zeros(size(X,1),size(X,1),size(X,3));
+0291                     <span class="keyword">for</span> t=1:size(X,3)
+0292                         Y(:,:,t) = bs*(lhs*cov(X(:,:,t)')*rhs); <span class="keyword">end</span>
+0293                 <span class="keyword">end</span>
+0294                 <span class="comment">% store, for later block-diagonalization</span>
+0295                 block{r} = Y;
+0296             <span class="keyword">end</span>
+0297             <span class="comment">% combine all blocks into a block-compressed trial matrix</span>
+0298             features = reshape([block{:}],[],signal.trials)';
+0299             features(~isfinite(features(:))) = 0;
+0300             <span class="comment">% and optionally vectorize the result</span>
+0301             <span class="keyword">if</span> featuremodel.vectorize
+0302                 features = double(reshape(features,[],size(features,3))'); <span class="keyword">end</span>
+0303         <span class="keyword">end</span>
+0304         
+0305         <a name="_sub4" href="#_subfunctions" class="code">function layout = dialog_layout_defaults(self)</a>
+0306             layout = {<span class="string">'SignalProcessing.Resampling.SamplingRate'</span>, <span class="string">'SignalProcessing.EpochExtraction'</span>, <span class="string">''</span>, <span class="keyword">...</span>
+0307                 <span class="string">'Prediction.FeatureExtraction.WindowFreqs'</span>, <span class="string">'Prediction.FeatureExtraction.WindowTimes'</span>, <span class="keyword">...</span>
+0308                 <span class="string">'Prediction.FeatureExtraction.WindowFunction'</span>, <span class="string">''</span>, <span class="keyword">...</span>
+0309                 <span class="string">'Prediction.MachineLearning.Learner.Lambdas'</span>,<span class="string">'Prediction.MachineLearning.Learner.LossFunction'</span>,<span class="keyword">...</span>
+0310                 <span class="string">'Prediction.MachineLearning.Learner.Regularizer'</span>};
+0311         <span class="keyword">end</span>        
+0312     <span class="keyword">end</span>
+0313 <span class="keyword">end</span></pre></div>
+
+<hr><address>Generated on Wed 19-Aug-2015 18:06:23 by <strong><a href="http://www.artefact.tk/software/matlab/m2html/" title="Matlab Documentation in HTML">m2html</a></strong> &copy; 2005</address>
+</body>
+</html>

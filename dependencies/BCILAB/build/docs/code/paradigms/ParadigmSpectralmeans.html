@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+                "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+  <title>Description of ParadigmSpectralmeans</title>
+  <meta name="keywords" content="ParadigmSpectralmeans">
+  <meta name="description" content="">
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <meta name="generator" content="m2html v1.5 &copy; 2003-2005 Guillaume Flandin">
+  <meta name="robots" content="index, follow">
+  <link type="text/css" rel="stylesheet" href="../../m2html.css">
+</head>
+<body>
+<a name="_top"></a>
+<div><a href="../../index.html">Home</a> &gt;  <a href="#">code</a> &gt; <a href="index.html">paradigms</a> &gt; ParadigmSpectralmeans.m</div>
+
+<!--<table width="100%"><tr><td align="left"><a href="../../index.html"><img alt="<" border="0" src="../../left.png">&nbsp;Master index</a></td>
+<td align="right"><a href="index.html">Index for code/paradigms&nbsp;<img alt=">" border="0" src="../../right.png"></a></td></tr></table>-->
+
+<h1>ParadigmSpectralmeans
+
+</h1>
+
+<h2><a name="_name"></a>PURPOSE <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="box"><strong></strong></div>
+
+<h2><a name="_synopsis"></a>SYNOPSIS <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="box"><strong>This is a script file. </strong></div>
+
+<h2><a name="_description"></a>DESCRIPTION <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="fragment"><pre class="comment"></pre></div>
+
+<!-- crossreference -->
+<h2><a name="_cross"></a>CROSS-REFERENCE INFORMATION <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+This function calls:
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="ParadigmDataflowSimplified.html" class="code" title="">ParadigmDataflowSimplified</a>	</li>
+<li><a href="ParadigmSpectralmeans.html" class="code" title="">ParadigmSpectralmeans</a>	</li>
+</ul>
+This function is called by:
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="ParadigmSpectralmeans.html" class="code" title="">ParadigmSpectralmeans</a>	</li>
+</ul>
+<!-- crossreference -->
+
+
+<h2><a name="_subfunctions"></a>SUBFUNCTIONS <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="#_sub1" class="code">function defaults = preprocessing_defaults(self)</a></li>
+<li><a href="#_sub2" class="code">function model = feature_adapt(self,varargin)</a></li>
+<li><a href="#_sub3" class="code">function features = feature_extract(self,signal,featuremodel)</a></li>
+<li><a href="#_sub4" class="code">function visualize_model(self,varargin)</a></li>
+<li><a href="#_sub5" class="code">function layout = dialog_layout_defaults(self)</a></li>
+</ul>
+
+
+
+
+<h2><a name="_source"></a>SOURCE CODE <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="fragment"><pre>0001 classdef <a href="ParadigmSpectralmeans.html" class="code" title="">ParadigmSpectralmeans</a> &lt; <a href="ParadigmDataflowSimplified.html" class="code" title="">ParadigmDataflowSimplified</a>
+0002     <span class="comment">% Conventional paradigm for stationary oscillatory processes, using per-channel frequency band averages.</span>
+0003     <span class="comment">%</span>
+0004     <span class="comment">% This method is essentially the Fourier domain equivalent of para_windowmeans. Since spectral</span>
+0005     <span class="comment">% power is not a linear measure of the signal, a spatial filter can significantly improve the</span>
+0006     <span class="comment">% performance of this method over simple channel-space band power. Some of the applicable spatial</span>
+0007     <span class="comment">% filters are the surface Laplacian and the ICA.</span>
+0008     <span class="comment">%</span>
+0009     <span class="comment">%</span>
+0010     <span class="comment">% Name:</span>
+0011     <span class="comment">%   Spectral Means</span>
+0012     <span class="comment">%</span>
+0013     <span class="comment">%                               Christian Kothe, Swartz Center for Computational Neuroscience, UCSD</span>
+0014     <span class="comment">%                               2011-05-26</span>
+0015     
+0016     methods
+0017       
+0018         <a name="_sub0" href="#_subfunctions" class="code">function defaults = preprocessing_defaults(self)</a>
+0019             defaults = {<span class="string">'FIRFilter'</span>,{[0.5 2],<span class="string">'highpass'</span>}, <span class="string">'EpochExtraction'</span>,[0.5 3.5], <span class="string">'SpectralTransform'</span>,{<span class="string">'multitaper'</span>,true,false}, <span class="string">'Resampling'</span>,100};
+0020         <span class="keyword">end</span>
+0021                 
+0022         <a name="_sub1" href="#_subfunctions" class="code">function model = feature_adapt(self,varargin)</a>
+0023             arg_define(varargin, <span class="keyword">...</span>
+0024                 arg_norep(<span class="string">'signal'</span>), <span class="keyword">...</span>
+0025                 arg({<span class="string">'wnds'</span>,<span class="string">'FreqWindows'</span>},[0.5 3; 4 7; 8 12; 13 30; 31 42],[0 0.5 200 1000],<span class="string">'Frequency bands to take as features. Matrix containing one row for the start and end of each frequency band over which the signal mean (per every channel) is taken as a feature. Values in Hz.'</span>,<span class="string">'cat'</span>,<span class="string">'Feature Extraction'</span>), <span class="keyword">...</span>
+0026                 arg({<span class="string">'logtransform'</span>,<span class="string">'LogTransform'</span>},false,[],<span class="string">'Log-transform output. Log-transformed spectra are more likely to be separable by a linear classifier.'</span>));
+0027             model.wnds = wnds;
+0028             model.chanlocs = signal.chanlocs;
+0029             model.logtransform = logtransform;
+0030         <span class="keyword">end</span>
+0031         
+0032         <a name="_sub2" href="#_subfunctions" class="code">function features = feature_extract(self,signal,featuremodel)</a>
+0033             [dummy, idx] = utl_nearest(signal.freqs, featuremodel.wnds); <span class="comment">%#ok&lt;ASGLU&gt;</span>
+0034             features = reshape(utl_picktimes(signal.data,idx),[],size(signal.data,3))';
+0035             <span class="keyword">if</span> featuremodel.logtransform
+0036                 features = log(features); <span class="keyword">end</span>
+0037         <span class="keyword">end</span>
+0038         
+0039         <a name="_sub3" href="#_subfunctions" class="code">function visualize_model(self,varargin) </a><span class="comment">%#ok&lt;*INUSD&gt;</span>
+0040             args = arg_define([0 3],varargin, <span class="keyword">...</span>
+0041                 arg_norep({<span class="string">'parent'</span>,<span class="string">'Parent'</span>},[],[],<span class="string">'Parent figure.'</span>), <span class="keyword">...</span>
+0042                 arg_norep({<span class="string">'fmodel'</span>,<span class="string">'FeatureModel'</span>},[],[],<span class="string">'Feature model. This is the part of the model that describes the feature extraction.'</span>), <span class="keyword">...</span>
+0043                 arg_norep({<span class="string">'pmodel'</span>,<span class="string">'PredictiveModel'</span>},[],[],<span class="string">'Predictive model. This is the part of the model that describes the predictive mapping.'</span>), <span class="keyword">...</span>
+0044                 arg({<span class="string">'paper'</span>,<span class="string">'PaperFigure'</span>},false,[],<span class="string">'Use paper-style font sizes. Whether to generate a plot with font sizes etc. adjusted for paper.'</span>));
+0045             arg_toworkspace(args);
+0046             parent = args.parent;
+0047             
+0048             <span class="comment">% no parent: create new figure</span>
+0049             <span class="keyword">if</span> isempty(parent)
+0050                 parent = figure(<span class="string">'Name'</span>,<span class="string">'Per-window weights'</span>); <span class="keyword">end</span>
+0051             
+0052             <span class="comment">% number of pairs, and index of pattern per subplot</span>
+0053             np = size(fmodel.wnds,1);
+0054             horz = ceil(sqrt(np));
+0055             vert = ceil(np/horz);
+0056             
+0057             <span class="comment">% get the weights</span>
+0058             <span class="keyword">if</span> isfield(pmodel.model,<span class="string">'w'</span>)
+0059                 weights = pmodel.model.w;
+0060             <span class="keyword">elseif</span> isfield(pmodel.model,<span class="string">'W'</span>)
+0061                 weights = pmodel.model.W;
+0062             <span class="keyword">elseif</span> isfield(pmodel.model,<span class="string">'weights'</span>)
+0063                 weights = pmodel.model.weights;
+0064             <span class="keyword">else</span>
+0065                 error(<span class="string">'Cannot find model weights.'</span>);
+0066             <span class="keyword">end</span>
+0067             
+0068             <span class="comment">% check if weights contains a bias value</span>
+0069             <span class="keyword">if</span> numel(weights)==length(fmodel.chanlocs)*np+1
+0070                 weights = weights(1:end-1);
+0071             <span class="keyword">elseif</span> numel(weights)~=length(fmodel.chanlocs)*np
+0072                 error(<span class="string">'The model is probably not linear'</span>);
+0073             <span class="keyword">end</span>
+0074             
+0075             <span class="comment">% turn into matrix, and optionally convert to forward projections</span>
+0076             weights = reshape(weights,length(fmodel.chanlocs),np);            
+0077             
+0078             <span class="comment">% for each window...</span>
+0079             <span class="keyword">for</span> p=1:np
+0080                 subplot(horz,vert,p,<span class="string">'Parent'</span>,parent);
+0081                 topoplot(weights(:,p),fmodel.chanlocs,<span class="string">'maplimits'</span>,[-max(abs(weights(:))) max(abs(weights(:)))]);
+0082                 t=title([<span class="string">'Window'</span> num2str(p) <span class="string">' ('</span> num2str(fmodel.wnds(p,1)) <span class="string">'s to '</span> num2str(fmodel.wnds(p,2)) <span class="string">'s)'</span>]);
+0083                 <span class="keyword">if</span> args.paper
+0084                     set(t,<span class="string">'FontUnits'</span>,<span class="string">'normalized'</span>);
+0085                     set(t,<span class="string">'FontSize'</span>,0.1);                    
+0086                     set(gca,<span class="string">'FontUnits'</span>,<span class="string">'normalized'</span>);
+0087                     set(gca,<span class="string">'FontSize'</span>,0.1);
+0088                 <span class="keyword">end</span>         
+0089             <span class="keyword">end</span>
+0090         <span class="keyword">end</span>
+0091         
+0092         <a name="_sub4" href="#_subfunctions" class="code">function layout = dialog_layout_defaults(self)</a>
+0093             layout = {<span class="string">'SignalProcessing.Resampling.SamplingRate'</span>, <span class="string">'SignalProcessing.FIRFilter.Frequencies'</span>, <span class="keyword">...</span>
+0094                 <span class="string">'SignalProcessing.EpochExtraction'</span>, <span class="string">'SignalProcessing.SpectralTransform.Representation.TimeBandwidth'</span>, <span class="keyword">...</span>
+0095                 <span class="string">'SignalProcessing.SpectralTransform.Normalized'</span>, <span class="string">'SignalProcessing.SpectralTransform.LogTransform'</span>, <span class="string">''</span>, <span class="keyword">...</span>
+0096                 <span class="string">'Prediction.FeatureExtraction.FreqWindows'</span>, <span class="string">''</span>, <span class="string">'Prediction.MachineLearning.Learner'</span>};
+0097         <span class="keyword">end</span>
+0098         
+0099     <span class="keyword">end</span>
+0100 <span class="keyword">end</span></pre></div>
+
+<hr><address>Generated on Wed 19-Aug-2015 18:06:23 by <strong><a href="http://www.artefact.tk/software/matlab/m2html/" title="Matlab Documentation in HTML">m2html</a></strong> &copy; 2005</address>
+</body>
+</html>

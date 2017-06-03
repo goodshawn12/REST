@@ -86,16 +86,9 @@ handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
 
-
-% Check for bcilab in path
-startup_check_bcilab();
-
 % Parse varagin
 [handles,calibData,customize_pipeline] = startup_check_inputs(handles,varargin);
     
-% Check for orica.m and arica.m in bcilab path
-startup_check_flt_files();
-
 % Intialize ORICA
 handles = startup_initializeORICA(handles,calibData,customize_pipeline);
 
@@ -275,64 +268,6 @@ end
 end
 
 
-function startup_check_bcilab
-bcilab_path = which('bcilab.m');
-% if not present, look in bcilab_path.txt
-if isempty(bcilab_path)
-    REST_path = fileparts(fileparts(which('REST.m')));
-    fid = fopen([REST_path filesep 'bcilab_path.txt']);
-    bcilab_path = fgetl(fid);
-    % correct the path
-    [temp_path,~,temp_ext] = fileparts(bcilab_path);
-    if ~isempty(temp_ext)
-        bcilab_path = temp_path; end
-    % add path
-    addpath(bcilab_path)
-end
-% if bcilab found
-if ~isempty(bcilab_path)
-    % start bcilab if it isn't running
-    if ~any(strcmp(who('global'),'tracking'))
-        current_path = pwd;
-        bcilab('menu',false);
-        cd(current_path);
-    end
-% if bcilab not found, error
-else
-    error(['REST: Could not find BCILAB. Either start BCILAB manually, ' ...
-        'add the BCILAB folder to the path manually, ' ...
-        'or save the BCILAB path in the file bcilab_path.txt (recommended).'])
-end
-end
-
-
-function startup_check_flt_files
-% check if orica/arica are already in the BCILAB path
-contents = dir(env_translatepath('functions:/filters/flt_*.m'));
-flag_refreshBCILAB = false;
-% if orica is no there, copy it from REST path
-if ~any(strcmp({contents.name},'flt_orica.m'))
-    display('REST: flt_orica.m not present in BCILAB path. Attempting to create copy. This will only happen the first time visEEG is run.')
-    destination = env_translatepath('functions:/filters/flt_orica.m');
-    source = which('flt_orica.m');
-    if ~exist(source,'file')
-        warning('REST cannot find flt_orica.m. REST will likely error soon.')
-    else
-        [status, message] = copyfile(source,destination);
-        if ~status
-            warning('REST cannot copy flt_orica.m into BCILAB. REST will likely error soon.\n%s',message)
-        else
-            flag_refreshBCILAB = true;
-        end
-    end
-end
-% tell BCILAB to refresh
-if flag_refreshBCILAB
-    flt_pipeline('update');
-end
-end
-
-
 function handles = startup_check_localization(handles,in) % !!! combine headmodel in localization
 % if no headModel provided, remove localization button
 if ~isfield(in,'headModel') || isempty(in.headModel)
@@ -431,12 +366,18 @@ opts.BCILAB_PipelineConfigFile = ...
 tic
 try
     fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));
+    if customize_pipeline
+        fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
+            'Parameters',[{'signal',onl_peek(opts.lsl.StreamName,1,'samples')} fltPipCfg], ...
+            'PanelOnly',false);
+    end
 catch
-    disp('-- no existing pipeline --'); fltPipCfg = {};
+    disp('-- no existing pipeline or fail loading pipeline--'); 
+    fltPipCfg = {};
 end
 
 % open pipeline configuration gui if no settings found or if user requested
-if customize_pipeline || isempty(fltPipCfg)
+if isempty(fltPipCfg)
     fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
         'Parameters',[{'signal',onl_peek(opts.lsl.StreamName,1,'samples')} fltPipCfg], ...
         'PanelOnly',false);

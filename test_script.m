@@ -1,4 +1,12 @@
-%% Test REST
+%% Test REST (go to 'REST' folder)
+%% set path and initialize bcilab
+bcilab_path = which('bcilab.m');
+if isempty(bcilab_path)
+    current_path = pwd;
+    addpath('dependencies\BCILAB'); bcilab
+    cd(current_path);
+    addpath(genpath('./'));
+end
 
 %% refresh workspace
 % clear all will break bcilab and require it to restart as it uses global
@@ -6,10 +14,6 @@
 close all
 delete(timerfind)
 clear
-
-%% set path and 
-addpath(genpath(['.' filesep]));
-% start bcilab or add it to the path as well
 
 %% define opts structure
 % whether to customize pipeline 

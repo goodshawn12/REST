@@ -1,0 +1,1 @@
+any(cellfun(@exist,{'devectorize_single', 'icd_general', 'ind2subv', 'symmetric_vectorize_single'})==3)

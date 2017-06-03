@@ -1,0 +1,242 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+                "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+  <title>Description of arg_report</title>
+  <meta name="keywords" content="arg_report">
+  <meta name="description" content="Report information of a certain Type about the given Function.">
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <meta name="generator" content="m2html v1.5 &copy; 2003-2005 Guillaume Flandin">
+  <meta name="robots" content="index, follow">
+  <link type="text/css" rel="stylesheet" href="../../m2html.css">
+</head>
+<body>
+<a name="_top"></a>
+<div><a href="../../index.html">Home</a> &gt;  <a href="#">code</a> &gt; <a href="index.html">arguments</a> &gt; arg_report.m</div>
+
+<!--<table width="100%"><tr><td align="left"><a href="../../index.html"><img alt="<" border="0" src="../../left.png">&nbsp;Master index</a></td>
+<td align="right"><a href="index.html">Index for code/arguments&nbsp;<img alt=">" border="0" src="../../right.png"></a></td></tr></table>-->
+
+<h1>arg_report
+
+</h1>
+
+<h2><a name="_name"></a>PURPOSE <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="box"><strong>Report information of a certain Type about the given Function.</strong></div>
+
+<h2><a name="_synopsis"></a>SYNOPSIS <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="box"><strong>function result = arg_report(type,func,args) </strong></div>
+
+<h2><a name="_description"></a>DESCRIPTION <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="fragment"><pre class="comment"> Report information of a certain Type about the given Function.
+ Result = arg_report(Type,Function,Arguments)
+
+ Functions that declare their arguments via arg_define() make their parameter specification
+ accessible to outside functions. This can be used to display auto-generated settings dialogs, to
+ record function calls, and so on. Some other functions can enable reports, as well (like
+ declare_properties() and expose_handles()).
+
+ In:
+   Type : Type of information to report. The currently defined report types are as follows:
+
+          'vals' : Report the values of the function's arguments as a struct, possibly with
+                   sub-structs, after assignment of Arguments. (provided by arg_define)
+          'nvps' : Report the values of the function's arguments as cell array of name-value pairs.
+                   (provided by arg_define)
+          'lean' : Report a lean specification of the function's arguments as a struct array, with
+                   fields as in arg_specifier, including help text, etc. This is after assignment
+                   of Arguments. (provided by arg_define)
+          'rich' : Report a rich specification of the function's arguments as a struct array, with
+                   fields as in arg_specifier. In addition to lean this includes information about
+                   alternative (non-default) settings, for use in GUI generation. (provided by
+                   arg_define)
+
+          'properties' : Report declared properties of the function, if any. Arguments must be empty.
+                         (provided by declare_properties)
+
+          'handle': Report function handles to scoped and nested functions within the Function. The
+                    names of those functions are given as a cell array in Arguments, and the result
+                    is a cell array of associated function handles (or one handle if only one
+                    function was requested).
+
+   Function : Handle to a function that supports the given report type.
+
+   Arguments : Cell array of inputs to be passed to the function.
+
+ Out:
+   Result : the reported data.
+
+ Examples:
+   % for a function call with some arguments assigned, obtain a struct with all parameter
+   % names and values, including defaults
+   params = arg_report('vals',@myfunction,{4,10,true,'option1','xxx','option5',10})
+
+   % obtain a specification of all function arguments, with defaults, help text, type, shape, and other
+   % meta-data (with a subset of settings customized according to arguments)
+   spec = arg_report('rich',@myfunction,myarguments)
+
+   % obtain a report of properties of the function (declared via declared_properties() within the
+   % function)
+   props = arg_report('properties',@myfunction)
+
+ See also:
+   <a href="arg_define.html" class="code" title="function outstruct = arg_define(vals,varargin)">arg_define</a>, declare_properties, expose_handles
+
+                                Christian Kothe, Swartz Center for Computational Neuroscience, UCSD
+                                2010-09-24</pre></div>
+
+<!-- crossreference -->
+<h2><a name="_cross"></a>CROSS-REFERENCE INFORMATION <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+This function calls:
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+</ul>
+This function is called by:
+<ul style="list-style-image:url(../../matlabicon.gif)">
+
+<li><a href="arg_define.html" class="code" title="function outstruct = arg_define(vals,varargin)">arg_define</a>	Parse function arguments and enable function introspection.</li>
+<li><a href="arg_guidialog.html" class="code" title="function varargout = arg_guidialog(func,varargin)">arg_guidialog</a>	Create an input dialog that displays input fields for a Function and Parameters.</li>
+<li><a href="arg_guipanel.html" class="code" title="function result = arg_guipanel(varargin)">arg_guipanel</a>	Create a uipanel that displays an argument property inspector for a Function.</li>
+</ul>
+<!-- crossreference -->
+
+
+
+
+
+
+<h2><a name="_source"></a>SOURCE CODE <a href="#_top"><img alt="^" border="0" src="../../up.png"></a></h2>
+<div class="fragment"><pre>0001 <a name="_sub0" href="#_subfunctions" class="code">function result = arg_report(type,func,args)</a>
+0002 <span class="comment">% Report information of a certain Type about the given Function.</span>
+0003 <span class="comment">% Result = arg_report(Type,Function,Arguments)</span>
+0004 <span class="comment">%</span>
+0005 <span class="comment">% Functions that declare their arguments via arg_define() make their parameter specification</span>
+0006 <span class="comment">% accessible to outside functions. This can be used to display auto-generated settings dialogs, to</span>
+0007 <span class="comment">% record function calls, and so on. Some other functions can enable reports, as well (like</span>
+0008 <span class="comment">% declare_properties() and expose_handles()).</span>
+0009 <span class="comment">%</span>
+0010 <span class="comment">% In:</span>
+0011 <span class="comment">%   Type : Type of information to report. The currently defined report types are as follows:</span>
+0012 <span class="comment">%</span>
+0013 <span class="comment">%          'vals' : Report the values of the function's arguments as a struct, possibly with</span>
+0014 <span class="comment">%                   sub-structs, after assignment of Arguments. (provided by arg_define)</span>
+0015 <span class="comment">%          'nvps' : Report the values of the function's arguments as cell array of name-value pairs.</span>
+0016 <span class="comment">%                   (provided by arg_define)</span>
+0017 <span class="comment">%          'lean' : Report a lean specification of the function's arguments as a struct array, with</span>
+0018 <span class="comment">%                   fields as in arg_specifier, including help text, etc. This is after assignment</span>
+0019 <span class="comment">%                   of Arguments. (provided by arg_define)</span>
+0020 <span class="comment">%          'rich' : Report a rich specification of the function's arguments as a struct array, with</span>
+0021 <span class="comment">%                   fields as in arg_specifier. In addition to lean this includes information about</span>
+0022 <span class="comment">%                   alternative (non-default) settings, for use in GUI generation. (provided by</span>
+0023 <span class="comment">%                   arg_define)</span>
+0024 <span class="comment">%</span>
+0025 <span class="comment">%          'properties' : Report declared properties of the function, if any. Arguments must be empty.</span>
+0026 <span class="comment">%                         (provided by declare_properties)</span>
+0027 <span class="comment">%</span>
+0028 <span class="comment">%          'handle': Report function handles to scoped and nested functions within the Function. The</span>
+0029 <span class="comment">%                    names of those functions are given as a cell array in Arguments, and the result</span>
+0030 <span class="comment">%                    is a cell array of associated function handles (or one handle if only one</span>
+0031 <span class="comment">%                    function was requested).</span>
+0032 <span class="comment">%</span>
+0033 <span class="comment">%   Function : Handle to a function that supports the given report type.</span>
+0034 <span class="comment">%</span>
+0035 <span class="comment">%   Arguments : Cell array of inputs to be passed to the function.</span>
+0036 <span class="comment">%</span>
+0037 <span class="comment">% Out:</span>
+0038 <span class="comment">%   Result : the reported data.</span>
+0039 <span class="comment">%</span>
+0040 <span class="comment">% Examples:</span>
+0041 <span class="comment">%   % for a function call with some arguments assigned, obtain a struct with all parameter</span>
+0042 <span class="comment">%   % names and values, including defaults</span>
+0043 <span class="comment">%   params = arg_report('vals',@myfunction,{4,10,true,'option1','xxx','option5',10})</span>
+0044 <span class="comment">%</span>
+0045 <span class="comment">%   % obtain a specification of all function arguments, with defaults, help text, type, shape, and other</span>
+0046 <span class="comment">%   % meta-data (with a subset of settings customized according to arguments)</span>
+0047 <span class="comment">%   spec = arg_report('rich',@myfunction,myarguments)</span>
+0048 <span class="comment">%</span>
+0049 <span class="comment">%   % obtain a report of properties of the function (declared via declared_properties() within the</span>
+0050 <span class="comment">%   % function)</span>
+0051 <span class="comment">%   props = arg_report('properties',@myfunction)</span>
+0052 <span class="comment">%</span>
+0053 <span class="comment">% See also:</span>
+0054 <span class="comment">%   arg_define, declare_properties, expose_handles</span>
+0055 <span class="comment">%</span>
+0056 <span class="comment">%                                Christian Kothe, Swartz Center for Computational Neuroscience, UCSD</span>
+0057 <span class="comment">%                                2010-09-24</span>
+0058 
+0059 <span class="comment">% Copyright (C) Christian Kothe, SCCN, 2010, christian@sccn.ucsd.edu</span>
+0060 <span class="comment">%</span>
+0061 <span class="comment">% This program is free software; you can redistribute it and/or modify it under the terms of the GNU</span>
+0062 <span class="comment">% General Public License as published by the Free Software Foundation; either version 2 of the</span>
+0063 <span class="comment">% License, or (at your option) any later version.</span>
+0064 <span class="comment">%</span>
+0065 <span class="comment">% This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without</span>
+0066 <span class="comment">% even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU</span>
+0067 <span class="comment">% General Public License for more details.</span>
+0068 <span class="comment">%</span>
+0069 <span class="comment">% You should have received a copy of the GNU General Public License along with this program; if not,</span>
+0070 <span class="comment">% write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307</span>
+0071 <span class="comment">% USA</span>
+0072 
+0073 <span class="comment">% check inputs</span>
+0074 <span class="keyword">if</span> ischar(func)
+0075     func = str2func(func); <span class="keyword">end</span>
+0076 <span class="keyword">if</span> ~isa(func,<span class="string">'function_handle'</span>)
+0077     error(<span class="string">'The given Function argument must be a function handle.'</span>); <span class="keyword">end</span>
+0078 <span class="keyword">if</span> ~ischar(type)
+0079     error(<span class="string">'The given Type argument must be a string.'</span>); <span class="keyword">end</span>
+0080 <span class="keyword">if</span> nargin &lt; 3
+0081     <span class="keyword">if</span> strcmp(type,<span class="string">'properties'</span>)
+0082         <span class="comment">% for the properties report we implicitly pad the arguments with blanks to allow functions</span>
+0083         <span class="comment">% to define up to this number of traditional non-varargin arguments prior to the varargin</span>
+0084         args(1:15) = {[]};
+0085     <span class="keyword">else</span>
+0086         args = {};
+0087     <span class="keyword">end</span>
+0088 <span class="keyword">elseif</span> isequal(args,[])
+0089     args = {};
+0090 <span class="keyword">elseif</span> ~iscell(args)
+0091     error(<span class="string">'Arguments must be a cell array, if given.'</span>); 
+0092 <span class="keyword">end</span>
+0093 
+0094 <span class="comment">% disable the expression features of functions called by arg_report</span>
+0095 <span class="keyword">persistent</span> handle_expressions;
+0096 <span class="keyword">if</span> isempty(handle_expressions)
+0097     handle_expressions = exist(<span class="string">'exp_eval'</span>,<span class="string">'file'</span>); <span class="keyword">end</span>
+0098 
+0099 result = {};
+0100 <span class="keyword">try</span>
+0101     <span class="comment">% evaluate the funtion with two special arguments appended</span>
+0102     <span class="keyword">if</span> handle_expressions
+0103         hlp_scope({<span class="string">'disable_expressions'</span>,1},func,args{:},<span class="string">'__arg_report__'</span>,type);
+0104     <span class="keyword">else</span>
+0105         func(args{:},<span class="string">'__arg_report__'</span>,type);
+0106     <span class="keyword">end</span>
+0107 <span class="keyword">catch</span> report
+0108     <span class="keyword">if</span> strcmp(report.identifier,<span class="string">'BCILAB:arg:report_args'</span>)
+0109         <span class="keyword">global</span> tracking; <span class="comment">%#ok&lt;TLEV&gt;</span>
+0110         <span class="comment">% get the ticket of the report</span>
+0111         ticket = sscanf(report.message(end-4:end),<span class="string">'%u'</span>);
+0112         <span class="comment">% read out the payload and return the ticket</span>
+0113         result = tracking.arg_sys.reports{ticket};
+0114         tracking.arg_sys.tickets.addLast(ticket);
+0115     <span class="keyword">elseif</span> ~strcmp(type,<span class="string">'properties'</span>)        
+0116         <span class="comment">% got a genuine error</span>
+0117         settings = dbstatus;
+0118         <span class="keyword">if</span> any(strcmp({settings.cond},<span class="string">'error'</span>)) &amp;&amp; ~hlp_resolve(<span class="string">'disable_dbstop_if_error_msg'</span>,false)
+0119             <span class="comment">% rerun the code to propagate it properly (we're not using rethrow here to not confuse dbstop if error)</span>
+0120             disp_once(<span class="string">'arg_report: caught error while in &quot;dbstop if error&quot; mode; re-running offending code to get break point...\n  error traceback was: %s\n'</span>,hlp_handleerror(report));
+0121             <span class="keyword">if</span> handle_expressions
+0122                 hlp_scope({<span class="string">'disable_expressions'</span>,1},func,args{:},<span class="string">'__arg_report__'</span>,type);
+0123             <span class="keyword">else</span>
+0124                 func(args{:},<span class="string">'__arg_report__'</span>,type);
+0125             <span class="keyword">end</span>
+0126         <span class="keyword">else</span>
+0127             rethrow(report);
+0128         <span class="keyword">end</span>
+0129     <span class="keyword">end</span>
+0130 <span class="keyword">end</span></pre></div>
+
+<hr><address>Generated on Wed 19-Aug-2015 18:06:23 by <strong><a href="http://www.artefact.tk/software/matlab/m2html/" title="Matlab Documentation in HTML">m2html</a></strong> &copy; 2005</address>
+</body>
+</html>
