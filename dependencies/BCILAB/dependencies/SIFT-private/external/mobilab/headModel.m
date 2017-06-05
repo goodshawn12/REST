@@ -75,6 +75,13 @@ classdef headModel < handle
         function channelLabel = get.channelLabel(obj)
             channelLabel = obj.label;
         end
+        function set.channelLabel(obj, val)
+            obj.label = val;
+        end
+        function dropChannels(obj, ind)
+            obj.label(ind) = [];
+            obj.channelSpace(ind, :) = [];
+        end
         %%
         function [roiname,roinumber] = labelDipole(obj,dipole)
             if isempty(obj.F)

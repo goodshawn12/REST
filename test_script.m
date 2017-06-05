@@ -3,7 +3,7 @@
 bcilab_path = which('bcilab.m');
 if isempty(bcilab_path)
     current_path = pwd;
-    addpath('dependencies\BCILAB'); bcilab
+    addpath(['dependencies' filesep 'BCILAB']); bcilab
     cd(current_path);
     addpath(genpath('./'));
 end
