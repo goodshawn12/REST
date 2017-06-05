@@ -128,9 +128,7 @@ if any(strcmp(funsstr,'flt_selchans'))
     handles.ics = 1:handles.nic;
     % adjust headModel
     handles.urheadModel = handles.headModel;
-    handles.headModel.dropChannels(handles.rmchan_index);
-%     handles.headModel.channelSpace(handles.rmchan_index,:) = [];
-%     handles.headModel.channelLabel(handles.rmchan_index) = []; % !!! had to change the headModel contructor
+    handles.headModel.dropChannels(handles.rmchan_index); % !!! had to change the headModel contructor
     handles.K(handles.rmchan_index,:) = [];
 %     LFM = load(handles.headModel.leadFieldFile);
 %     LFM.K(handles.rmchan_index,:) = [];

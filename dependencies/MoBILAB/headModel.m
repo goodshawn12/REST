@@ -70,13 +70,20 @@ classdef headModel < handle
                 for it=1:N, obj.label{it} = deblank(obj.label{it});end
             end
         end
-%         function labels = getChannelLabels(obj)
-%             labels = obj.label;
-%             warning('This method will be deprecated in the future, instead you can access directly the property channelLabel.')
-%         end
-%         function channelLabel = get.channelLabel(obj)
-%             channelLabel = obj.label;
-%         end
+        function labels = getChannelLabels(obj)
+            labels = obj.label;
+            warning('This method will be deprecated in the future, instead you can access directly the property channelLabel.')
+        end
+        function channelLabel = get.channelLabel(obj)
+            channelLabel = obj.label;
+        end
+        function set.channelLabel(obj, val)
+            obj.label = val;
+        end
+        function dropChannels(obj, ind)
+            obj.label(ind) = [];
+            obj.channelSpace(ind, :) = [];
+        end
         %%
         function [roiname,roinumber] = labelDipole(obj,dipole)
             if isempty(obj.F)
