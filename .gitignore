@@ -11,3 +11,4 @@ BCILAB-temp/flushedsets/2682937333.set
 *.set
 *.fdt
 BCILAB-temp/
+dependencies/BCILAB/dependencies/liblsl-Matlab/mex/build*
