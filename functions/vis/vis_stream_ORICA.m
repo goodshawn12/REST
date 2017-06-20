@@ -105,26 +105,21 @@ taken = evalin('base','whos(''lsl*'')');
 inlet = [];
 
 % create the stream data structure in the base workspace
-% if ~isvarname(opts.streamname) opts.streamname = opts.streamname(~isspace(opts.streamname)); end
-chunkname = genvarname(['lsl_' opts.streamname '_chunk'],{taken.name});
-buffername = genvarname(['lsl_' opts.streamname '_stream'],{taken.name});
+chunkname = genvarname(['lsl_' parseStreamName(opts.streamname) '_chunk'],{taken.name});
+buffername = genvarname(['lsl_' parseStreamName(opts.streamname) '_stream'],{taken.name});
 
 buffer = create_streambuffer(opts);
 assignin('base', buffername, buffer);
 
-% create the figure
-create_figure(opts);
-
-% set up a timer that reads from LSL
-th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,...
+if ~isempty(opts.axishandles)
+    % create the figure
+    create_figure(opts); 
+    
+    % set up a timer that reads from LSL
+    th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,...
     'StartDelay',0.2,'Tag','lsl_visORICAst_timer',...
     'Name','eegTimer','UserData',1);
-
-% th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn',@on_timer,...
-%     'StartDelay',0.2,'Tag',['lsl_' genvarname(opts.streamname) '_timer'],...
-%     'Name','eegTimer','UserData',0);
-% start(th);
-
+end
 
     % === nested functions (sharing some handles with each other) ===
 
@@ -376,7 +371,7 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
 
     % create a new stream buffer in the base workspace
     function stream = create_streambuffer(opts)
-        base_stream = evalin('base',opts.streamname);
+        base_stream = evalin('base',parseStreamName(opts.streamname));
         stream.srate = base_stream.srate;                                   % sampling rate in Hz
         stream.chanlocs = base_stream.chanlocs;                             % struct with per-channel meta-data
         stream.pnts = max(opts.bufferrange*stream.srate,100);               % number of data points in the buffer
@@ -430,6 +425,12 @@ th = timer('Period', 1.0/opts.refreshrate,'ExecutionMode','fixedRate','TimerFcn'
         pipe_len = pipe_len + 1;
     end
     
+    % parse streamname
+    function streamnames = parseStreamName(streamnames)
+        if ~isvarname(streamnames)
+            streamnames = streamnames(~ismember(streamnames,['-' ' '])); 
+        end
+    end
 end
 
 
