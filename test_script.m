@@ -9,10 +9,11 @@ if isempty(bcilab_path)
 end
 
 %% refresh workspace
-% clear all will break bcilab and require it to restart as it uses global
-% variables 
+% clear all will break bcilab and require it to restart as it uses global variables 
+timer = timerfindall;
+if ~isempty(timer)
+    stop(timerfindall); delete(timerfindall); disp('Delete timers...'); end
 close all
-delete(timerfind)
 clear
 
 %% define opts structure
