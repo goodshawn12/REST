@@ -225,7 +225,9 @@ end
 
 % check if playback is requested
 if isfield(in{1},'playback') && in{1}.playback
-    playbackStream = play_eegset_lsl(calibData,'REST_playback_data','REST_playback_markers',[],true); end
+    playbackStream = play_eegset_lsl(calibData,'REST_playback_data','REST_playback_markers',[],true);
+    handles.streamName = 'REST_playback_data';
+end
 
 % shorten calibration data if requested
 if isfield(in{1},'calibration_window')
@@ -337,21 +339,27 @@ else
 end
 
 % find streams
-streams = lsl_resolve_all(lib,3);
-streamnames = cellfun(@(s)s.name(),streams ,'UniformOutput',false);
-if isempty(streamnames)
-    error('There is no stream visible on the network.');
-elseif length(streamnames) == 1
-    assignin('base','streamname',streamnames); % save stream name in base workspace
-else
-    % if more than 2 (EEG) streams, pop up a GUI to select one.
-    selStream(streamnames); % result 'streamname' is saved in base workspace
-    streamnames = evalin('base','streamname');
-    streamnames = streamnames{1};
+if ~isfield(handles, 'streamName')
+    streams = lsl_resolve_all(lib,3);
+    streamnames = cellfun(@(s)s.name(),streams ,'UniformOutput',false);
+    if isempty(streamnames)
+        error('There is no stream visible on the network.');
+    elseif length(streamnames) == 1
+        assignin('base','streamname',streamnames); % save stream name in base workspace
+    else
+        % if more than 2 (EEG) streams, pop up a GUI to select one.
+    %     selStream(streamnames); % result 'streamname' is saved in base workspace
+    %     streamnames = evalin('base','streamname');
+    %     streamnames = streamnames{1};
+        [streamind, ok] = listdlg('ListString', streamnames, ...
+            'SelectionMode', 'Single', 'PromptString', 'Select which LSL stream to use.');
+        assert(ok && ~isempty(streamind), 'No LSL stream selection was made.')
+        streamnames = streamnames{streamind};
+    end
+    handles.streamName = streamnames;
 end
-run_readlsl_ORICA('MatlabStream',streamnames,'DataStreamQuery', ['name=''' streamnames '''']);
-handles.streamName = streamnames;
-opts.lsl.StreamName = parseStreamName(streamnames);
+run_readlsl_ORICA('MatlabStream',handles.streamName,'DataStreamQuery', ['name=''' handles.streamName '''']);
+opts.lsl.StreamName = parseStreamName(handles.streamName);
 
 % create learning rate buffer
 bufflen = 60; % seconds
