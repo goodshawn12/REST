@@ -161,7 +161,17 @@ handles.topoMat(handles.topoNaNMask,:) = [];
 topoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
-infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject},'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
+infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject}, ...
+    'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
+
+% PSD settings
+sec2samp = 5;
+sec4fft = 0.5;
+overlap = 0.5;
+fmax = 50;
+nwindows = floor((sec2samp / sec4fft - 1) / (1 - overlap)) + 1;
+handles.psd = struct('curIC', 1, 'ffts', zeros(fmax, 0), 'inds', [], 'sec2samp', sec2samp, ...
+    'sec4fft', sec4fft, 'overlap', overlap, 'fmax', fmax, 'nwindows', nwindows);
 
 % Set panel and button colors
 handles.color_bg = get(handles.figure1,'Color');
@@ -425,49 +435,62 @@ assignin('base','pipeline',pipeline);
 end
 
 
+% plot PSD of selected IC
 function infoPSD(varargin)
 
-% plot PSD of selected IC
-try  %#ok<*TRYNC>
-    secs2samp = 5; % seconds
+% load handles
+handles = guidata(varargin{3});
+
+% load buffer
+buffer = evalin('base',handles.bufferName);
+
+% clear old or invalid fft estimates
+if handles.curIC ~= handles.psd.curIC
+    handles.psd.ffts = [];
+    handles.inds = [];
     
-    W = evalin('base','pipeline.state.icaweights');
-    % if isempty(W), W = evalin('base','Wn'); end
-    sphere = evalin('base','pipeline.state.icasphere');
-    handles = guidata(varargin{3});
-    
+    % set string to correct IC number
     set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
+else
+    delete_ind = handles.psd.inds >= buffer.smax - handles.psd.sec2samp * buffer.srate;
+    handles.psd.ffts(:, delete_ind) = [];
+    handles.psd.inds(:, delete_ind) = [];
+end
+
+% get indices for windows
+winlen = round(buffer.srate * handles.psd.sec4fft);
+winspacing = round(buffer.srate * handles.psd.sec4fft * (1 - handles.psd.overlap));
+if isempty(handles.psd.inds)
+    % calculate all fft windows starting at current time
+    ind =  max(1, buffer.smax - buffer.srate * handles.psd.sec2samp + 1):winspacing:max(1, buffer.smax + 1 - winlen);
+else
+    % calculate missing windows
+    lastind = max(handles.psd.inds);
+    ind = lastind + winspacing:winspacing:buffer.smax - winlen + 1;
+end
+
+if ~isempty(ind)
+    % load ICA matrices
+    W = evalin('base','pipeline.state.icaweights');
+    sphere = evalin('base','pipeline.state.icasphere');
     
-    srate = evalin('base',[handles.bufferName '.srate']);
-    data = evalin('base',[handles.bufferName '.data{end}']); % !!! make this more robust
-    if all(data(:,end)==0)
-        mark=length(data);
-        while true
-            mark = find(data(1,1:mark)~=0,1,'last');
-            if all(data(:,mark)~=0)
-                break; end
-        end
-        data = data(:,max(1,mark-srate*secs2samp+1):mark);
-    else
-        data = data(:,max(1,end-srate*secs2samp+1):end);
-    end
+    % calculate ffts
+    window = hanning(winlen);
+    fftest = arrayfun(@(val) (W(handles.curIC,:) * sphere * buffer.data{5}(:, val:val + winlen - 1)), ...
+        ind, 'uniformoutput', 0);
+    fftest = fft(bsxfun(@times, cat(1, fftest{:})', window), buffer.srate);
+    fftest = abs(fftest(2:min(ceil((buffer.srate + 1) / 2), handles.psd.fmax + 1), :));
+
+    handles.psd.ffts = [handles.psd.ffts fftest];
+    handles.psd.inds = [handles.psd.inds ind];
     
-    data = bsxfun(@minus,data,mean(data,2));
-    data = W*sphere*data;
-    data = data(handles.curIC,:);
-    
-    [data,f] = pwelch(data,[],[],[],srate);
-%     [data,f,conf] =
-%     pwelch(data,[],[],[],srate,'ConfidenceLevel',0.95);!!! incorporate ci and iterative update
-    
-    maxFreq = 50;
-    ind = f <= maxFreq;
-    plot(handles.axisInfo,f(ind),db(data(ind))) % !!!?
+    % update plot
+    plot(handles.axisInfo, 1:size(handles.psd.ffts, 1), db(mean(handles.psd.ffts, 2)))
     grid(handles.axisInfo,'on');
     xlabel(handles.axisInfo,'Frequency (Hz)')
     ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
     axis(handles.axisInfo,'tight')
-    set(handles.axisInfo,'XTick',[0 10:10:f(end)])
+    set(handles.axisInfo,'XTick',[0 10:10:size(handles.psd.ffts, 1)])
 end
 end
 
