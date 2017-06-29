@@ -161,14 +161,14 @@ handles.topoMat(handles.topoNaNMask,:) = [];
 topoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
-infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject}, ...
+infoTimer = timer('Period',0.25,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject}, ...
     'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
 
 % PSD settings
 sec2samp = 5;
 sec4fft = 0.5;
 overlap = 0.5;
-fmax = 50;
+fmax = 45;
 nwindows = floor((sec2samp / sec4fft - 1) / (1 - overlap)) + 1;
 handles.psd = struct('curIC', 1, 'ffts', zeros(fmax, 0), 'inds', [], ...
     'sec2samp', sec2samp, 'sec4fft', sec4fft, 'overlap', overlap, 'fmax', fmax, ...
@@ -448,12 +448,13 @@ buffer = evalin('base',handles.bufferName);
 % clear old or invalid fft estimates
 if handles.curIC ~= handles.psd.curIC
     handles.psd.ffts = [];
-    handles.inds = [];
+    handles.psd.inds = [];
+    handles.psd.curIC = handles.curIC;
     
     % set string to correct IC number
     set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
 else
-    delete_ind = handles.psd.inds >= buffer.smax - handles.psd.sec2samp * buffer.srate;
+    delete_ind = handles.psd.inds < buffer.smax - handles.psd.sec2samp * buffer.srate;
     handles.psd.ffts(:, delete_ind) = [];
     handles.psd.inds(:, delete_ind) = [];
 end
@@ -477,7 +478,7 @@ if ~isempty(ind)
     
     % calculate ffts
     window = hanning(winlen);
-    fftest = arrayfun(@(val) (W(handles.curIC,:) * sphere * buffer.data{5}(:, mod((val:val + winlen - 1) - 1, buffer.pnts) + 1)), ...
+    fftest = arrayfun(@(val) (W(handles.psd.curIC,:) * sphere * buffer.data{5}(:, mod((val:val + winlen - 1) - 1, buffer.pnts) + 1)), ...
         ind, 'uniformoutput', 0);
     fftest = fft(bsxfun(@times, cat(1, fftest{:})', window), buffer.srate);
     fftest = abs(fftest(2:min(ceil((buffer.srate + 1) / 2), handles.psd.fmax + 1), :));
@@ -486,7 +487,7 @@ if ~isempty(ind)
     handles.psd.inds = [handles.psd.inds ind];
     
     % update plot
-    if isempty(handles.psd.line) || ~isgraphics(temp)
+    if isempty(handles.psd.line) || ~isgraphics(handles.psd.line)
         handles.psd.line = plot(handles.axisInfo, ...
             1:size(handles.psd.ffts, 1), db(mean(handles.psd.ffts, 2)));
         grid(handles.axisInfo,'on');
@@ -499,6 +500,9 @@ if ~isempty(ind)
         axis(handles.axisInfo,'tight')
         set(handles.axisInfo,'XTick',[0 10:10:size(handles.psd.ffts, 1)])
     end
+    
+    % save handles
+    guidata(varargin{3}, handles)
 end
 catch e
     keyboard
