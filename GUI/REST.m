@@ -170,8 +170,9 @@ sec4fft = 0.5;
 overlap = 0.5;
 fmax = 50;
 nwindows = floor((sec2samp / sec4fft - 1) / (1 - overlap)) + 1;
-handles.psd = struct('curIC', 1, 'ffts', zeros(fmax, 0), 'inds', [], 'sec2samp', sec2samp, ...
-    'sec4fft', sec4fft, 'overlap', overlap, 'fmax', fmax, 'nwindows', nwindows);
+handles.psd = struct('curIC', 1, 'ffts', zeros(fmax, 0), 'inds', [], ...
+    'sec2samp', sec2samp, 'sec4fft', sec4fft, 'overlap', overlap, 'fmax', fmax, ...
+    'nwindows', nwindows, 'line', []);
 
 % Set panel and button colors
 handles.color_bg = get(handles.figure1,'Color');
@@ -437,7 +438,7 @@ end
 
 % plot PSD of selected IC
 function infoPSD(varargin)
-
+try
 % load handles
 handles = guidata(varargin{3});
 
@@ -476,7 +477,7 @@ if ~isempty(ind)
     
     % calculate ffts
     window = hanning(winlen);
-    fftest = arrayfun(@(val) (W(handles.curIC,:) * sphere * buffer.data{5}(:, val:val + winlen - 1)), ...
+    fftest = arrayfun(@(val) (W(handles.curIC,:) * sphere * buffer.data{5}(:, mod((val:val + winlen - 1) - 1, buffer.pnts) + 1)), ...
         ind, 'uniformoutput', 0);
     fftest = fft(bsxfun(@times, cat(1, fftest{:})', window), buffer.srate);
     fftest = abs(fftest(2:min(ceil((buffer.srate + 1) / 2), handles.psd.fmax + 1), :));
@@ -485,12 +486,22 @@ if ~isempty(ind)
     handles.psd.inds = [handles.psd.inds ind];
     
     % update plot
-    plot(handles.axisInfo, 1:size(handles.psd.ffts, 1), db(mean(handles.psd.ffts, 2)))
-    grid(handles.axisInfo,'on');
-    xlabel(handles.axisInfo,'Frequency (Hz)')
-    ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
-    axis(handles.axisInfo,'tight')
-    set(handles.axisInfo,'XTick',[0 10:10:size(handles.psd.ffts, 1)])
+    if isempty(handles.psd.line) || ~isgraphics(temp)
+        handles.psd.line = plot(handles.axisInfo, ...
+            1:size(handles.psd.ffts, 1), db(mean(handles.psd.ffts, 2)));
+        grid(handles.axisInfo,'on');
+        xlabel(handles.axisInfo,'Frequency (Hz)')
+        ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
+        axis(handles.axisInfo,'tight')
+        set(handles.axisInfo,'XTick',[0 10:10:size(handles.psd.ffts, 1)])
+    else
+        set(handles.psd.line, 'YData', db(mean(handles.psd.ffts, 2)))
+        axis(handles.axisInfo,'tight')
+        set(handles.axisInfo,'XTick',[0 10:10:size(handles.psd.ffts, 1)])
+    end
+end
+catch e
+    keyboard
 end
 end
 
