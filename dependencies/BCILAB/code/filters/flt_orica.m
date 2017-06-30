@@ -280,7 +280,8 @@ if evalConvergence.arg_selection
     else
         state.Rn = (1-evalConvergence.leakyAvgDelta)*state.Rn + evalConvergence.leakyAvgDelta*modelFitness; % !!! this does not account for block update!
         state.Var = (1-evalConvergence.leakyAvgDeltaVar)^nPts*state.Var ...
-            + sum(evalConvergence.leakyAvgDeltaVar*bsxfun(@times,variance,(1-evalConvergence.leakyAvgDeltaVar).^(nPts-1:-1:0)),2);
+            + sum(evalConvergence.leakyAvgDeltaVar*bsxfun(@times,variance, ...
+            (1-evalConvergence.leakyAvgDeltaVar).^(nPts-1:-1:0)),2);
     end
     state.normRn = norm(state.Rn,'fro');
 end

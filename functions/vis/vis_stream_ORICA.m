@@ -172,9 +172,12 @@ end
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
                     plotdata = stream.data{plot_content}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
                     if plot_content==length(stream.data) % plotting ORICA results
-                        W = evalin('base','pipeline.state.icaweights');
-                        sphere = evalin('base','pipeline.state.icasphere');
-                        stream.opts.datascale = stream.opts.datascale*mean(sqrt(mean((W*sphere).^2)));%component_scale/data_scale; %mean(abs(W*sphere)*ones(length(sphere),1));
+                        % find scaling factor to match average channel and component stds
+                        state = evalin('base','pipeline.state');
+                        chanvar = mean(sqrt(diag(state.icasphere \ diag(state.Var) / state.icasphere')));
+                        scale_factor = mean(sqrt(state.Var)) / chanvar;
+                        % change datascale (this is not saved)
+                        stream.opts.datascale = stream.opts.datascale * scale_factor;
                     end
                 else % plot subtracted components
 %                     stream.d= stream.data{plot_content}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));

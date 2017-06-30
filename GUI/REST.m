@@ -478,7 +478,7 @@ if ~isempty(ind)
     
     % calculate ffts
     window = hanning(winlen);
-    fftest = arrayfun(@(val) (W(handles.psd.curIC,:) * sphere * buffer.data{5}(:, mod((val:val + winlen - 1) - 1, buffer.pnts) + 1)), ...
+    fftest = arrayfun(@(val) (W(handles.psd.curIC,:) * sphere * buffer.data{end}(:, mod((val:val + winlen - 1) - 1, buffer.pnts) + 1)), ...
         ind, 'uniformoutput', 0);
     fftest = fft(bsxfun(@times, cat(1, fftest{:})', window), buffer.srate);
     fftest = abs(fftest(2:min(ceil((buffer.srate + 1) / 2), handles.psd.fmax + 1), :));
