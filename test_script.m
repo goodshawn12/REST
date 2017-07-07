@@ -19,6 +19,7 @@ clear
 %% define opts structure
 % whether to customize pipeline 
 opts.customize_pipeline = true;
+opts.save_config = false;
 
 % (optional) define config file name
 opts.config = 'Config_ORICA_EmotivEPOC';

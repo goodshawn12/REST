@@ -87,10 +87,10 @@ handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
 
 % Parse varagin
-[handles,calibData,customize_pipeline] = startup_check_inputs(handles,varargin);
+[handles,calibData,config] = startup_check_inputs(handles,varargin);
     
 % Intialize ORICA
-handles = startup_initializeORICA(handles,calibData,customize_pipeline);
+handles = startup_initializeORICA(handles,calibData,config);
 
 % Create ORICA timer 
 oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,parseStreamName(handles.streamName)},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');%,'BusyMode','queue');
@@ -214,7 +214,7 @@ funs = [funs;{p.head}];
 end
 
 
-function [handles, calibData, customize_pipeline] = startup_check_inputs(handles,in)
+function [handles, calibData, config] = startup_check_inputs(handles,in)
 % !!! need to add appropriate errors and explanations
 
 % check channel locations
@@ -269,9 +269,16 @@ end
 
 % check whether to open pipeline arg_guipanel
 if isfield(in{1},'customize_pipeline')
-	customize_pipeline = in{1}.customize_pipeline;
+	config.customize_pipeline = in{1}.customize_pipeline;
 else
-	customize_pipeline = false;
+	config.customize_pipelin = false;
+end
+
+% check whether to save the pipeline configuration
+if isfield(in{1},'save_config')
+	config.save_config = in{1}.save_config;
+else
+	config.save_config = false;
 end
 
 % check if config file is defined
@@ -338,7 +345,7 @@ end
 end
 
 
-function handles = startup_initializeORICA(handles,calibData,customize_pipeline)
+function handles = startup_initializeORICA(handles,calibData,config)
 
 % load LSL
 if ~exist('env_translatepath','file')
@@ -386,7 +393,7 @@ opts.BCILAB_PipelineConfigFile = ...
 tic
 try
     fltPipCfg = exp_eval(io_load(opts.BCILAB_PipelineConfigFile));
-    if customize_pipeline
+    if config.customize_pipeline
         fltPipCfg = arg_guipanel('Function',@flt_pipeline, ...
             'Parameters',[{'signal',onl_peek(opts.lsl.StreamName,1,'samples')} fltPipCfg], ...
             'PanelOnly',false);
@@ -410,11 +417,13 @@ if isfield(fltPipCfg,'pselchans')
 end
 
 % save the configuration %!!! maybe disable this?
-if ~isempty(fltPipCfg)
-    if isfield(fltPipCfg,'signal')
-        fltPipCfg = rmfield(fltPipCfg,'signal'); end
-    save(env_translatepath(opts.BCILAB_PipelineConfigFile), ...
-        '-struct','fltPipCfg');
+if config.save_config
+    if ~isempty(fltPipCfg)
+        if isfield(fltPipCfg,'signal')
+            fltPipCfg = rmfield(fltPipCfg,'signal'); end
+        save(env_translatepath(opts.BCILAB_PipelineConfigFile), ...
+            '-struct','fltPipCfg');
+    end
 end
 
 % grab calib data from online stream if there is none
