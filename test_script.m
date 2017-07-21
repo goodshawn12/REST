@@ -31,6 +31,9 @@ opts.headModel = ['data' filesep 'head_models' filesep 'emotivHeadModel_file'];
 opts.calibration_data = ['data' filesep 'Demo_EmotivEPOC_EyeClose.set'];
 opts.calibration_window = [0,60]; % sec
 
+% (optional) load eyeCatch library
+opts.libEyeCatch = load(['dependencies' filesep 'eyeCatch' filesep 'libEyeCatch.mat']);
+
 % use playback data
 opts.playback = 1;
 
