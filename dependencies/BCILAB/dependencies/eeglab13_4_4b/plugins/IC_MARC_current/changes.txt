@@ -1,0 +1,42 @@
+Changes since version 1.5
+pop_ICMARC_interface.m
+change in help from
+%   'established_feature_set': Calculate the features in the established
+%       feature set consisting of 14 features as described in the
+%       accompanying paper.
+to
+%   'established_features': Calculate the features in the established
+%       feature set consisting of 14 features as described in the
+%       accompanying paper.
+
+
+ic_feature_extraction.m:
+changed
+feature_map = containers.Map(...
+    {'all', 'All', 'established_feature_set', 'established_spatial_features', 'spatial2'},...
+    {1:nfeatures,1:nfeatures, [1:2, 6:7, 11, 15:16, 21, 23, 25, 27, 30:32, 72],...
+    [1:2, 6:7, 11, 15, 21, 23, 25, 27, 30:31], [1:2 14 16:20 26 29:31]});
+to
+establishedfeatureset = [2 5 15 20 23 25 27 29 30 32 48 56 64 72];
+feature_map = containers.Map(...
+    {'all', 'All','established_features',  'established_feature_set', 'established_spatial_features', 'spatial2'},...
+    {1:nfeatures,1:nfeatures, establishedfeatureset, ...
+    establishedfeatureset,...
+    [1:2, 6:7, 11, 15, 21, 23, 25, 27, 30:31], [1:2 14 16:20 26 29:31]});
+The features previously listed as established features were incorrect, and also caused an error due to size incompatibility with the mean and standard deviation calculated for the correct established features on the training data.
+
+added % [features, outeeg, sp_icas, feature_names, function_timing] = ic_feature_extraction(varargin) to top of help section
+
+change in help from
+%   'established_feature_set': Calculate the features in the established
+%       feature set consisting of 14 features as described in the
+%       accompanying paper.
+to
+%   'established_feature_set', 'established_features': Calculate the features in the established
+%       feature set consisting of 14 features as described in the
+%       accompanying paper.
+
+dipfit_features.m
+added
+eegtemp.icawinv = eegtemp.icawinv(:, 1:nics); % throw away the redundant ICs in beginning of function
+above the call to nareas_identified to get the right number of ICs in nareas_identified.
