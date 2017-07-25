@@ -69,6 +69,7 @@ end
 % End initialization code - DO NOT EDIT
 end
 
+%% Setup
 
 % --- Executes just before REST is made visible.
 function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
@@ -369,7 +370,10 @@ if ~isfield(handles, 'streamName')
     end
     handles.streamName = streamnames;
 end
-run_readlsl_ORICA('MatlabStream',handles.streamName,'DataStreamQuery', ['name=''' handles.streamName '''']);
+lslin(handles)
+run_readlsl('MatlabStream', handles.streamName, ...
+    'DataStreamQuery', ['name=''' handles.streamName ''''], ...
+    'MarkerStreamQuery', '');
 opts.lsl.StreamName = parseStreamName(handles.streamName);
 
 % create learning rate buffer
@@ -435,10 +439,11 @@ pipeline     = onl_newpipeline(cleaned_data,opts.lsl.StreamName);
 assignin('base','pipeline',pipeline);
 end
 
+%% timer functions
 
 % plot PSD of selected IC
 function infoPSD(varargin)
-try
+try %#ok<*TRYNC>
 % load handles
 handles = guidata(varargin{3});
 
@@ -504,8 +509,6 @@ if ~isempty(ind)
     % save handles
     guidata(varargin{3}, handles)
 end
-catch e
-    keyboard
 end
 end
 
@@ -584,6 +587,279 @@ function varargout = REST_OutputFcn(hObject, eventdata, handles)
 varargout{1} = handles.output;
 end
 
+%% LSL In
+% largely drawn from run_readlsl of BCILAB
+
+% for refrence
+function lslin(handles)
+% load lsl
+lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
+
+% find stream
+result = lsl_resolve_bypred(lib, ['name=''' handles.streamName '''']);
+
+% open inlet 
+inlet = lsl_inlet(result{1});
+% info = inlet.info();
+
+% create online stream data structure in base workspace (using appropriate meta-data)
+onl_newstream(handles.streamName, 'srate', 128, ...
+    'chanlocs', {handles.chanlocs.labels}, 'buffer_len', 10);
+
+% state variables for recursive least squares jitter correction
+P = 1e10*eye(2);        % precision matrix (inverse covariance matrix of predictors)
+w = [0 0]';             % linear regression coefficients [offset,slope]
+lam = 2^(-1/(128 * 30)); % forget factor in RLS calculation
+n = 0;                  % number of samples observed so far    
+numeric_offset = [];    % time-stamp offset to keep numerics healthy; will be initialized with first measured time stamp
+
+% start reading
+onl_read_background(handles.streamName, @read_data, 20);
+
+    % reads from inlet
+    function results = read_data()
+        [chunk, stamps] = inlet.pull_chunk();
+        data_clock = inlet.time_correction([], 'median', 30);
+        stamps = stamps + data_clock;
+        stamps = update_regression(stamps);
+        chunk = double(chunk);
+        
+        % this is the source of grief
+        % taking only the last timestamp allows REST to run but the
+        % timestamps are garbage
+        % giving all the timestamps soft errors in onl_append. onl_append
+        % seems to expect only one value so perhaps this idea of many
+        % timestamps if not correct.
+        try %#ok<TRYNC>
+            stamps = stamps(end);
+        end
+        results = {chunk, stamps};
+    end
+    
+    
+    % perform RLS block update of regression coefficients
+    % this is a regression from sample index onto timestamp of the sample
+    function y = update_regression(y)
+        if ~isempty(y)
+            % sanitize numerics (all done relative to the first observed time stamp)
+            if isempty(numeric_offset)
+                numeric_offset = y(1); end
+            y = y - numeric_offset;        
+            % define predictor matrix (bias, sample index)
+            X = [ones(1,length(y)); n + (1:length(y))];
+            n = n + length(y);            
+            % apply updates...
+            for t=1:length(y)
+                u = X(:,t);
+                d = y(t);
+                pi = u'*P;
+                gam = lam + pi*u;
+                k = pi'/gam;
+                al = d - w'*u;
+                w = w + k*al;
+                Pp = k*pi;
+                P = (1/lam)*(P-Pp);
+            end            
+            % predict y
+            y = w'*X + numeric_offset;
+        end
+    end
+
+
+end
+
+%% LSL Out
+
+function pushbuttonLSLOut_Callback(hObject, eventdata, handles)
+% open a window with the following:
+%   a pipeline filter selector
+%   a stream name text box
+%   a start/stop button
+% the window should stop the output stream if closed.
+% the window should be closed if REST is closed.
+
+% create figure
+% menu callback changes stream
+% edit callback changes stream name
+% button start locks menu/edit, changes button text, and starts timer
+% button stop unlocks menu/edit, changes button text, and pauses timer
+
+% create figure
+fhandle = figure('toolbar','none','Menubar','none','Name','LSL Output', ...
+    'position',[500 500 500 200], 'Resize','on', ...
+    'DeleteFcn',{@closeFigLSLOut, get(hObject, 'parent')});
+
+% save fhandle to handles structure as lslout cell array
+if ~isfield(handles, 'lslout')
+    handles.lslout{1} = fhandle;
+    lslout_ind = 1;
+else
+    ind = lslout_ind(cellfun(@isempty, handles.lslout), 1);
+    if ~isempty(ind)
+        handles.lslout{ind} = fhandle;
+        lslout_ind = ind;
+    else
+        handles.lslout{end + 1} = fhandle;
+        lslout_ind = length(handles.lslout);
+    end
+end
+
+% stream selector
+hstream = uicontrol('style', 'popupmenu', 'string', get(handles.popupmenuEEG,'String'), ...
+    'units', 'normalized', 'Position', [0.05 0.5 .4 .2]);
+% stream selector label
+uicontrol('style', 'text', 'string', {'Select data stream';'to broadcast'}, ...
+   'units', 'normalized', 'Position', [0.05 0.7 .4 .25]);
+% stream name
+hname = uicontrol('style', 'edit', 'units', 'normalized', 'Position', [0.55 0.55 .4 .15]);
+% stream name label
+uicontrol('style', 'text', 'string', {'Enter name for'; 'broadcasted stream'},...
+    'units', 'normalized', 'Position', [0.55 0.7 .4 .25])
+% start/stop button
+uicontrol('style', 'pushbutton', 'string', 'Start Broadcast', ...
+    'units', 'normalized', 'Position', [0.25 .1 0.5 .3], ...
+    'Callback', {@pushbuttonStartLslout_Callback, get(hObject, 'parent'), hstream, hname})
+
+
+% THIS CAN BE USED TO GET FUNCTIONS IF WE CHANGE THE GUI
+% % Gather =pipeline function names
+% funs = get_pipeline_functions();
+% funnames = cell(length(funs)-2,1);
+% for it = 2:length(funs)
+%     temp = arg_report('properties',funs{it});
+%     funnames{it-1} = temp.name;
+%     if iscell(funnames{it-1})
+%         funnames{it-1} = funnames{it-1}{1}; end
+% end
+
+    function closeFigLSLOut(varargin)
+        zhObject = varargin{3};
+        % load handles
+        zhandles = guidata(zhObject);
+        zhandles.lslout{lslout_ind} = [];
+        guidata(zhObject, zhandles);
+    end
+
+end
+
+% largely from run_writestream
+function pushbuttonStartLslout_Callback(button, evnt, hfig, hstream, hname)
+
+persistent smax
+
+if strcmp(get(button, 'string'), 'Start Broadcast')
+    
+    % disable uimenu and edit
+    set(hstream, 'enable', 'off')
+    set(hname, 'enable', 'off')
+    
+    % change button text
+    set(button, 'string', 'Stop Broadcast')
+    
+    % set values
+    handles = guidata(hfig);
+    stream_name = get(hname, 'string');
+    stream_ind = get(hstream, 'value');
+    
+    % load lsl library
+    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
+
+    % try to calculate a UID for the stream
+    try
+        if strcmp(opts.source_id,'model')
+            uid = hlp_cryptohash({rmfield(model,'timestamp'),opts.predict_at,opts.in_stream,opts.out_stream});
+        elseif strcmp(opts.source_id,'input_data')
+            uid = hlp_cryptohash({model.source_data,opts.predict_at,opts.in_stream,opts.out_stream});
+        else
+            error('Unsupported SourceID option: %s',hlp_tostring(opts.source_id));
+        end
+    catch e
+        disp('Could not generate a unique ID for the predictive model; the BCI stream will not be recovered automatically after the provider system had a crash.');
+        hlp_handleerror(e);
+        uid = '';
+    end
+
+    % describe the stream
+    disp('Creating a new streaminfo...');
+    info = lsl_streaminfo(lib, stream_name, 'EEG',length(handles.chanlocs), 128, 'cf_float32',uid);
+
+    % create an outlet
+    outlet = lsl_outlet(info);
+
+    % sample after which data will be transmitted
+    smax = evalin('base', [handles.bufferName '.smax']);
+
+    % create timer
+    lsloutTimer = timer('ExecutionMode','fixedRate', 'Name',[stream_name '_timer'], 'Period',1/20, ...
+        'StartDelay', 0, 'TimerFcn',@send_samples);
+    
+    % save timer and set delButtonFcn
+    set(button, 'UserData', lsloutTimer, 'DeleteFcn', @delButtonFcn);
+    
+    % start timer
+    start(lsloutTimer)
+    
+else
+    % stop and delete timer
+    lsloutTimer = get(button, 'UserData');
+    stop(lsloutTimer)
+    delete(lsloutTimer)
+    set(button, 'DeleteFcn', []);
+    
+    % delete outlet?
+    
+    % reenable uicontrols
+    set(hstream, 'enable', 'on')
+    set(hname, 'enable', 'on')
+    
+    % change button text
+    set(button, 'string', 'Start Broadcast')
+    
+end
+
+
+    function send_samples(varargin)
+        
+        % load handles
+        zhandles = guidata(hfig);
+        
+        % load buffer
+        buffer = evalin('base', zhandles.bufferName);
+        
+        % determine time
+        % ???
+        
+        % if ica_cleaned, generate data from ica buffer
+        if stream_ind > size(buffer.data, 1)
+            p = evalinbase('base', 'pipeline');
+            ind = setdiff(1:length(p.state.icaweights), zhandles.reject);
+            chunk = (p.state.icaweights(zhandles.reject, :) * p.state.icasphere) ...
+                \ buffer.data{end}(ind, mod((buffer.smax - smax:buffer.smax) - 1, buffer.pnts) + 1);
+        % otherwise use data directly from buffer
+        else
+            chunk = buffer.data{stream_ind}(:, mod((buffer.smax - smax:buffer.smax) - 1, buffer.pnts) + 1);
+        end
+        
+        % push samples
+        outlet.push_chunk(chunk)
+        
+        % adjust smax
+        smax = buffer.smax;
+    end
+    
+    % delete timer if figure closes
+    function delButtonFcn(button, evnt)
+        % stop and delete timer
+        lsloutTimer = get(button, 'UserData');
+        stop(lsloutTimer)
+        delete(lsloutTimer)
+    end
+
+
+end
+
+
+%% button functions
 
 % --- Executes on selection change in popupmenuEEG.
 function popupmenuEEG_Callback(hObject, eventdata, handles)
@@ -1373,6 +1649,10 @@ if isfield(handles,'intialized') && handles.intialized
     if isfield(handles,'figLoc')
         try
             close(handles.figIC.handle); end, end
+    if isfield(handles.lslout)
+        for it = 1:length(handles.lslout)
+            try
+                close(handles.lslout{it}); end, end, end
 
     timerNames = {'eegTimer','oricaTimer','topoTimer','infoTimer','locTimer',[parseStreamName(handles.streamName) '_timer']};
     % warning off MATLAB:timer:deleterunning
