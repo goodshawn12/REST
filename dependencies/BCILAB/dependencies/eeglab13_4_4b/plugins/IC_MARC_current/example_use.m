@@ -1,9 +1,8 @@
-
 % obtain ICA decomposition for EEGLab dataset
 EEGICA = pop_runica(EEG);
 
 % add the feature extraction functions to the file path
-addpath(genpath([your_path_to_IC_MARC '/IC_MARC']))
+addpath(genpath('/home/yuan/Documents/GitHub/dependencies/BCILAB/dependencies/eeglab13_4_4b/plugins/IC_MARC'))
 
 % load the classifier using spatial features and the mean and standard deviations of the spatial features
 load('spatial_established_features.mat')
