@@ -193,6 +193,12 @@ handles.output = hObject;
 handles.intialized = true;
 guidata(hObject, handles);
 
+% % for testing
+% set(handles.figure1, 'visible', 'on')
+% set(handles.pushbuttonSortICs, 'callback',  ...
+%     @(hObject,eventdata) REST('pushbuttonLSLOut_Callback', ...
+%                               hObject, eventdata, guidata(hObject)))
+
 % Start timers
 start(oricaTimer);
 start(eegTimer);
@@ -237,8 +243,21 @@ end
 
 % check if playback is requested
 if isfield(in{1},'playback') && in{1}.playback
-    playbackStream = play_eegset_lsl(calibData,'REST_playback_data','REST_playback_markers',[],true);
-    handles.streamName = 'REST_playback_data';
+    OMIT_MARKERS = true;
+    % find existing streams
+    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
+    streams = lsl_resolve_all(lib,0.1);
+    streamnames = cellfun(@(s)s.name(),streams ,'UniformOutput',false)';
+    ind = 1;
+    while any(strcmp(['REST_playback_data' num2str(ind)], streamnames)) ...
+            || any(strcmp(['REST_playback_markers' num2str(ind)], streamnames))
+        ind = ind + 1; end
+    % create playback stream
+    handles.playbackStream = play_eegset_lsl('Dataset', calibData, ...
+        'DataStreamName', ['REST_playback_data' num2str(ind)], ...
+        'EventStreamName', ['REST_playback_markers' num2str(ind)], ...
+        'Background', true, 'NoMarkers', OMIT_MARKERS);
+    handles.streamName = ['REST_playback_data' num2str(ind)];
 end
 
 % shorten calibration data if requested
@@ -352,7 +371,7 @@ end
 
 % find streams
 if ~isfield(handles, 'streamName')
-    streams = lsl_resolve_all(lib,3);
+    streams = lsl_resolve_all(lib,0.1);
     streamnames = cellfun(@(s)s.name(),streams ,'UniformOutput',false);
     if isempty(streamnames)
         error('There is no stream visible on the network.');
@@ -371,9 +390,9 @@ if ~isfield(handles, 'streamName')
     handles.streamName = streamnames;
 end
 lslin(handles)
-run_readlsl('MatlabStream', handles.streamName, ...
-    'DataStreamQuery', ['name=''' handles.streamName ''''], ...
-    'MarkerStreamQuery', '');
+% run_readlsl('MatlabStream', handles.streamName, ...
+%     'DataStreamQuery', ['name=''' handles.streamName ''''], ...
+%     'MarkerStreamQuery', '');
 opts.lsl.StreamName = parseStreamName(handles.streamName);
 
 % create learning rate buffer
@@ -694,7 +713,7 @@ if ~isfield(handles, 'lslout')
     handles.lslout{1} = fhandle;
     lslout_ind = 1;
 else
-    ind = lslout_ind(cellfun(@isempty, handles.lslout), 1);
+    ind = cellfun(@isempty, handles.lslout);
     if ~isempty(ind)
         handles.lslout{ind} = fhandle;
         lslout_ind = ind;
@@ -791,7 +810,7 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
 
     % create timer
     lsloutTimer = timer('ExecutionMode','fixedRate', 'Name',[stream_name '_timer'], 'Period',1/20, ...
-        'StartDelay', 0, 'TimerFcn',@send_samples);
+        'StartDelay', 0, 'TimerFcn', @send_samples);
     
     % save timer and set delButtonFcn
     set(button, 'UserData', lsloutTimer, 'DeleteFcn', @delButtonFcn);
@@ -826,25 +845,28 @@ end
         % load buffer
         buffer = evalin('base', zhandles.bufferName);
         
-        % determine time
-        % ???
-        
-        % if ica_cleaned, generate data from ica buffer
-        if stream_ind > size(buffer.data, 1)
-            p = evalinbase('base', 'pipeline');
-            ind = setdiff(1:length(p.state.icaweights), zhandles.reject);
-            chunk = (p.state.icaweights(zhandles.reject, :) * p.state.icasphere) ...
-                \ buffer.data{end}(ind, mod((buffer.smax - smax:buffer.smax) - 1, buffer.pnts) + 1);
-        % otherwise use data directly from buffer
-        else
-            chunk = buffer.data{stream_ind}(:, mod((buffer.smax - smax:buffer.smax) - 1, buffer.pnts) + 1);
+        if buffer.smax > smax
+
+            % determine time
+            % ???
+
+            % if ica_cleaned, generate data from ica buffer
+            if stream_ind > size(buffer.data, 1)
+                p = evalin('base', 'pipeline');
+                ind = setdiff(1:length(p.state.icaweights), zhandles.reject);
+                chunk = (p.state.icasphere \ p.state.icaweights(ind, :)') ...
+                    * buffer.data{end}(ind, mod((smax + 1:buffer.smax) - 1, buffer.pnts) + 1);
+            % otherwise use data directly from buffer
+            else
+                chunk = buffer.data{stream_ind}(:, mod((smax + 1:buffer.smax) - 1, buffer.pnts) + 1);
+            end
+
+            % push samples
+            outlet.push_chunk(chunk)
+
+            % adjust smax
+            smax = buffer.smax;
         end
-        
-        % push samples
-        outlet.push_chunk(chunk)
-        
-        % adjust smax
-        smax = buffer.smax;
     end
     
     % delete timer if figure closes
@@ -1642,20 +1664,24 @@ function figure1_DeleteFcn(hObject, eventdata, handles)
 % hObject    handle to figure1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+
 if isfield(handles,'intialized') && handles.intialized
+    % close figures
     if isfield(handles,'figIC')
         try
             close(handles.figIC.handle); end, end
     if isfield(handles,'figLoc')
         try
             close(handles.figIC.handle); end, end
-    if isfield(handles.lslout)
+    if isfield(handles, 'lslout')
         for it = 1:length(handles.lslout)
             try
                 close(handles.lslout{it}); end, end, end
 
+    % delete timers
     timerNames = {'eegTimer','oricaTimer','topoTimer','infoTimer','locTimer',[parseStreamName(handles.streamName) '_timer']};
-    % warning off MATLAB:timer:deleterunning
+
     for it = 1:length(timerNames)
         temp = timerfind('name',timerNames{it});
         if isempty(temp)
@@ -1663,6 +1689,8 @@ if isfield(handles,'intialized') && handles.intialized
         stop(temp)
         delete(temp)
     end
+    if isfield(handles, 'playbackStream')
+        stop(handles.playbackStream); end
 end
 end
 
