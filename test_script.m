@@ -35,4 +35,4 @@ opts.calibration_window = [0,60]; % sec
 opts.playback = 1;
 
 %% start REST
-REST(opts)
+REST_v2(opts)
