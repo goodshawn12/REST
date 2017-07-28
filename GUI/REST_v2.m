@@ -180,11 +180,11 @@ handles.psdLine = cell(1,handles.ntopo);
 
 % Set panel and button colors
 handles.color_bg = get(handles.figure1,'Color');
-names = fieldnames(handles);
-ind = find(any([strncmpi(names,'panel',5),strncmpi(names,'toggle',6),strncmpi(names,'push',4),strncmpi(names,'popup',5)],2));
-for it = 1:length(ind)
-    set(handles.(names{ind(it)}),'BackgroundColor',handles.color_bg)
-end
+% names = fieldnames(handles);
+% ind = find(any([strncmpi(names,'panel',5),strncmpi(names,'toggle',6),strncmpi(names,'push',4),strncmpi(names,'popup',5)],2));
+% for it = 1:length(ind)
+%     set(handles.(names{ind(it)}),'BackgroundColor',handles.color_bg)
+% end
 
 % Save timers
 handles.pauseTimers = [eegTimer,topoTimer,infoTimer];
@@ -767,7 +767,7 @@ function pushbuttonLSLOutput_Callback(hObject, eventdata, handles)
 
 % create figure
 fhandle = figure('toolbar','none','Menubar','none','Name','LSL Output', ...
-    'position',[500 500 500 200], 'Resize','on', ...
+    'position',[500 500 500 200], 'Resize','on', 'Color', handles.color_bg, ...
     'DeleteFcn',{@closeFigLSLOut, get(hObject, 'parent')});
 
 % save fhandle to handles structure as lslout cell array
@@ -789,12 +789,12 @@ end
 hstream = uicontrol('style', 'popupmenu', 'string', get(handles.popupmenuEEG,'String'), ...
     'units', 'normalized', 'Position', [0.05 0.5 .4 .2]);
 % stream selector label
-uicontrol('style', 'text', 'string', {'Select data stream';'to broadcast'}, ...
+uicontrol('style', 'text', 'string', {'Select data stream';'to broadcast'}, 'BackgroundColor', handles.color_bg, ...
    'units', 'normalized', 'Position', [0.05 0.7 .4 .25]);
 % stream name
 hname = uicontrol('style', 'edit', 'units', 'normalized', 'Position', [0.55 0.55 .4 .15]);
 % stream name label
-uicontrol('style', 'text', 'string', {'Enter name for'; 'broadcasted stream'},...
+uicontrol('style', 'text', 'string', {'Enter name for'; 'broadcasted stream'}, 'BackgroundColor', handles.color_bg, ...
     'units', 'normalized', 'Position', [0.55 0.7 .4 .25])
 % start/stop button
 uicontrol('style', 'pushbutton', 'string', 'Start Broadcast', ...
