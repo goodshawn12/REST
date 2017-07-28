@@ -86,6 +86,10 @@ handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
+handles.libEyeCatch = [];       % store eyeCatch library
+handles.thresEyeCatch = 0.1;    % threshold for eye IC detection
+handles.eyeCatchCounter = 0;    % counter for eyeCatch 
+handles.eyeCatchUpdateFreq = handles.ntopo+1;
 
 % Parse varagin
 [handles,calibData,config] = startup_check_inputs(handles,varargin);
@@ -307,6 +311,12 @@ if isfield(in{1},'config')
 else
     handles.config = 'Config_ORICA';
 end
+
+% check if eyeCatch library exists and import it
+if isfield(in{1},'libEyeCatch')
+    handles.libEyeCatch = in{1}.libEyeCatch;
+end
+
 end
 
 
@@ -601,6 +611,41 @@ set(handles.(['togglebuttonLock' int2str(it)]),'Value',lock,...
     'BackgroundColor',handles.color_lock*lock + handles.color_bg*(1-lock))
 set(handles.(['togglebuttonReject' int2str(it)]),'Value',reject,...
     'BackgroundColor',handles.color_reject*reject + handles.color_bg*(1-reject))
+
+% run eyeCatch if eyeCatch library is loaded
+if ~isempty(handles.libEyeCatch)
+    
+    if mod(handles.eyeCatchCounter,handles.eyeCatchUpdateFreq) == 0
+        [isEyeIC, similarity] = runEyeCatch(handles.libEyeCatch, map,handles.thresEyeCatch);
+        
+        % update eyeIC indicators
+        set(handles.(['eye' int2str(it)]),'Visible',fastif(isEyeIC,'on','off'));
+        set(handles.(['eye' int2str(it)]),'String',['r = ', num2str(similarity)]);
+        
+        handles.eyeCatchCounter = 1;
+    else
+        handles.eyeCatchCounter = handles.eyeCatchCounter+1;
+    end
+    
+    % save handles
+    guidata(varargin{3}, handles)
+end
+
+end
+
+
+function [isEyeIC, similarity] = runEyeCatch(libEyeCatch, map, threshold)
+    % trans map into column array and normalize it
+    map = reshape(map,1,[])';
+    map(isnan(map)) = 0;
+    normMap = bsxfun(@minus, map,  mean(map));
+    normMap = bsxfun(@rdivide, normMap,  std(normMap));
+    
+    % import library
+    lib = libEyeCatch.new_map;   
+    
+    similarity  = max(abs(lib * normMap)) / length(normMap);
+    isEyeIC = similarity > threshold;
 end
 
 
