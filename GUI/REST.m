@@ -33,7 +33,7 @@ function varargout = REST(varargin)
 %             the provided calibration data to initialze the online ICA
 %             pipeline, you may use this option to shorten it. A scalar
 %             will take that many seconds from the recording and throw away
-%             the rest. A vector with two elements defines a start and stop
+%             the REST. A vector with two elements defines a start and stop
 %             time (in seconds) to take from the data. This is usefule for
 %             playback as you can have a large playback dataset and a small
 %             calibration dataset.
@@ -79,17 +79,32 @@ function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to REST (see VARARGIN)
 
-% Set parameters
-handles.ntopo = 8;
+% Set GUI parameters
+handles.ntopo = 5;
 handles.curIC = 1;
 handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
-handles.libEyeCatch = [];       % store eyeCatch library
-handles.thresEyeCatch = 0.1;    % threshold for eye IC detection
-handles.eyeCatchCounter = 0;    % counter for eyeCatch 
-handles.eyeCatchUpdateFreq = handles.ntopo+1;
+
+% Set PSD parameters
+sec2samp = 5;
+sec4fft = 0.5;
+overlap = 0.5;
+fmax = 45;
+nwindows = floor((sec2samp / sec4fft - 1) / (1 - overlap)) + 1;
+handles.psd = struct('curIC', 1:handles.ntopo, 'nwindows', nwindows, ...
+    'sec2samp', sec2samp, 'sec4fft', sec4fft, 'overlap', overlap, 'fmax', fmax);
+handles.ffts = cell(1,handles.ntopo);
+handles.psdInds = cell(1,handles.ntopo);
+handles.psdLine = cell(1,handles.ntopo);
+
+% Set eyeCatch parameters
+handles.eyeCatch.lib = [];          % store eyeCatch library
+handles.eyeCatch.thres = 0.9;       % threshold for eye IC detection
+handles.eyeCatch.count = 0;         % counter for eyeCatch 
+handles.eyeCatch.updateFreq = handles.ntopo+1;
+handles.eyeCatch.active = 1;
 
 % Parse varagin
 [handles,calibData,config] = startup_check_inputs(handles,varargin);
@@ -163,29 +178,15 @@ handles.topoNPixel = size(out,1);
 handles.topoMat(handles.topoNaNMask,:) = [];
 
 % Create scalp map timer
-topoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject},'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
+topoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject}, ...
+    'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
-infoTimer = timer('Period',0.25,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject}, ...
+infoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject}, ...
     'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
-
-% PSD settings
-sec2samp = 5;
-sec4fft = 0.5;
-overlap = 0.5;
-fmax = 45;
-nwindows = floor((sec2samp / sec4fft - 1) / (1 - overlap)) + 1;
-handles.psd = struct('curIC', 1, 'ffts', zeros(fmax, 0), 'inds', [], ...
-    'sec2samp', sec2samp, 'sec4fft', sec4fft, 'overlap', overlap, 'fmax', fmax, ...
-    'nwindows', nwindows, 'line', []);
 
 % Set panel and button colors
 handles.color_bg = get(handles.figure1,'Color');
-names = fieldnames(handles);
-ind = find(any([strncmpi(names,'panel',5),strncmpi(names,'toggle',6),strncmpi(names,'push',4),strncmpi(names,'popup',5)],2));
-for it = 1:length(ind)
-    set(handles.(names{ind(it)}),'BackgroundColor',handles.color_bg)
-end
 
 % Save timers
 handles.pauseTimers = [eegTimer,topoTimer,infoTimer];
@@ -196,12 +197,6 @@ handles.output = hObject;
 % Update handles structure
 handles.intialized = true;
 guidata(hObject, handles);
-
-% % for testing
-% set(handles.figure1, 'visible', 'on')
-% set(handles.pushbuttonSortICs, 'callback',  ...
-%     @(hObject,eventdata) REST('pushbuttonLSLOut_Callback', ...
-%                               hObject, eventdata, guidata(hObject)))
 
 % Start timers
 start(oricaTimer);
@@ -314,7 +309,8 @@ end
 
 % check if eyeCatch library exists and import it
 if isfield(in{1},'libEyeCatch')
-    handles.libEyeCatch = in{1}.libEyeCatch;
+    handles.eyeCatch.lib = in{1}.libEyeCatch;
+    set(handles.popupmenuICclassifier,'String','Eye Catch');
 end
 
 end
@@ -415,7 +411,13 @@ opts.lsl.StreamName = parseStreamName(handles.streamName);
 % create learning rate buffer
 bufflen = 60; % seconds
 handles.srate = getfield(onl_peek(opts.lsl.StreamName,1,'samples'),'srate');
+handles.nbchan = getfield(onl_peek(opts.lsl.StreamName,1,'samples'),'nbchan');
 assignin('base','learning_rate',nan(1,bufflen*handles.srate));
+
+% set stream info in GUI
+set(handles.textStreamName,'string',handles.streamName);
+set(handles.textNumChannel,'string',num2str(handles.nbchan));
+set(handles.textSrate,'string',[num2str(handles.srate) ' Hz']);
 
 % look for pre-existing config file for pipeline
 REST_path = fileparts(fileparts(which('REST')));
@@ -477,6 +479,43 @@ pipeline     = onl_newpipeline(cleaned_data,opts.lsl.StreamName);
 assignin('base','pipeline',pipeline);
 end
 
+
+% --- Executes during object deletion, before destroying properties.
+function figure1_DeleteFcn(hObject, eventdata, handles)
+% hObject    handle to figure1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+if isfield(handles,'intialized') && handles.intialized
+    % close figures
+    if isfield(handles,'figIC')
+        try
+            close(handles.figIC.handle); end, end
+    if isfield(handles,'figLoc')
+        try
+            close(handles.figIC.handle); end, end
+    if isfield(handles, 'lslout')
+        for it = 1:length(handles.lslout)
+            try
+                close(handles.lslout{it}); end, end, end
+
+    % delete timers
+    timerNames = {'eegTimer','oricaTimer','topoTimer','infoTimer','locTimer',[parseStreamName(handles.streamName) '_timer']};
+
+    for it = 1:length(timerNames)
+        temp = timerfind('name',timerNames{it});
+        if isempty(temp)
+            continue; end
+        stop(temp)
+        delete(temp)
+    end
+    if isfield(handles, 'playbackStream')
+        stop(handles.playbackStream); end
+end
+end
+
+
 %% timer functions
 
 % plot PSD of selected IC
@@ -488,29 +527,33 @@ handles = guidata(varargin{3});
 % load buffer
 buffer = evalin('base',handles.bufferName);
 
+% update index
+it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
+hstr = ['axisInfo' int2str(it)];
+
 % clear old or invalid fft estimates
-if handles.curIC ~= handles.psd.curIC
-    handles.psd.ffts = [];
-    handles.psd.inds = [];
-    handles.psd.curIC = handles.curIC;
-    
-    % set string to correct IC number
-    set(handles.panelInfo,'Title',['Power spectral density of IC' int2str(handles.curIC)])
+% !!! compute whenever the order is switched, could be optimized
+if handles.ics(it) ~= handles.psd.curIC(it)
+    handles.ffts{it} = [];
+    handles.psdInds{it} = [];
+    handles.psd.curIC(it) = handles.ics(it);
 else
-    delete_ind = handles.psd.inds < buffer.smax - handles.psd.sec2samp * buffer.srate;
-    handles.psd.ffts(:, delete_ind) = [];
-    handles.psd.inds(:, delete_ind) = [];
+    delete_ind = handles.psdInds{it} < buffer.smax - handles.psd.sec2samp * buffer.srate;
+    if ~isempty(handles.ffts{it}) && ~isempty(handles.psdInds{it})
+        handles.ffts{it}(:, delete_ind) = [];
+        handles.psdInds{it}(:, delete_ind) = [];
+    end
 end
 
-% get indices for windows
+% get indices for data windows
 winlen = round(buffer.srate * handles.psd.sec4fft);
 winspacing = round(buffer.srate * handles.psd.sec4fft * (1 - handles.psd.overlap));
-if isempty(handles.psd.inds)
+if isempty(handles.psdInds{it})
     % calculate all fft windows starting at current time
     ind =  max(1, buffer.smax - buffer.srate * handles.psd.sec2samp + 1):winspacing:max(1, buffer.smax + 1 - winlen);
 else
     % calculate missing windows
-    lastind = max(handles.psd.inds);
+    lastind = max(handles.psdInds{it});
     ind = lastind + winspacing:winspacing:buffer.smax - winlen + 1;
 end
 
@@ -521,27 +564,28 @@ if ~isempty(ind)
     
     % calculate ffts
     window = hanning(winlen);
-    fftest = arrayfun(@(val) (W(handles.psd.curIC,:) * sphere * buffer.data{end}(:, mod((val:val + winlen - 1) - 1, buffer.pnts) + 1)), ...
+    fftest = arrayfun(@(val) (W(handles.psd.curIC(it),:) * sphere * buffer.data{end}(:, mod((val:val + winlen - 1) - 1, buffer.pnts) + 1)), ...
         ind, 'uniformoutput', 0);
     fftest = fft(bsxfun(@times, cat(1, fftest{:})', window), buffer.srate);
     fftest = abs(fftest(2:min(ceil((buffer.srate + 1) / 2), handles.psd.fmax + 1), :));
 
-    handles.psd.ffts = [handles.psd.ffts fftest];
-    handles.psd.inds = [handles.psd.inds ind];
+    handles.ffts{it} = [handles.ffts{it} fftest];
+    handles.psdInds{it} = [handles.psdInds{it} ind];
     
     % update plot
-    if isempty(handles.psd.line) || ~isgraphics(handles.psd.line)
-        handles.psd.line = plot(handles.axisInfo, ...
-            1:size(handles.psd.ffts, 1), db(mean(handles.psd.ffts, 2)));
-        grid(handles.axisInfo,'on');
-        xlabel(handles.axisInfo,'Frequency (Hz)')
-        ylabel(handles.axisInfo,'Power/Frequency (dB/Hz)')
-        axis(handles.axisInfo,'tight')
-        set(handles.axisInfo,'XTick',[0 10:10:size(handles.psd.ffts, 1)])
+    if isempty(handles.psdLine{it}) || ~isgraphics(handles.psdLine{it})
+        handles.psdLine{it} = plot(handles.(hstr), ...
+            1:size(handles.ffts{it}, 1), db(mean(handles.ffts{it}, 2)));
+        grid(handles.(hstr),'on');
+        xlabel(handles.(hstr),'Frequency (Hz)')
+        ylabel(handles.(hstr),'Power/Frequency (dB/Hz)')
+        axis(handles.(hstr),'tight')
+        set(handles.(hstr),'XTick',[0 10:10:size(handles.ffts{it}, 1)])
+        set(handles.(hstr),'fontsize',7);
     else
-        set(handles.psd.line, 'YData', db(mean(handles.psd.ffts, 2)))
-        axis(handles.axisInfo,'tight')
-        set(handles.axisInfo,'XTick',[0 10:10:size(handles.psd.ffts, 1)])
+        set(handles.psdLine{it}, 'YData', db(mean(handles.ffts{it}, 2)))
+        axis(handles.(hstr),'tight')
+        set(handles.(hstr),'XTick',[0 10:10:size(handles.ffts{it}, 1)])
     end
     
     % save handles
@@ -579,10 +623,8 @@ sphere = evalin('base','pipeline.state.icasphere');
 % get handles
 handles = guidata(varargin{3});
 
-% update topo plot
+% update index
 it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
-% if it==1
-%     updateICs(varargin{3}); end
 hstr = ['axesIC' int2str(it)];
 hand = get(handles.(hstr),'children');
 
@@ -612,40 +654,27 @@ set(handles.(['togglebuttonLock' int2str(it)]),'Value',lock,...
 set(handles.(['togglebuttonReject' int2str(it)]),'Value',reject,...
     'BackgroundColor',handles.color_reject*reject + handles.color_bg*(1-reject))
 
-% run eyeCatch if eyeCatch library is loaded
-if ~isempty(handles.libEyeCatch)
+% run eyeCatch if it is selected and its library is loaded
+if ~isempty(handles.eyeCatch.lib) && handles.eyeCatch.active
     
-    if mod(handles.eyeCatchCounter,handles.eyeCatchUpdateFreq) == 0
-        [isEyeIC, similarity] = runEyeCatch(handles.libEyeCatch, map,handles.thresEyeCatch);
+    if mod(handles.eyeCatch.count,handles.eyeCatch.updateFreq) == 0
+        [isEyeIC, similarity] = runEyeCatch(handles.eyeCatch.lib, map,handles.eyeCatch.thres);
         
         % update eyeIC indicators
-        set(handles.(['eye' int2str(it)]),'Visible',fastif(isEyeIC,'on','off'));
-        set(handles.(['eye' int2str(it)]),'String',['r = ', num2str(similarity)]);
-        
-        handles.eyeCatchCounter = 1;
+        if isEyeIC
+            set(handles.(['textICLabel' int2str(it)]),'String','Eye','TooltipString',['r = ', num2str(similarity)]);
+        else
+            set(handles.(['textICLabel' int2str(it)]),'String','Not Eye','TooltipString',['r = ', num2str(similarity)]);
+        end
+        handles.eyeCatch.count = 1;
     else
-        handles.eyeCatchCounter = handles.eyeCatchCounter+1;
+        handles.eyeCatch.count = handles.eyeCatch.count+1;
     end
     
     % save handles
     guidata(varargin{3}, handles)
 end
 
-end
-
-
-function [isEyeIC, similarity] = runEyeCatch(libEyeCatch, map, threshold)
-    % trans map into column array and normalize it
-    map = reshape(map,1,[])';
-    map(isnan(map)) = 0;
-    normMap = bsxfun(@minus, map,  mean(map));
-    normMap = bsxfun(@rdivide, normMap,  std(normMap));
-    
-    % import library
-    lib = libEyeCatch.new_map;   
-    
-    similarity  = max(abs(lib * normMap)) / length(normMap);
-    isEyeIC = similarity > threshold;
 end
 
 
@@ -741,9 +770,19 @@ onl_read_background(handles.streamName, @read_data, 20);
 
 end
 
+
+% --- Executes on button press in pushbuttonSelectInput.
+function pushbuttonSelectInput_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbuttonSelectInput (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+end
+
+
 %% LSL Out
 
-function pushbuttonLSLOut_Callback(hObject, eventdata, handles)
+% --- Executes on button press in pushbuttonLSLOutput.
+function pushbuttonLSLOutput_Callback(hObject, eventdata, handles)
 % open a window with the following:
 %   a pipeline filter selector
 %   a stream name text box
@@ -759,7 +798,7 @@ function pushbuttonLSLOut_Callback(hObject, eventdata, handles)
 
 % create figure
 fhandle = figure('toolbar','none','Menubar','none','Name','LSL Output', ...
-    'position',[500 500 500 200], 'Resize','on', ...
+    'position',[500 500 500 200], 'Resize','on', 'Color', handles.color_bg, ...
     'DeleteFcn',{@closeFigLSLOut, get(hObject, 'parent')});
 
 % save fhandle to handles structure as lslout cell array
@@ -781,12 +820,12 @@ end
 hstream = uicontrol('style', 'popupmenu', 'string', get(handles.popupmenuEEG,'String'), ...
     'units', 'normalized', 'Position', [0.05 0.5 .4 .2]);
 % stream selector label
-uicontrol('style', 'text', 'string', {'Select data stream';'to broadcast'}, ...
+uicontrol('style', 'text', 'string', {'Select data stream';'to broadcast'}, 'BackgroundColor', handles.color_bg, ...
    'units', 'normalized', 'Position', [0.05 0.7 .4 .25]);
 % stream name
 hname = uicontrol('style', 'edit', 'units', 'normalized', 'Position', [0.55 0.55 .4 .15]);
 % stream name label
-uicontrol('style', 'text', 'string', {'Enter name for'; 'broadcasted stream'},...
+uicontrol('style', 'text', 'string', {'Enter name for'; 'broadcasted stream'}, 'BackgroundColor', handles.color_bg, ...
     'units', 'normalized', 'Position', [0.55 0.7 .4 .25])
 % start/stop button
 uicontrol('style', 'pushbutton', 'string', 'Start Broadcast', ...
@@ -935,7 +974,7 @@ end
 end
 
 
-%% button functions
+%% button functions - for viewing stream
 
 % --- Executes on selection change in popupmenuEEG.
 function popupmenuEEG_Callback(hObject, eventdata, handles)
@@ -970,6 +1009,84 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 end
 
+
+% --- Executes on selection change in popupmenuInfo. (Not currently in use)
+function popupmenuInfo_Callback(hObject, eventdata, handles)
+% hObject    handle to popupmenuInfo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+infoTimer = timerfind('name','infoTimer');
+timerFcn = subsref(get(infoTimer,'TimerFcn'), substruct('{}',{1}));
+
+contents = get(hObject,'String');
+switch contents{get(handles.popupmenuInfo,'Value')}
+    case 'Power Spectrum'
+        % changed?
+        if isequal(timerFcn,@infoPSD)
+            return
+        end
+        % if so...
+        stop(infoTimer)
+        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,handles.figure1},'StartDelay',0);
+        handles.axisInfo1 = handles.axisInfo1(1);
+        start(infoTimer)
+    case 'Convergence'
+        % changed?
+        if isequal(timerFcn,@infoConverge)
+            return
+        end
+        % if so...
+        stop(infoTimer)
+        learning_rate = evalin('base','learning_rate');
+        srate = evalin('base',[parseStreamName(handles.streamName) '.srate']);
+        x = -(length(learning_rate)-1)/srate:1/srate:0;
+        axes(handles.axisInfo1)
+        [handles.axisInfo1] = plot(x,learning_rate);
+        line1 = get(handles.axisInfo1,'children');
+        set(get(get(handles.axisInfo1(1),'parent'),'XLabel'),'String','Time (seconds)')
+        set(get(get(handles.axisInfo1(1),'parent'),'YLabel'),'String','Learning Rate (dB)')
+        set(infoTimer,'Period',1,'ExecutionMode','fixedRate', ...
+            'TimerFcn',{@infoConverge,handles.axisInfo1,handles.panelInfo},'StartDelay',0);
+        axis(get(handles.axisInfo1,'parent'),'tight')
+        start(infoTimer)
+    otherwise
+        warning('REST: popupmenuInfo recieved a strange input')
+end
+end
+
+
+% --- Executes during object creation, after setting all properties.
+function popupmenuInfo_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to popupmenuInfo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+end
+
+
+% --- Executes on button press in pushbuttonPause.
+function pushbuttonPause_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbuttonPause (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+if strcmpi(get(handles.pushbuttonPause,'string'),'Pause');
+    set(handles.pushbuttonPause,'string','Resume');
+    stop(handles.pauseTimers)
+else
+    set(handles.pushbuttonPause,'string','Pause');
+    start(handles.pauseTimers);
+end
+end
+
+
+
+%% button functions - for analyzing sources
 
 % --- Executes on button press in pushbuttonLocalize.
 function pushbuttonLocalize_Callback(hObject, eventdata, handles)
@@ -1103,6 +1220,7 @@ handles.figLoc.tau2 = tau2;
 handles.figLoc.sigma2 = sigma2;
 guidata(varargin{3},handles);
 end
+
 
 function figLoc_gen_dipolefit(hObject,handles)
 % get ica decomposition
@@ -1244,6 +1362,40 @@ handles.pauseTimers(locTimerInd) = [];
 guidata(hObject,handles);
 end
 
+
+% --- Executes on selection change in popupmenuICclassifier.
+function popupmenuICclassifier_Callback(hObject, eventdata, handles)
+% hObject    handle to popupmenuICclassifier (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+% 
+if strcmpi(get(hObject,'String'),'Eye Catch')
+    handles.eyeCatch.active = 1;
+end
+
+% save handles
+guidata(hObject,handles);
+
+end
+
+
+% --- Executes during object creation, after setting all properties.
+function popupmenuICclassifier_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to popupmenuICclassifier (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+end
+
+
+
+%% button functions - for viewing sources
+
 % --- Executes on button press in pushbuttonIC.
 function pushbuttonIC_Callback(hObject, eventdata, handles)
 % hObject    handle to pushbuttonIC (see GCBO)
@@ -1309,6 +1461,15 @@ handles = guidata(hObject);
 if isfield(handles,'figIC')
     handles = rmfield(handles,'figIC'); end
 guidata(hObject,handles);
+end
+
+
+% --- Executes on button press in pushbuttonSortICs.
+function pushbuttonSortICs_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbuttonSortICs (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+updateICs(hObject,true)
 end
 
 
@@ -1388,139 +1549,7 @@ end
 
 
 
-% function updateButtons(handles,ic,onFlag,lockFlag)
-% if lockFlag
-%     % update gui
-%     ind = find(handles.ics==ic);
-%     if ind
-%         set(handles.(['togglebuttonLock' int2str(ind)]),'Value',onFlag); end
-%     % update fig
-%     if isfield(handles,'figIC')
-%         set(handles.figIC.buttonLock(ic),'Value',onFlag); end
-% else
-%     % update gui
-%     ind = find(handles.ics==ic);
-%     if ind
-%         set(handles.(['togglebuttonReject' int2str(ind)]),'Value',onFlag); end
-%     % update fig
-%     if isfield(handles,'figIC')
-%         set(handles.figIC.buttonReject(ic),'Value',onFlag); end
-% end
-
-
-% --- Executes on selection change in popupmenuInfo.
-function popupmenuInfo_Callback(hObject, eventdata, handles)
-% hObject    handle to popupmenuInfo (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-infoTimer = timerfind('name','infoTimer');
-timerFcn = subsref(get(infoTimer,'TimerFcn'), substruct('{}',{1}));
-
-contents = get(hObject,'String');
-switch contents{get(handles.popupmenuInfo,'Value')}
-    case 'Power Spectrum'
-        % changed?
-        if isequal(timerFcn,@infoPSD)
-            return
-        end
-        % if so...
-        stop(infoTimer)
-        set(infoTimer,'Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,handles.figure1},'StartDelay',0);
-        handles.axisInfo = handles.axisInfo(1);
-        start(infoTimer)
-    case 'Convergence'
-        % changed?
-        if isequal(timerFcn,@infoConverge)
-            return
-        end
-        % if so...
-        stop(infoTimer)
-        learning_rate = evalin('base','learning_rate');
-        srate = evalin('base',[parseStreamName(handles.streamName) '.srate']);
-        x = -(length(learning_rate)-1)/srate:1/srate:0;
-        axes(handles.axisInfo)
-        [handles.axisInfo] = plot(x,learning_rate);
-        line1 = get(handles.axisInfo,'children');
-        set(get(get(handles.axisInfo(1),'parent'),'XLabel'),'String','Time (seconds)')
-        set(get(get(handles.axisInfo(1),'parent'),'YLabel'),'String','Learning Rate (dB)')
-        set(infoTimer,'Period',1,'ExecutionMode','fixedRate', ...
-            'TimerFcn',{@infoConverge,handles.axisInfo,handles.panelInfo},'StartDelay',0);
-        axis(get(handles.axisInfo,'parent'),'tight')
-        start(infoTimer)
-    otherwise
-        warning('REST: popupmenuInfo recieved a strange input')
-end
-end
-
-
-% --- Executes during object creation, after setting all properties.
-function popupmenuInfo_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to popupmenuInfo (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: popupmenu controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-end
-
-
-% --- Executes on button press in togglebuttonReject8.
-function togglebuttonReject8_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonReject8 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-rejectIC(hObject,[],handles.ics(8))
-end
-
-
-% --- Executes on button press in togglebuttonLock8.
-function togglebuttonLock8_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonLock8 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],handles.ics(8))
-end
-
-
-% --- Executes on button press in togglebuttonReject7.
-function togglebuttonReject7_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonReject7 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-rejectIC(hObject,[],handles.ics(7))
-end
-
-
-% --- Executes on button press in togglebuttonLock7.
-function togglebuttonLock7_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonLock7 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],handles.ics(7))
-end
-
-
-% --- Executes on button press in togglebuttonReject6.
-function togglebuttonReject6_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonReject6 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-rejectIC(hObject,[],handles.ics(6))
-end
-
-
-% --- Executes on button press in togglebuttonLock6.
-function togglebuttonLock6_Callback(hObject, eventdata, handles)
-% hObject    handle to togglebuttonLock6 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-lockIC(hObject,[],handles.ics(6))
-end
-
+%% button functions - for lock/reject/choose sources
 
 % --- Executes on button press in togglebuttonReject5.
 function togglebuttonReject5_Callback(hObject, eventdata, handles)
@@ -1530,7 +1559,6 @@ function togglebuttonReject5_Callback(hObject, eventdata, handles)
 rejectIC(hObject,[],handles.ics(5))
 end
 
-
 % --- Executes on button press in togglebuttonLock5.
 function togglebuttonLock5_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock5 (see GCBO)
@@ -1538,7 +1566,6 @@ function togglebuttonLock5_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],handles.ics(5))
 end
-
 
 % --- Executes on button press in togglebuttonReject4.
 function togglebuttonReject4_Callback(hObject, eventdata, handles)
@@ -1548,7 +1575,6 @@ function togglebuttonReject4_Callback(hObject, eventdata, handles)
 rejectIC(hObject,[],handles.ics(4))
 end
 
-
 % --- Executes on button press in togglebuttonLock4.
 function togglebuttonLock4_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock4 (see GCBO)
@@ -1556,7 +1582,6 @@ function togglebuttonLock4_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],handles.ics(4))
 end
-
 
 % --- Executes on button press in togglebuttonReject3.
 function togglebuttonReject3_Callback(hObject, eventdata, handles)
@@ -1566,7 +1591,6 @@ function togglebuttonReject3_Callback(hObject, eventdata, handles)
 rejectIC(hObject,[],handles.ics(3))
 end
 
-
 % --- Executes on button press in togglebuttonLock3.
 function togglebuttonLock3_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock3 (see GCBO)
@@ -1574,7 +1598,6 @@ function togglebuttonLock3_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 lockIC(hObject,[],handles.ics(3))
 end
-
 
 % --- Executes on button press in togglebuttonReject2.
 function togglebuttonReject2_Callback(hObject, eventdata, handles)
@@ -1584,7 +1607,6 @@ function togglebuttonReject2_Callback(hObject, eventdata, handles)
 rejectIC(hObject,[],handles.ics(2))
 end
 
-
 % --- Executes on button press in togglebuttonLock2.
 function togglebuttonLock2_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonLock2 (see GCBO)
@@ -1593,7 +1615,6 @@ function togglebuttonLock2_Callback(hObject, eventdata, handles)
 lockIC(hObject,[],handles.ics(2))
 end
 
-
 % --- Executes on button press in togglebuttonReject1.
 function togglebuttonReject1_Callback(hObject, eventdata, handles)
 % hObject    handle to togglebuttonReject1 (see GCBO)
@@ -1601,7 +1622,6 @@ function togglebuttonReject1_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 rejectIC(hObject,[],handles.ics(1))
 end
-
 
 % --- Executes on button press in togglebuttonLock1.
 function togglebuttonLock1_Callback(hObject, eventdata, handles)
@@ -1631,7 +1651,6 @@ handles.curIC = handles.ics(2);
 guidata(hObject, handles);
 end
 
-
 % --- Executes on mouse press over axes background.
 function axesIC3_ButtonDownFcn(hObject, eventdata, handles)
 % hObject    handle to axesIC3 (see GCBO)
@@ -1642,7 +1661,6 @@ handles.curIC = handles.ics(3);
 guidata(hObject, handles);
 end
 
-
 % --- Executes on mouse press over axes background.
 function axesIC4_ButtonDownFcn(hObject, eventdata, handles)
 % hObject    handle to axesIC4 (see GCBO)
@@ -1652,7 +1670,6 @@ handles.curIC = handles.ics(4);
 % Update handles structure
 guidata(hObject, handles);
 end
-
 
 % --- Executes on mouse press over axes background.
 function axesIC5_ButtonDownFcn(hObject, eventdata, handles)
@@ -1665,103 +1682,27 @@ guidata(hObject, handles);
 end
 
 
-% --- Executes on mouse press over axes background.
-function axesIC6_ButtonDownFcn(hObject, eventdata, handles)
-% hObject    handle to axesIC6 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-handles.curIC = handles.ics(6);
-% Update handles structure
-guidata(hObject, handles);
-end
 
+%% utility functions
 
-% --- Executes on mouse press over axes background.
-function axesIC7_ButtonDownFcn(hObject, eventdata, handles)
-% hObject    handle to axesIC7 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-handles.curIC = handles.ics(7);
-% Update handles structure
-guidata(hObject, handles);
-end
-
-
-% --- Executes on mouse press over axes background.
-function axesIC8_ButtonDownFcn(hObject, eventdata, handles)
-% hObject    handle to axesIC8 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-handles.curIC = handles.ics(8);
-% Update handles structure
-guidata(hObject, handles);
-end
-
-
-% --- Executes on button press in pushbuttonPause.
-function pushbuttonPause_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbuttonPause (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-if strcmpi(get(handles.pushbuttonPause,'string'),'Pause');
-    set(handles.pushbuttonPause,'string','Resume');
-    stop(handles.pauseTimers)
-else
-    set(handles.pushbuttonPause,'string','Pause');
-    start(handles.pauseTimers);
-end
-end
-
-
-% --- Executes during object deletion, before destroying properties.
-function figure1_DeleteFcn(hObject, eventdata, handles)
-% hObject    handle to figure1 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-
-if isfield(handles,'intialized') && handles.intialized
-    % close figures
-    if isfield(handles,'figIC')
-        try
-            close(handles.figIC.handle); end, end
-    if isfield(handles,'figLoc')
-        try
-            close(handles.figIC.handle); end, end
-    if isfield(handles, 'lslout')
-        for it = 1:length(handles.lslout)
-            try
-                close(handles.lslout{it}); end, end, end
-
-    % delete timers
-    timerNames = {'eegTimer','oricaTimer','topoTimer','infoTimer','locTimer',[parseStreamName(handles.streamName) '_timer']};
-
-    for it = 1:length(timerNames)
-        temp = timerfind('name',timerNames{it});
-        if isempty(temp)
-            continue; end
-        stop(temp)
-        delete(temp)
-    end
-    if isfield(handles, 'playbackStream')
-        stop(handles.playbackStream); end
-end
-end
-
-
-% --- Executes on button press in pushbuttonSortICs.
-function pushbuttonSortICs_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbuttonSortICs (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-updateICs(hObject,true)
-end
-
-
-% utility functions
 % parse streamname
 function streamnames = parseStreamName(streamnames)
 if ~isvarname(streamnames)
     streamnames = streamnames(~ismember(streamnames,['-' ' ']));
 end
+end
+
+% run eyeCatch classifier
+function [isEyeIC, similarity] = runEyeCatch(libEyeCatch, map, threshold)
+    % trans map into column array and normalize it
+    map = reshape(map,1,[])';
+    map(isnan(map)) = 0;
+    normMap = bsxfun(@minus, map,  mean(map));
+    normMap = bsxfun(@rdivide, normMap,  std(normMap));
+    
+    % import library
+    lib = libEyeCatch.new_map;   
+    
+    similarity  = max(abs(lib * normMap)) / length(normMap);
+    isEyeIC = similarity > threshold;
 end

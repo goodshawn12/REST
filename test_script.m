@@ -38,4 +38,4 @@ opts.libEyeCatch = load(['dependencies' filesep 'eyeCatch' filesep 'libEyeCatch.
 opts.playback = 1;
 
 %% start REST
-REST_v2(opts)
+REST(opts)
