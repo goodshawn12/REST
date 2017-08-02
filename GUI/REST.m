@@ -389,7 +389,7 @@ if ~isfield(handles, 'streamName')
     if isempty(streamnames)
         error('There is no stream visible on the network.');
     elseif length(streamnames) == 1
-        assignin('base','streamname',streamnames); % save stream name in base workspace
+        handles.streamName = streamnames{1};
     else
         % if more than 2 (EEG) streams, pop up a GUI to select one.
     %     selStream(streamnames); % result 'streamname' is saved in base workspace
@@ -398,9 +398,9 @@ if ~isfield(handles, 'streamName')
         [streamind, ok] = listdlg('ListString', streamnames, ...
             'SelectionMode', 'Single', 'PromptString', 'Select which LSL stream to use.');
         assert(ok && ~isempty(streamind), 'No LSL stream selection was made.')
-        streamnames = streamnames{streamind};
+        handles.streamName = streamnames{streamind};
     end
-    handles.streamName = streamnames;
+    assignin('base','streamname',parseStreamName(handles.streamName)); % save stream name in base workspace
 end
 lslin(handles)
 % run_readlsl('MatlabStream', handles.streamName, ...
@@ -705,7 +705,7 @@ inlet = lsl_inlet(result{1});
 % info = inlet.info();
 
 % create online stream data structure in base workspace (using appropriate meta-data)
-onl_newstream(handles.streamName, 'srate', 128, ...
+onl_newstream(parseStreamName(handles.streamName), 'srate', 128, ...
     'chanlocs', {handles.chanlocs.labels}, 'buffer_len', 10);
 
 % state variables for recursive least squares jitter correction
@@ -716,7 +716,7 @@ n = 0;                  % number of samples observed so far
 numeric_offset = [];    % time-stamp offset to keep numerics healthy; will be initialized with first measured time stamp
 
 % start reading
-onl_read_background(handles.streamName, @read_data, 20);
+onl_read_background(parseStreamName(handles.streamName), @read_data, 20);
 
     % reads from inlet
     function results = read_data()
