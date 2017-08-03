@@ -150,8 +150,9 @@ if any(strcmp(funsstr,'flt_selchans'))
     if isfield(handles,'headModel')
         % adjust headModel
         handles.urheadModel = handles.headModel;
-        handles.headModel.dropChannels(handles.rmchan_index); % !!! had to change the headModel contructor
-        handles.K(handles.rmchan_index,:) = [];
+        rm_ind = ismember(handles.headModel.channelLabel, removed);
+        handles.headModel.dropChannels(rm_ind); % !!! had to change the headModel contructor
+        handles.K(rm_ind ,:) = [];
         %     LFM = load(handles.headModel.leadFieldFile);
         %     LFM.K(handles.rmchan_index,:) = [];
         %     save(handles.headModel.leadFieldFile,'-struct','LFM')
