@@ -629,6 +629,10 @@ it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
 hstr = ['axesIC' int2str(it)];
 hand = get(handles.(hstr),'children');
 
+% sort ICs if requested
+if it==1 && get(handles.togglebuttonSortICs, 'Value')
+    handles = updateICs(varargin{3}); end
+
 try
     Winv = inv(W*sphere);
     
@@ -1465,12 +1469,12 @@ guidata(hObject,handles);
 end
 
 
-% --- Executes on button press in pushbuttonSortICs.
-function pushbuttonSortICs_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbuttonSortICs (see GCBO)
+% --- Executes on button press in togglebuttonSortICs.
+function togglebuttonSortICs_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonSortICs (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-updateICs(hObject,true)
+updateICs(hObject);
 end
 
 
@@ -1498,7 +1502,7 @@ end
 % save handles
 guidata(hObject,handles);
 % update ics to plot
-updateICs(hObject,false)
+updateICs(hObject);
 end
 
 
@@ -1528,9 +1532,10 @@ guidata(hObject,handles);
 end
 
 
-function updateICs(hObject,flag_sort)
+function handles = updateICs(hObject)
 % load handles
 handles = guidata(hObject);
+flag_sort = get(handles.togglebuttonSortICs, 'Value');
 if flag_sort
     % load info
     S = evalin('base','pipeline.state.icasphere');
@@ -1545,7 +1550,7 @@ if flag_sort
 else
     handles.ics = [handles.lock setdiff(1:handles.nic,[handles.lock])];
 end
-guidata(hObject,handles);
+guidata(hObject, handles);
 end
 
 
