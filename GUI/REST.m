@@ -694,7 +694,6 @@ function varargout = REST_OutputFcn(hObject, eventdata, handles)
 varargout{1} = handles.output;
 end
 
-<<<<<<< HEAD
 %% LSL In
 % largely drawn from run_readlsl of BCILAB
 
@@ -777,8 +776,6 @@ onl_read_background(parseStreamName(handles.streamName), @read_data, 20);
 end
 
 
-=======
->>>>>>> 450fffbbf6518735a077831d8ac1424c3522eaf2
 % --- Executes on button press in pushbuttonSelectInput.
 function pushbuttonSelectInput_Callback(hObject, eventdata, handles)
 % hObject    handle to pushbuttonSelectInput (see GCBO)
