@@ -46,7 +46,7 @@ opts.calibration_window = [0,60]; % sec
 opts.libEyeCatch = load(['dependencies' filesep 'eyeCatch' filesep 'libEyeCatch.mat']);
 
 % use playback data
-opts.playback = 1;
+opts.playback = 0;
 
 %% start REST
 REST(opts)
