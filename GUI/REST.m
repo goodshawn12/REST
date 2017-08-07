@@ -107,7 +107,8 @@ handles.eyeCatch.updateFreq = handles.ntopo+1;
 handles.eyeCatch.active = 1;
 
 % Set IC_MARC parameters
-handles.modIcMarc = [];
+handles.ICMARC.model = [];            % store IC_MARC model
+handles.ICMARC.virtual_chanlocs = []; % store IC_MARC virtual channel location
 
 % Parse varagin
 [handles,calibData,config] = startup_check_inputs(handles,varargin);
@@ -144,7 +145,7 @@ if any(strcmp(funsstr,'flt_selchans'))
     numparts = find(flipud(strcmp(funsstr,'flt_selchans')))-1;
     eval(['removed = pipeline' repmat('.parts{2}',1,numparts) '.parts{4};']);
     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
-    % adjust chanlocs
+    % adjust chanlocsisfield
     handles.urchanlocs = handles.chanlocs;
     handles.chanlocs(handles.rmchan_index) = [];
     handles.nic = length(handles.chanlocs);
@@ -319,7 +320,8 @@ end
 
 % check if IC_MARC model exists and import it
 if isfield(in{1},'modIcMarc')
-    handles.modIcMarc = in{1}.modIcMarc;
+    handles.ICMARC.model = in{1}.modIcMarc;
+    handles.ICMARC.virtual_chanlocs = in{1}.virtual_chanlocs;
 end
 
 end
@@ -680,6 +682,15 @@ if ~isempty(handles.eyeCatch.lib) && handles.eyeCatch.active
             set(handles.(['textICLabel' int2str(it)]),'String','Not Eye','TooltipString',['r = ', num2str(similarity)]);
         end
         handles.eyeCatch.count = 1;
+        
+        %----
+        if ~isempty(handles.ICMARC.model)
+            predClassString = {'blink', 'neural', 'heart', 'lat', 'muscle', 'mixed'};
+            [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv, handles.chanlocs, handles.ICMARC.virtual_chanlocs);
+            set(handles.(['predclass' int2str(it)]),'String',predClassString(predclass(it)));
+        end
+        %----
+        
     else
         handles.eyeCatch.count = handles.eyeCatch.count+1;
     end
@@ -689,10 +700,10 @@ if ~isempty(handles.eyeCatch.lib) && handles.eyeCatch.active
 end
 
 % run IC_MARC if IC_MARC weight is loaded
-if ~isempty(handles.modIcMarc)
-    [predclass, predprob] = runIcMarc(handles.modIcMarc, Winv, handles.chanlocs);
-    set(handles.(['predclass' int2str(it)]),'String',['c = ', num2str(predclass(it))]);
-end
+% if ~isempty(handles.ICMARC.model)    
+%     [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv, handles.chanlocs, handles.ICMARC.virtual_chanlocs);
+%     set(handles.(['predclass' int2str(it)]),'String',['c = ', num2str(predclass(it))]);
+% end
 
 end
 
@@ -1614,7 +1625,7 @@ function [isEyeIC, similarity] = runEyeCatch(libEyeCatch, map, threshold)
 end
 
 % run IC_MARC classifier
-function [predclass, predprob] = runIcMarc(modIcMarc, icawinv, chanlocs)
+function [predclass, predprob] = runIcMarc(modIcMarc, icawinv, chanlocs, virtual_chanlocs)
 % should pass the whole eeg signal for location and in case there are some
 % channels being removed.
 
@@ -1629,21 +1640,6 @@ topog = icawinv';
 
 % memories for features
 features = NaN(size(icawinv,2),12);
-
-% add virtual_topography(64 chans) for IC features extraction
-% this should be in handles, no need to load everytimes.
-labels = {'Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'P3', 'P4', 'O1', 'O2', 'F7', 'F8', 'T7', 'T8', 'P7', 'P8', 'Fz', 'Pz', 'FC1', 'FC2', 'CP1',...
-'CP2', 'FC5', 'FC6', 'CP5', 'CP6', 'F9', 'F10', 'TP9', 'TP10', 'Cz', 'Oz', 'F1', 'F2', 'C1', 'C2', 'P1', 'P2', 'AF3', 'AF4',...
-'FC3', 'FC4', 'CP3', 'CP4', 'PO3', 'PO4', 'F5', 'F6', 'C5', 'C6', 'P5', 'P6', 'AF7', 'AF8', 'FT7', 'FT8', 'TP7', 'TP8', 'PO7', ...
-'PO8', 'AFz', 'FCz', 'CPz', 'POz'};
-virtual_chanlocs_struct = struct('labels', lower(labels));
-virtual_chanlocs = pop_chanedit(virtual_chanlocs_struct, ...
-    'lookup', 'standard-10-5-cap385.elp');
-
-for i=1:length(virtual_chanlocs)
-    % set head radius to 9 cm
-    virtual_chanlocs=pop_chanedit(virtual_chanlocs, 'changefield',{i 'sph_radius' '9'},'convert',{'sph2all'});
-end
 
 thetas = cell2mat({virtual_chanlocs.sph_theta});
 phis =  cell2mat({virtual_chanlocs.sph_phi});
@@ -1663,7 +1659,7 @@ virtual_topography = zscore(virtual_topog,[],2);
 % features extraction by spatial2 first
 features(:,1) = localized_discontinuity_measure(virtual_topography, virtual_chanlocs, n_ics);
 features(:,2) = computeSED_NOnorm_variable_ics_light(virtual_topography,virtual_chanlocs,size(virtual_topography, 2), size(virtual_topography, 1));
-    [front, post, leftarea, rightarea] = scalpmap_features_light(topog, chanlocs, virtural_chanlocs);
+    [front, post, leftarea, rightarea] = scalpmap_features_light(topog, chanlocs, virtual_chanlocs);
 features(:,3) = front;
 features(:,4) = post;
 features(:,5) = leftarea;
