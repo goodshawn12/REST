@@ -109,6 +109,7 @@ handles.eyeCatch.active = 1;
 % Set IC_MARC parameters
 handles.ICMARC.model = [];            % store IC_MARC model
 handles.ICMARC.virtual_chanlocs = []; % store IC_MARC virtual channel location
+handles.ICMARC.cdn_m = [];            % store IC_MARC current_density_norm matrix
 
 % Parse varagin
 [handles,calibData,config] = startup_check_inputs(handles,varargin);
@@ -322,6 +323,7 @@ end
 if isfield(in{1},'modIcMarc')
     handles.ICMARC.model = in{1}.modIcMarc;
     handles.ICMARC.virtual_chanlocs = in{1}.virtual_chanlocs;
+    handles.ICMARC.cdn_m = in{1}.cdn_dipolefit;
 end
 
 end
@@ -686,7 +688,7 @@ if ~isempty(handles.eyeCatch.lib) && handles.eyeCatch.active
         %----
         if ~isempty(handles.ICMARC.model)
             predClassString = {'blink', 'neural', 'heart', 'lat', 'muscle', 'mixed'};
-            [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv, handles.chanlocs, handles.ICMARC.virtual_chanlocs);
+            [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv, handles.chanlocs, handles.ICMARC.virtual_chanlocs, handles.ICMARC.cdn_m);
             set(handles.(['predclass' int2str(it)]),'String',predClassString(predclass(it)));
         end
         %----
@@ -1625,7 +1627,7 @@ function [isEyeIC, similarity] = runEyeCatch(libEyeCatch, map, threshold)
 end
 
 % run IC_MARC classifier
-function [predclass, predprob] = runIcMarc(modIcMarc, icawinv, chanlocs, virtual_chanlocs)
+function [predclass, predprob] = runIcMarc(modIcMarc, icawinv, chanlocs, virtual_chanlocs, cdn_matrix)
 % should pass the whole eeg signal for location and in case there are some
 % channels being removed.
 
@@ -1665,8 +1667,9 @@ features(:,4) = post;
 features(:,5) = leftarea;
 features(:,6) = rightarea;
 features(:,7) = abs(median(topog,2)); % abs_med
-features(:,8) = current_density_norm_light(virtual_topography, virtual_chanlocs);
+features(:,8) = current_density_norm_light(virtual_topography, virtual_chanlocs, cdn_matrix);
 features(:,9) = calc_2ddft_light(virtual_topography, virtual_chanlocs);
+% features(:,9) = 0*features(:,1);
 features(:,10) = log_range_spatial_light(virtual_topography);
 features(:,11) = spatial_distance_extrema_light(virtual_topography, virtual_chanlocs);
 features(:,12) = scalp_entropy_light(virtual_topography);

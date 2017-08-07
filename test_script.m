@@ -67,8 +67,9 @@ if isfield(opts, 'modIcMarc')
         % set head radius to 9 cm
         virtual_chanlocs=pop_chanedit(virtual_chanlocs, 'changefield',{i 'sph_radius' '9'},'convert',{'sph2all'});
     end
-    
     opts.virtual_chanlocs = virtual_chanlocs;
+    
+    opts.cdn_dipolefit = load('dipolfit_matrix'); % loads M100, clab
     
 end
 
