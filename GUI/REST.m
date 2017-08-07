@@ -690,12 +690,8 @@ end
 
 % run IC_MARC if IC_MARC weight is loaded
 if ~isempty(handles.modIcMarc)
-    if mod(handles.eyeCatch.count,handles.eyeCatch.updateFreq) == 0
-        [predclass, predprob] = runIcMarc(handles.modIcMarc, Winv, handles.chanlocs);
-        set(handles.(['predclass' int2str(it)]),'String',['c = ', num2str(predclass(it))]);
-    else
-        handles.eyeCatch.count = handles.eyeCatch.count+1;
-    end
+    [predclass, predprob] = runIcMarc(handles.modIcMarc, Winv, handles.chanlocs);
+    set(handles.(['predclass' int2str(it)]),'String',['c = ', num2str(predclass(it))]);
 end
 
 end
@@ -1635,6 +1631,7 @@ topog = icawinv';
 features = NaN(size(icawinv,2),12);
 
 % add virtual_topography(64 chans) for IC features extraction
+% this should be in handles, no need to load everytimes.
 labels = {'Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'P3', 'P4', 'O1', 'O2', 'F7', 'F8', 'T7', 'T8', 'P7', 'P8', 'Fz', 'Pz', 'FC1', 'FC2', 'CP1',...
 'CP2', 'FC5', 'FC6', 'CP5', 'CP6', 'F9', 'F10', 'TP9', 'TP10', 'Cz', 'Oz', 'F1', 'F2', 'C1', 'C2', 'P1', 'P2', 'AF3', 'AF4',...
 'FC3', 'FC4', 'CP3', 'CP4', 'PO3', 'PO4', 'F5', 'F6', 'C5', 'C6', 'P5', 'P6', 'AF7', 'AF8', 'FT7', 'FT8', 'TP7', 'TP8', 'PO7', ...
