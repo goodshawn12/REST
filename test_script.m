@@ -53,6 +53,9 @@ opts.calibration_window = [0,60]; % sec
 % (optional) load eyeCatch library
 opts.libEyeCatch = load(['dependencies' filesep 'eyeCatch' filesep 'libEyeCatch.mat']);
 
+% (optional) load IC_MARC model
+opts.modIcMarc = load(['dependencies' filesep 'IC_MARC' filesep 'spatial2.mat']);
+
 % use playback data
 opts.playback = 1;
 
