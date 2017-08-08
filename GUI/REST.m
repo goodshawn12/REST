@@ -106,6 +106,11 @@ handles.eyeCatch.count = 0;         % counter for eyeCatch
 handles.eyeCatch.updateFreq = handles.ntopo+1;
 handles.eyeCatch.active = 1;
 
+% Set IC_MARC parameters
+handles.ICMARC.model = [];            % store IC_MARC model
+handles.ICMARC.virtual_chanlocs = []; % store IC_MARC virtual channel location
+handles.ICMARC.cdn_m = [];            % store IC_MARC current_density_norm matrix
+
 % Parse varagin
 [handles,calibData,config] = startup_check_inputs(handles,varargin);
     
@@ -141,7 +146,7 @@ if any(strcmp(funsstr,'flt_selchans'))
     numparts = find(flipud(strcmp(funsstr,'flt_selchans')))-1;
     eval(['removed = pipeline' repmat('.parts{2}',1,numparts) '.parts{4};']);
     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
-    % adjust chanlocs
+    % adjust chanlocsisfield
     handles.urchanlocs = handles.chanlocs;
     handles.chanlocs(handles.rmchan_index) = [];
     handles.nic = length(handles.chanlocs);
@@ -312,6 +317,13 @@ end
 if isfield(in{1},'libEyeCatch')
     handles.eyeCatch.lib = in{1}.libEyeCatch;
     set(handles.popupmenuICclassifier,'String','Eye Catch');
+end
+
+% check if IC_MARC model exists and import it
+if isfield(in{1},'modIcMarc')
+    handles.ICMARC.model = in{1}.modIcMarc;
+    handles.ICMARC.virtual_chanlocs = in{1}.virtual_chanlocs;
+    handles.ICMARC.cdn_m = in{1}.cdn_dipolefit;
 end
 
 end
@@ -672,6 +684,15 @@ if ~isempty(handles.eyeCatch.lib) && handles.eyeCatch.active
             set(handles.(['textICLabel' int2str(it)]),'String','Not Eye','TooltipString',['r = ', num2str(similarity)]);
         end
         handles.eyeCatch.count = 1;
+        
+        %----
+        if ~isempty(handles.ICMARC.model)
+            predClassString = {'blink', 'neural', 'heart', 'lat', 'muscle', 'mixed'};
+            [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv, handles.chanlocs, handles.ICMARC.virtual_chanlocs, handles.ICMARC.cdn_m);
+            set(handles.(['predclass' int2str(it)]),'String',predClassString(predclass(it)));
+        end
+        %----
+        
     else
         handles.eyeCatch.count = handles.eyeCatch.count+1;
     end
@@ -679,6 +700,12 @@ if ~isempty(handles.eyeCatch.lib) && handles.eyeCatch.active
     % save handles
     guidata(varargin{3}, handles)
 end
+
+% run IC_MARC if IC_MARC weight is loaded
+% if ~isempty(handles.ICMARC.model)    
+%     [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv, handles.chanlocs, handles.ICMARC.virtual_chanlocs);
+%     set(handles.(['predclass' int2str(it)]),'String',['c = ', num2str(predclass(it))]);
+% end
 
 end
 
@@ -1597,4 +1624,60 @@ function [isEyeIC, similarity] = runEyeCatch(libEyeCatch, map, threshold)
     
     similarity  = max(abs(lib * normMap)) / length(normMap);
     isEyeIC = similarity > threshold;
+end
+
+% run IC_MARC classifier
+function [predclass, predprob] = runIcMarc(modIcMarc, icawinv, chanlocs, virtual_chanlocs, cdn_matrix)
+% should pass the whole eeg signal for location and in case there are some
+% channels being removed.
+
+% save parameters
+mu = modIcMarc.mu;
+mod = modIcMarc.mod;
+sigma = modIcMarc.sigma;
+
+% standardize icawinv
+icawinv = zscore(icawinv);
+topog = icawinv';
+
+% memories for features
+features = NaN(size(icawinv,2),12);
+
+thetas = cell2mat({virtual_chanlocs.sph_theta});
+phis =  cell2mat({virtual_chanlocs.sph_phi});
+sigmas = repmat(0.5, 64,1);
+head_radius=9;
+
+n_ics = size(icawinv,2);
+virtual_topog = NaN(n_ics,64);
+
+for ic=1:n_ics
+    activations = virtual_electrode_activation(phis, thetas, sigmas, chanlocs, topog(ic, :), head_radius);
+    virtual_topog(ic,:) = activations;    
+end
+
+virtual_topography = zscore(virtual_topog,[],2);
+
+% features extraction by spatial2 first
+features(:,1) = localized_discontinuity_measure(virtual_topography, virtual_chanlocs, n_ics);
+features(:,2) = computeSED_NOnorm_variable_ics_light(virtual_topography,virtual_chanlocs,size(virtual_topography, 2), size(virtual_topography, 1));
+    [front, post, leftarea, rightarea] = scalpmap_features_light(topog, chanlocs, virtual_chanlocs);
+features(:,3) = front;
+features(:,4) = post;
+features(:,5) = leftarea;
+features(:,6) = rightarea;
+features(:,7) = abs(median(topog,2)); % abs_med
+features(:,8) = current_density_norm_light(virtual_topography, virtual_chanlocs, cdn_matrix);
+features(:,9) = calc_2ddft_light(virtual_topography, virtual_chanlocs);
+% features(:,9) = 0*features(:,1);
+features(:,10) = log_range_spatial_light(virtual_topography);
+features(:,11) = spatial_distance_extrema_light(virtual_topography, virtual_chanlocs);
+features(:,12) = scalp_entropy_light(virtual_topography);
+
+% standardize features and predict artifact classes by model
+featsnorm = features - repmat(mu, size(features,1),1);
+featsstand = featsnorm./repmat(sigma, size(features,1),1);
+predprob = mnrval(mod, featsstand);
+[~, predclass] = max(predprob, [], 2); 
+
 end
