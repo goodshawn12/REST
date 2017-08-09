@@ -30,7 +30,7 @@ function cdn = current_density_norm_light(virtual_topography, virtual_chanlocs, 
 % Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 icawinv = virtual_topography';
-icaweights = pinv(icawinv); % Why pinv? Make sure icawinv exists?
+% icaweights = pinv(icawinv); % Why pinv? Make sure icawinv exists?
 
 A = icawinv;
 % load('dipolfit_matrix'); % loads M100, clab

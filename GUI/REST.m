@@ -86,6 +86,8 @@ handles.lock = [];
 handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
+handles.classCounter = 0;                   % counter for updating label
+handles.classUpdateFreq = handles.ntopo+1;  % frequency for updating label
 
 % Set PSD parameters
 sec2samp = 5;
@@ -102,7 +104,6 @@ handles.psdLine = cell(1,handles.ntopo);
 % Set eyeCatch parameters
 handles.eyeCatch.lib = [];          % store eyeCatch library
 handles.eyeCatch.thres = 0.9;       % threshold for eye IC detection
-handles.eyeCatch.count = 0;         % counter for eyeCatch 
 handles.eyeCatch.updateFreq = handles.ntopo+1;
 handles.eyeCatch.active = 1;
 
@@ -110,6 +111,8 @@ handles.eyeCatch.active = 1;
 handles.ICMARC.model = [];            % store IC_MARC model
 handles.ICMARC.virtual_chanlocs = []; % store IC_MARC virtual channel location
 handles.ICMARC.cdn_m = [];            % store IC_MARC current_density_norm matrix
+handles.ICMARC.classLabel = {'blink', 'neural', 'heart', 'lateral', 'muscle', 'mixed'};
+handles.ICMARC.active = 0;
 
 % Parse varagin
 [handles,calibData,config] = startup_check_inputs(handles,varargin);
@@ -146,7 +149,7 @@ if any(strcmp(funsstr,'flt_selchans'))
     numparts = find(flipud(strcmp(funsstr,'flt_selchans')))-1;
     eval(['removed = pipeline' repmat('.parts{2}',1,numparts) '.parts{4};']);
     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
-    % adjust chanlocsisfield
+    % adjust chanlocs
     handles.urchanlocs = handles.chanlocs;
     handles.chanlocs(handles.rmchan_index) = [];
     handles.nic = length(handles.chanlocs);
@@ -314,17 +317,33 @@ else
 end
 
 % check if eyeCatch library exists and import it
+listClassifier = {};
 if isfield(in{1},'libEyeCatch')
     handles.eyeCatch.lib = in{1}.libEyeCatch;
-    set(handles.popupmenuICclassifier,'String','Eye Catch');
+    listClassifier{end+1} = 'EyeCatch';
 end
 
 % check if IC_MARC model exists and import it
 if isfield(in{1},'modIcMarc')
+    labels = {'Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'P3', 'P4', 'O1', 'O2', 'F7', 'F8', 'T7', 'T8', 'P7', 'P8', 'Fz', 'Pz', 'FC1', 'FC2', 'CP1',...
+        'CP2', 'FC5', 'FC6', 'CP5', 'CP6', 'F9', 'F10', 'TP9', 'TP10', 'Cz', 'Oz', 'F1', 'F2', 'C1', 'C2', 'P1', 'P2', 'AF3', 'AF4',...
+        'FC3', 'FC4', 'CP3', 'CP4', 'PO3', 'PO4', 'F5', 'F6', 'C5', 'C6', 'P5', 'P6', 'AF7', 'AF8', 'FT7', 'FT8', 'TP7', 'TP8', 'PO7', ...
+        'PO8', 'AFz', 'FCz', 'CPz', 'POz'};
+    virtual_chanlocs_struct = struct('labels', lower(labels));
+    virtual_chanlocs = pop_chanedit(virtual_chanlocs_struct,'lookup', 'standard-10-5-cap385.elp');
+    
+    for i=1:length(virtual_chanlocs)
+        % set head radius to 9 cm
+        virtual_chanlocs = pop_chanedit(virtual_chanlocs, 'changefield',{i 'sph_radius' '9'},'convert',{'sph2all'});
+    end
+    handles.ICMARC.virtual_chanlocs = virtual_chanlocs;
+    handles.ICMARC.cdn_m = load(['dependencies' filesep 'IC_MARC' filesep 'spatial2' filesep 'dipolfit_matrix']); % loads M100, clab
     handles.ICMARC.model = in{1}.modIcMarc;
-    handles.ICMARC.virtual_chanlocs = in{1}.virtual_chanlocs;
-    handles.ICMARC.cdn_m = in{1}.cdn_dipolefit;
+    listClassifier{end+1} = 'IC_MARC';
 end
+
+% set popupmenu list 
+set(handles.popupmenuICclassifier,'String',listClassifier);
 
 end
 
@@ -641,9 +660,9 @@ it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
 hstr = ['axesIC' int2str(it)];
 hand = get(handles.(hstr),'children');
 
-% sort ICs if requested
-if it==1 && get(handles.togglebuttonSortICs, 'Value')
-    handles = updateICs(varargin{3}); end
+% % sort ICs if requested
+% if it==1 && get(handles.togglebuttonSortICs, 'Value')
+%     handles = updateICs(varargin{3}); end
 
 try
     Winv = inv(W*sphere);
@@ -674,7 +693,7 @@ set(handles.(['togglebuttonReject' int2str(it)]),'Value',reject,...
 % run eyeCatch if it is selected and its library is loaded
 if ~isempty(handles.eyeCatch.lib) && handles.eyeCatch.active
     
-    if mod(handles.eyeCatch.count,handles.eyeCatch.updateFreq) == 0
+    if mod(handles.classCounter,handles.classUpdateFreq) == 0
         [isEyeIC, similarity] = runEyeCatch(handles.eyeCatch.lib, map,handles.eyeCatch.thres);
         
         % update eyeIC indicators
@@ -683,29 +702,28 @@ if ~isempty(handles.eyeCatch.lib) && handles.eyeCatch.active
         else
             set(handles.(['textICLabel' int2str(it)]),'String','Not Eye','TooltipString',['r = ', num2str(similarity)]);
         end
-        handles.eyeCatch.count = 1;
-        
-        %----
-        if ~isempty(handles.ICMARC.model)
-            predClassString = {'blink', 'neural', 'heart', 'lat', 'muscle', 'mixed'};
-            [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv, handles.chanlocs, handles.ICMARC.virtual_chanlocs, handles.ICMARC.cdn_m);
-            set(handles.(['predclass' int2str(it)]),'String',predClassString(predclass(it)));
-        end
-        %----
-        
+        handles.classCounter = 1;
     else
-        handles.eyeCatch.count = handles.eyeCatch.count+1;
+        handles.classCounter = handles.classCounter+1;
     end
-    
-    % save handles
-    guidata(varargin{3}, handles)
 end
 
-% run IC_MARC if IC_MARC weight is loaded
-% if ~isempty(handles.ICMARC.model)    
-%     [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv, handles.chanlocs, handles.ICMARC.virtual_chanlocs);
-%     set(handles.(['predclass' int2str(it)]),'String',['c = ', num2str(predclass(it))]);
-% end
+% run IC_MARC if it is selected and its library is loaded
+if ~isempty(handles.ICMARC.model) && handles.ICMARC.active
+    if mod(handles.classCounter,handles.classUpdateFreq) == 0
+        [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv(:,handles.ics(it)), handles.chanlocs, handles.ICMARC.virtual_chanlocs, handles.ICMARC.cdn_m);
+        set(handles.(['textICLabel' int2str(it)]),'String',handles.ICMARC.classLabel{predclass}, ...
+            'TooltipString',sprintf(['blink: ' num2str(predprob(1)) '\nneural: ' num2str(predprob(2)) '\nheart: ' num2str(predprob(3)) ...
+                                     '\nlateral: ' num2str(predprob(4)) '\nmuscle: ' num2str(predprob(5)) '\nmixed: ' num2str(predprob(6))]));
+        handles.classCounter = 1;
+    else
+        handles.classCounter = handles.classCounter+1;
+    end
+end
+
+% save handles
+guidata(varargin{3}, handles)
+
 
 end
 
@@ -1287,8 +1305,15 @@ function popupmenuICclassifier_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 % 
-if strcmpi(get(hObject,'String'),'Eye Catch')
-    handles.eyeCatch.active = 1;
+str = get(hObject,'String');
+val = get(hObject,'Value');
+switch str{val}
+    case 'EyeCatch'
+        handles.eyeCatch.active = 1;
+        handles.ICMARC.active = 0;
+    case 'IC_MARC'
+        handles.eyeCatch.active = 0;
+        handles.ICMARC.active = 1;
 end
 
 % save handles
@@ -1308,8 +1333,8 @@ function popupmenuICclassifier_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
-end
 
+end
 
 
 %% button functions - for viewing sources
@@ -1631,18 +1656,11 @@ function [predclass, predprob] = runIcMarc(modIcMarc, icawinv, chanlocs, virtual
 % should pass the whole eeg signal for location and in case there are some
 % channels being removed.
 
-% save parameters
-mu = modIcMarc.mu;
-mod = modIcMarc.mod;
-sigma = modIcMarc.sigma;
-
 % standardize icawinv
 icawinv = zscore(icawinv);
 topog = icawinv';
 
-% memories for features
-features = NaN(size(icawinv,2),12);
-
+% interpolate / extrapolate channel activation for 64-ch setting
 thetas = cell2mat({virtual_chanlocs.sph_theta});
 phis =  cell2mat({virtual_chanlocs.sph_phi});
 sigmas = repmat(0.5, 64,1);
@@ -1658,26 +1676,43 @@ end
 
 virtual_topography = zscore(virtual_topog,[],2);
 
-% features extraction by spatial2 first
-features(:,1) = localized_discontinuity_measure(virtual_topography, virtual_chanlocs, n_ics);
+% features extraction using spatial2
+features = NaN(size(icawinv,2),12);
+
+% 1st feature: spatial discontinuity
+features(:,1) = localized_discontinuity_measure(virtual_topography, virtual_chanlocs, n_ics); 
+
+% 2nd feature: SED (spatial eye difference) - lateral difference 
 features(:,2) = computeSED_NOnorm_variable_ics_light(virtual_topography,virtual_chanlocs,size(virtual_topography, 2), size(virtual_topography, 1));
-    [front, post, leftarea, rightarea] = scalpmap_features_light(topog, chanlocs, virtual_chanlocs);
-features(:,3) = front;
-features(:,4) = post;
-features(:,5) = leftarea;
-features(:,6) = rightarea;
+
+% 3rd to 6th features: degree of activations in different areas: [front, post, leftarea, rightarea]
+[features(:,3), features(:,4), features(:,5), features(:,6)] = scalpmap_features_light(topog, chanlocs, virtual_chanlocs);
+
+% 7th feature: median value of icawinv'
 features(:,7) = abs(median(topog,2)); % abs_med
+
+% 8th feature: current density norm
 features(:,8) = current_density_norm_light(virtual_topography, virtual_chanlocs, cdn_matrix);
+
+% 9th feature: 2D spatial FFT
 features(:,9) = calc_2ddft_light(virtual_topography, virtual_chanlocs);
-% features(:,9) = 0*features(:,1);
+
+% 10th feature: log of IC topographies
 features(:,10) = log_range_spatial_light(virtual_topography);
+
+% 11th feature: log of the 2-norm of the distance between the two 
+% electrodes with the highest and lowest activations
 features(:,11) = spatial_distance_extrema_light(virtual_topography, virtual_chanlocs);
+
+% 12th feature: spatial entropy of scalpmap
 features(:,12) = scalp_entropy_light(virtual_topography);
 
-% standardize features and predict artifact classes by model
-featsnorm = features - repmat(mu, size(features,1),1);
-featsstand = featsnorm./repmat(sigma, size(features,1),1);
-predprob = mnrval(mod, featsstand);
+% standardize features 
+featsnorm = features - repmat(modIcMarc.mu, size(features,1),1);
+featsstand = featsnorm./repmat(modIcMarc.sigma, size(features,1),1);
+
+% classify the IC into 6 different classes: 'blink', 'neural', 'heart', 'lat', 'muscle', 'mixed'
+predprob = mnrval(modIcMarc.mod, featsstand);
 [~, predclass] = max(predprob, [], 2); 
 
 end
