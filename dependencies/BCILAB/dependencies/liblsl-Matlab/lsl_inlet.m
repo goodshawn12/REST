@@ -15,10 +15,7 @@ classdef lsl_inlet < handle
         
         CorrectionBuffer = []; % buffer of time-correction values
         TimestampBuffer = [];  % buffer of time-stamps associated with the correction values
-        
-        LinearRegressionCoeff = [];   % cached coefficients for standard linear regression
-        TrimmedRegressionCoeff = [];  % cached coefficients for trimmed linear regression
-        RobustRegressionCoeff = [];   % cached coefficients for robust linear regression
+        RegressionCoeff = [];       % cached coefficients for linear regression
     end
     
     methods
@@ -172,9 +169,9 @@ classdef lsl_inlet < handle
                         case 'linear'
                             if length(self.CorrectionBuffer) > 1
                                 % perform linear regression                        
-                                self.LinearRegressionCoeff = self.CorrectionBuffer / [ones(1,length(self.TimestampBuffer)); self.TimestampBuffer];
+                                self.RegressionCoeff = self.CorrectionBuffer / [ones(1,length(self.TimestampBuffer)); self.TimestampBuffer];
                             else
-                                self.LinearRegressionCoeff = [self.CorrectionBuffer(end) 0];
+                                self.RegressionCoeff = [self.CorrectionBuffer(end) 0];
                             end
                         case 'trimmed'
                             if length(self.CorrectionBuffer) > 3
@@ -183,18 +180,18 @@ classdef lsl_inlet < handle
                                 [dummy,minidx] = min(self.CorrectionBuffer); %#ok<ASGLU>
                                 indices = 1:length(self.CorrectionBuffer);
                                 indices(indices==maxidx | indices==minidx) = [];
-                                self.TrimmedRegressionCoeff = self.CorrectionBuffer(indices) / [ones(1,length(indices)); self.TimestampBuffer(indices)];
+                                self.RegressionCoeff = self.CorrectionBuffer(indices) / [ones(1,length(indices)); self.TimestampBuffer(indices)];
                             else
-                                self.TrimmedRegressionCoeff = [self.CorrectionBuffer(end) 0];
+                                self.RegressionCoeff = [self.CorrectionBuffer(end) 0];
                             end                            
                         case {'robust','robust_linear'}
                             if length(self.CorrectionBuffer) > 2
                                 winsor_threshold = 0.0002;    % typical standard deviation of 0.2 ms
                                 % perform linear fitting under Laplacian measurement noise (the below
                                 % calculation tolerates 10-20% corruption by major outliers)
-                                self.RobustRegressionCoeff = robust_fit([ones(length(self.TimestampBuffer),1) self.TimestampBuffer']/winsor_threshold, self.CorrectionBuffer'/winsor_threshold,0.001,100);
+                                self.RegressionCoeff = robust_fit([ones(length(self.TimestampBuffer),1) self.TimestampBuffer']/winsor_threshold, self.CorrectionBuffer'/winsor_threshold,0.001,100);
                             else
-                                self.RobustRegressionCoeff = [self.CorrectionBuffer(end) 0];
+                                self.RegressionCoeff = [self.CorrectionBuffer(end) 0];
                             end
                     end
                 end
@@ -204,12 +201,8 @@ classdef lsl_inlet < handle
                         result = 0;
                     case 'median'
                         result = median(self.CorrectionBuffer);
-                    case 'linear'
-                        result = self.LinearRegressionCoeff(1) + self.LinearRegressionCoeff(2) * t0;
-                    case 'trimmed'
-                        result = self.TrimmedRegressionCoeff(1) + self.TrimmedRegressionCoeff(2) * t0;
-                    case {'robust','robust_linear'}
-                        result = self.RobustRegressionCoeff(1) + self.RobustRegressionCoeff(2) * t0;
+                    case {'linear','trimmed','robust','robust_linear'}
+                        result = self.RegressionCoeff(1) + self.RegressionCoeff(2) * t0;
                     otherwise
                         error('The given post-processing option is not valid: %s',postproc);
                 end
