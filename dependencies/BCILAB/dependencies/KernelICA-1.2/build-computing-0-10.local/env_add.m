@@ -1,1 +1,0 @@
-any(cellfun(@exist,{'chol_gauss', 'chol_hermite', 'chol_poly'})==3)

@@ -1,1 +1,0 @@
-any(cellfun(@exist,{'mexkernel', 'mexsinglekernel', 'mexsvmclassify', 'mexsvmlearn'})==3)

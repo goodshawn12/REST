@@ -3,7 +3,6 @@
 *.m~
 BCILAB-temp/
 dependencies/BCILAB-temp/
-dependencies/BCILAB/dependencies/liblsl-Matlab/mex/build*
 dependencies/BCILAB/dependencies/hkl-3.0/build*
 dependencies/BCILAB/dependencies/SVMlight-6.01/src/build*
 diskcache/
