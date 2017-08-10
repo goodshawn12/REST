@@ -1,1 +1,0 @@
-any(cellfun(@exist,{'fastmedfilt1d_core'})==3)
