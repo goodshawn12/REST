@@ -660,9 +660,9 @@ it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
 hstr = ['axesIC' int2str(it)];
 hand = get(handles.(hstr),'children');
 
-% % sort ICs if requested
-% if it==1 && get(handles.togglebuttonSortICs, 'Value')
-%     handles = updateICs(varargin{3}); end
+% sort ICs if requested
+if it==1 && get(handles.togglebuttonSortICs, 'Value')
+    handles = updateICs(varargin{3}); end
 
 try
     Winv = inv(W*sphere);
