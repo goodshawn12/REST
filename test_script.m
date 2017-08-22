@@ -10,11 +10,11 @@ end
 
 %% refresh workspace
 % clear all will break bcilab and require it to restart as it uses global variables 
+close all hidden
+clear
 timer = timerfindall;
 if ~isempty(timer)
     stop(timerfindall); delete(timerfindall); disp('Delete timers...'); end
-close all
-clear
 
 %% define opts structure
 % whether to customize pipeline 
