@@ -312,9 +312,18 @@ lambda_prod = prod(1./(1-state.lambda_k));
 Q = 1 + state.lambda_k .* (dot(f,y,1)-1);
 state.icaweights = lambda_prod * (state.icaweights - y * diag(state.lambda_k./Q) * f' * state.icaweights);
 
+% % update weight matrix using modified ORICA with block update
+% if nPts == 1
+%     state.icaweights = (1-state.lambda_k) * state.icaweights + state.lambda_k * f * blockdata';
+% else
+%     lambda_cumprod = cumprod(1-state.lambda_k,'reverse'); % cumulative product
+%     coefficients = state.lambda_k .* [lambda_cumprod(2:end), 1];
+%     state.icaweights = lambda_cumprod(1) * state.icaweights + f * diag(coefficients) * blockdata';
+% end
+
 % orthogonalize weight matrix 
 [V,D] = eig(state.icaweights * state.icaweights');
-state.icaweights = V/sqrt(D)/V * state.icaweights; 
+state.icaweights = V/sqrt(D)*V' * state.icaweights; 
 
 end
 
