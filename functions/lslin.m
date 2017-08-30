@@ -74,4 +74,12 @@ onl_read_background(parseStreamName(handles.streamName), @read_data, 20);
     end
 
 
+% parse streamname
+function streamnames = parseStreamName(streamnames)
+    if ~isvarname(streamnames)
+        streamnames = streamnames(~ismember(streamnames,['-' ' ']));
+    end
+end
+
+
 end

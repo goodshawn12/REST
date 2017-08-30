@@ -107,12 +107,32 @@ handles.eyeCatch.thres = 0.9;       % threshold for eye IC detection
 handles.eyeCatch.updateFreq = handles.ntopo+1;
 handles.eyeCatch.active = 1;
 
+fid = fopen(fullfile('data', 'icclass', 'eyecatch_original.cfg'));
+cfg = textscan(fid, '%s %f %f');
+fclose(fid);
+handles.eyeCatch.lock = find(cfg{2});
+handles.eyeCatch.reject= find(cfg{3});
+if ~exist(fullfile('data', 'icclass', 'eyecatch.cfg'), 'var')
+    copyfile(fullfile('data', 'icclass', 'eyecatch_original.cfg'), ...
+        fullfile('data', 'icclass', 'eyecatch.cfg'));
+end
+
 % Set IC_MARC parameters
 handles.ICMARC.model = [];            % store IC_MARC model
 handles.ICMARC.virtual_chanlocs = []; % store IC_MARC virtual channel location
 handles.ICMARC.cdn_m = [];            % store IC_MARC current_density_norm matrix
 handles.ICMARC.classLabel = {'blink', 'neural', 'heart', 'lateral', 'muscle', 'mixed'};
 handles.ICMARC.active = 0;
+
+fid = fopen(fullfile('data', 'icclass', 'icmarc_original.cfg'));
+cfg = textscan(fid, '%s %f %f');
+fclose(fid);
+handles.ICMARC.lock = find(cfg{2});
+handles.ICMARC.reject= find(cfg{3});
+if ~exist(fullfile('data', 'icclass', 'icmarc.cfg'), 'var')
+    copyfile(fullfile('data', 'icclass', 'icmarc_original.cfg'), ...
+        fullfile('data', 'icclass', 'icmarc.cfg'));
+end
 
 % Parse varagin
 [handles,calibData,config] = startup_check_inputs(handles,varargin);
@@ -1636,4 +1656,160 @@ featsstand = featsnorm./repmat(modIcMarc.sigma, size(features,1),1);
 predprob = mnrval(modIcMarc.mod, featsstand);
 [~, predclass] = max(predprob, [], 2); 
 
+end
+
+% !!! TODO: make the paths in here safer
+% !!! TODO: figure out the initialization of handled.(field).(lock/reject)
+%           and also that of the *.cfg files
+
+% --- Executes on button press in pushbuttonICclassifier.
+function pushbuttonICclassifier_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbuttonICclassifier (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% find which classifier is active
+if handles.eyeCatch.active
+    cfg_file = 'eyecatch.cfg';
+    name = 'EyeCatch';
+    field = 'eyeCatch';
+elseif handles.ICMARC.active;
+    cfg_file = 'icmarc.cfg';
+    name = 'IC_MARC';
+    field = 'ICMARC';
+end
+
+% load default settings
+fid = fopen(fullfile('data', 'icclass', cfg_file));
+cfg = textscan(fid, '%s %f %f');
+fclose(fid);
+nclass = length(cfg{1});
+
+% generate GUI
+fh = figure('MenuBar','none', 'ToolBar','none', ...
+    'units' ,'normalized', 'Name', [name ' Settings']);
+
+buttonLock = zeros(nclass, 1);
+buttonReject = zeros(nclass, 1);
+for it = 1:nclass
+    posText = [0.05, 1 - (it * 0.7 / nclass), 0.6, 0.1]; %min(0.1, 0.4 / nclass)];
+    posKeep = [0.7, 1 - (it * 0.7 / nclass), 0.1, 0.1]; % min(0.2, 0.4 / nclass)];
+    posReject = [0.85, 1 - (it * 0.7 / nclass), 0.1, 0.1]; % min(0.2, 0.4 / nclass)];
+    
+    lock = ismember(it, handles.(field).lock);
+    reject = ismember(it, handles.(field).reject);
+    
+    % class text
+    uicontrol('Parent', fh, 'Style', 'text', 'String', convert_2spaces(cfg{1}{it}), ...
+        'Units', 'normalize', 'Position', posText, 'FontSize', 25);
+    
+    % lock and  reject buttons
+    buttonLock(it) = uicontrol('Parent', fh, 'Style', 'togglebutton', 'String', 'Lock',...
+        'Units','normalize','Position', posKeep,...
+        'Callback', {@lock_class,it,hObject},'Value',lock,...
+        'BackgroundColor',handles.color_lock*lock + handles.color_bg*(1-lock));
+    buttonReject(it) = uicontrol('Parent', fh, 'Style', 'togglebutton', 'String', 'Reject',...
+        'Units','normalize','Position', posReject,...
+        'Callback', {@reject_class,it,hObject},'Value',reject,...
+        'BackgroundColor',handles.color_reject*reject + handles.color_bg*(1-reject));
+end
+
+% save defaults
+uicontrol('Style', 'pushbutton', 'String', 'Save As Default',...
+        'Units','normalize','Position', [.05 .1 .25 .1], ...
+        'FontSize', 12, ...
+        'Callback', @save_new_defaults);
+    
+% restore defaults
+uicontrol('Style', 'pushbutton', 'String', 'Apply REST Default',...
+        'Units','normalize','Position', [.35 .1 .25 .1], ...
+        'FontSize', 12, ...
+        'Callback', @apply_rest_defaults);
+
+% apply defaults
+uicontrol('Style', 'pushbutton', 'String', 'Apply Current Default',...
+        'Units','normalize','Position', [.65 .1 .3 .1], ...
+        'FontSize', 12, ...
+        'Callback', @apply_defaults);
+    
+p = get(fh, 'Position');
+set(fh, 'Position', p .* [1 1 1.2 1])
+
+
+    function str = convert_2spaces(str)
+        str(strfind(str, '_')) = ' ';
+    end
+
+    function lock_class(hObject, event, index, h)
+        % change setting
+        handles2 = guidata(h);
+        value = get(hObject, 'Value');
+        handles2.(field).lock(index) = value;
+        guidata(h, handles2);
+        % change color
+        set(hObject, 'BackgroundColor',handles.color_lock*value + handles.color_bg*(1-value));
+    end
+
+    function reject_class(hObject, event, index, h)
+        handles2 = guidata(h);
+        value = get(hObject, 'Value');
+        handles2.(field).reject(index) = value;
+        guidata(h, handles2);
+        % change color
+        set(hObject, 'BackgroundColor',handles.color_reject*value + handles.color_bg*(1-value));
+    end
+
+    % save new default file
+    function save_new_defaults(hObject2, event)
+        fid2 = fopen(fullfile('data', 'icclass', cfg_file), 'w+');
+        for it2 = 1:nclass
+            if it2 > 1
+                fprintf(fid2,'\n'); end
+            fprintf(fid2,'%s %d %d', cfg{1}{it2}, ...
+                get(buttonLock(it2), 'Value'), get(buttonReject(it2), 'Value'));
+        end
+        fclose(fid2);
+    end
+
+    % load original default file
+    function apply_rest_defaults(hObject2, event)
+        % load default
+        [~, filename, ext] = fileparts(cfg_file);
+        fid2 = fopen(fullfile('data', 'icclass', [filename '_original' ext]));
+        cfg2 = textscan(fid2, '%s %f %f');
+        fclose(fid2);
+        % set GUI to match
+        for it2 = 1:nclass
+            set(buttonLock(it2), 'Value', cfg2{2}(it2))
+            lock_class(buttonLock(it2), event, it2, hObject)
+            set(buttonReject(it2), 'Value', cfg2{3}(it2))
+            reject_class(buttonReject(it2), event, it2, hObject)
+        end
+    end
+
+    % save new default file
+    function apply_defaults(hObject2, event)
+        % load default
+        fid2 = fopen(fullfile('data', 'icclass', cfg_file));
+        cfg2 = textscan(fid2, '%s %f %f');
+        fclose(fid2);
+        % set GUI to match
+        for it2 = 1:nclass
+            set(buttonLock(it2), 'Value', cfg2{2}(it2))
+            lock_class(buttonLock(it2), event, it2, hObject)
+            set(buttonReject(it2), 'Value', cfg2{3}(it2))
+            reject_class(buttonReject(it2), event, it2, hObject)
+        end
+    end
+        
+end
+
+
+% --- Executes on button press in togglebuttonAutoClassify.
+function togglebuttonAutoClassify_Callback(hObject, eventdata, handles)
+% hObject    handle to togglebuttonAutoClassify (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of togglebuttonAutoClassify
 end
