@@ -1,6 +1,16 @@
 
-function signal = warmStartWithBadChRemoved(signal)
+function signal = warmStartWithBadChRemoved(signal, pipe)
 
+
+channel_mask = true(signal.nbchan, 1);
+if any(strcmp(pipe.fltorder, 'flt_selchans'))
+    mask = ismember({signal.chanlocs.labels}, pipe.pselchans.channels);
+    if ~pipe.pselchans.remove_selection
+        mask = ~mask; end
+    channel_mask(mask) = 0;
+end
+
+%{
 %% Bad channel detection
 % define parameters
 min_corr = 0.5;
@@ -10,6 +20,7 @@ max_broken_time = 0.4;
 linenoise_aware = true;
 rereferenced = false;
 protect_channels = [];
+
 
 % flag channels
 if ~exist('removed_channel_mask','var')
@@ -68,12 +79,13 @@ if ~isfield(signal.etc,'clean_channel_mask')
 signal.etc.clean_channel_mask(signal.etc.clean_channel_mask) = ~removed_channel_mask;
 signal.etc.badChIndex = find(removed_channel_mask==1);
 signal.etc.badChLabels = {signal.chanlocs(signal.etc.badChIndex).labels};
+%}
 
-%% Whitening
-rowmeans = mean(signal.data,2);
-data = bsxfun(@minus,signal.data,rowmeans);
+%% Whitening !!! is this being used?
+rowmeans = mean(signal.data(channel_mask, :), 2);
+data = bsxfun(@minus,signal.data(channel_mask, :), rowmeans);
 
-[E,D] = eig ( data * data' / nPts );
-signal.icasphere = (sqrtm(D)\eye(nChs)) * E';
+[E,D] = eig ( data * data' / size(data, 2) );
+signal.icasphere = (sqrtm(D)\eye(sum(channel_mask))) * E';
 
 %% 

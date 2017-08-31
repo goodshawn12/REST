@@ -18,8 +18,8 @@ if ~isempty(timer)
 
 %% define opts structure
 % whether to customize pipeline 
-opts.customize_pipeline = false;
-opts.save_config = false;
+opts.customize_pipeline = true;
+opts.save_config = true;
 
 % % % Emotiv - setting
 % % (optional) define config file name

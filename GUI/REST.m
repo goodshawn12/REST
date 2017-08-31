@@ -501,7 +501,7 @@ calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
 end
 
 % check for bad channels
-calibData = warmStartWithBadChRemoved(calibData);
+calibData = warmStartWithBadChRemoved(calibData, fltPipCfg);
 
 % run pipline on calibration data
 cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));

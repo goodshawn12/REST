@@ -11,7 +11,7 @@ inlet = lsl_inlet(result{1});
 % info = inlet.info();
 
 % create online stream data structure in base workspace (using appropriate meta-data)
-onl_newstream(parseStreamName(handles.streamName), 'srate', 128, ...
+onl_newstream(parseStreamName(handles.streamName), 'srate', result{1}.nominal_srate(), ...
     'chanlocs', {handles.chanlocs.labels}, 'buffer_len', 10);
 
 % state variables for recursive least squares jitter correction
