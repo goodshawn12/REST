@@ -186,7 +186,7 @@ end
 %                     variance = evalin('base','pipeline.state.Var');
                     W = evalin('base','pipeline.state.icaweights');
                     sphere = evalin('base','pipeline.state.icasphere');
-                    Winv = pinv(W*sphere);
+                    Winv = sphere\W';
                     [stream.nbchan,stream.pnts,stream.trials] = size(stream.data{end});
                     stream.xmax = stream.smax/stream.srate;
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;

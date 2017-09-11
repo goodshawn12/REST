@@ -7,3 +7,6 @@ dependencies/BCILAB/dependencies/hkl-3.0/build*
 dependencies/BCILAB/dependencies/SVMlight-6.01/src/build*
 diskcache/
 dependencies/BCILAB/code/temp/
+data/icclass/*
+!data/icclass/
+!data/icclass/*_original.cfg
