@@ -90,8 +90,8 @@ end
             if stream_ind > size(buffer.data, 1)
                 p = evalin('base', 'pipeline');
                 ind = setdiff(1:length(p.state.icaweights), zhandles.reject);
-                chunk = (p.state.icasphere \ p.state.icaweights(ind, :)') ...
-                    * buffer.data{end}(ind, mod((smax + 1:buffer.smax) - 1, buffer.pnts) + 1);
+                Winv = (p.state.icasphere \ p.state.icaweights');
+                chunk =  Winv(:, ind) * buffer.data{end}(ind, mod((smax + 1:buffer.smax) - 1, buffer.pnts) + 1);
             % otherwise use data directly from buffer
             else
                 chunk = buffer.data{stream_ind}(:, mod((smax + 1:buffer.smax) - 1, buffer.pnts) + 1);

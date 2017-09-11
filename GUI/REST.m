@@ -101,6 +101,7 @@ handles.ffts = cell(1,handles.ntopo);
 handles.psdInds = cell(1,handles.ntopo);
 handles.psdLine = cell(1,handles.ntopo);
 
+% !!! TODO: consolidate all methods into a single field in handles
 % Set eyeCatch parameters
 handles.eyeCatch.lib = [];          % store eyeCatch library
 handles.eyeCatch.thres = 0.9;       % threshold for eye IC detection
@@ -110,8 +111,8 @@ handles.eyeCatch.active = 1;
 fid = fopen(fullfile('data', 'icclass', 'eyecatch_original.cfg'));
 cfg = textscan(fid, '%s %f %f');
 fclose(fid);
-handles.eyeCatch.lock = find(cfg{2});
-handles.eyeCatch.reject= find(cfg{3});
+handles.eyeCatch.lock = cfg{2};
+handles.eyeCatch.reject= cfg{3};
 if ~exist(fullfile('data', 'icclass', 'eyecatch.cfg'), 'var')
     copyfile(fullfile('data', 'icclass', 'eyecatch_original.cfg'), ...
         fullfile('data', 'icclass', 'eyecatch.cfg'));
@@ -134,6 +135,10 @@ if ~exist(fullfile('data', 'icclass', 'icmarc.cfg'), 'var')
         fullfile('data', 'icclass', 'icmarc.cfg'));
 end
 
+% instantiate IC classification time
+handles.icclassTimer = timer('Period', 0.1, 'Name', 'icclassTimer', ...
+    'ExecutionMode', 'fixedDelay', 'TimerFcn', {@automatic_icclass, hObject});
+
 % Parse varagin
 [handles,calibData,config] = startup_check_inputs(handles,varargin);
     
@@ -141,10 +146,13 @@ end
 handles = startup_initializeORICA(handles,calibData,config);
 
 % Create ORICA timer 
-oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing','TimerFcn',{@onl_filtered_ORICA,parseStreamName(handles.streamName)},'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');%,'BusyMode','queue');
+oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing', ...
+    'TimerFcn',{@onl_filtered_ORICA,parseStreamName(handles.streamName)}, ...
+    'StartDelay',0.1,'Tag','oricaTimer','Name','oricaTimer');
 
 % Start EEG stream
-[~, handles.bufferName] = vis_stream_ORICA('figurehandles',handles.figure1,'axishandles',handles.axisEEG,'streamname',handles.streamName);
+[~, handles.bufferName] = vis_stream_ORICA('figurehandles', handles.figure1, ...
+    'axishandles',handles.axisEEG,'streamname',handles.streamName);
 eegTimer = timerfind('Name','eegTimer');
 set(eegTimer,'UserData',{hObject,1})
 
@@ -551,9 +559,14 @@ if isfield(handles,'intialized') && handles.intialized
         for it = 1:length(handles.lslout)
             try
                 close(handles.lslout{it}); end, end, end
+    if isfield(handles, 'externalFigures')
+        if isfield(handles.externalFigures, 'autoICClass') % !!!
+            close(handles.externalFigures.autoICClass); end, end
 
     % delete timers
-    timerNames = {'eegTimer','oricaTimer','topoTimer','infoTimer','locTimer',[parseStreamName(handles.streamName) '_timer']};
+    timerNames = {'eegTimer', 'oricaTimer', 'topoTimer', 'infoTimer', ...
+        'locTimer',[parseStreamName(handles.streamName) '_timer'], ...
+        'icclassTimer'};
 
     for it = 1:length(timerNames)
         temp = timerfind('name',timerNames{it});
@@ -1367,9 +1380,9 @@ else
     hObject = get(button,'parent');
 end
 handles = guidata(hObject);
-if get(button,'Value') % turned lock on
+if ~ismember(ic, handles.lock) % turned lock on
     handles.lock = sort([handles.lock ic]);
-    set(button,'BackgroundColor',[0.5 1 0.5])
+    set(button,'BackgroundColor',handles.color_lock)
     if isfield(handles,'figIC')
         set(handles.figIC.buttonLock(ic),'Value',1,'BackgroundColor',handles.color_lock); end
 else % turned lock off
@@ -1395,9 +1408,9 @@ else
     hObject = get(button,'parent');
 end
 handles = guidata(hObject);
-if get(button,'Value') % turned reject on
+if ~ismember(ic, handles.reject) % turned reject on
     handles.reject = sort([handles.reject ic]);
-    set(button,'BackgroundColor',[1 0.5 0.5])
+    set(button,'BackgroundColor', handles.color_reject)
     if isfield(handles,'figIC')
         set(handles.figIC.buttonReject(ic),'Value',1,'BackgroundColor',handles.color_reject); end
 else % turned reject off
@@ -1687,7 +1700,8 @@ nclass = length(cfg{1});
 
 % generate GUI
 fh = figure('MenuBar','none', 'ToolBar','none', ...
-    'units' ,'normalized', 'Name', [name ' Settings']);
+    'units' ,'normalized', 'Name', [name ' Settings'], ...
+    'DeleteFcn', @close_figure);
 
 buttonLock = zeros(nclass, 1);
 buttonReject = zeros(nclass, 1);
@@ -1696,8 +1710,8 @@ for it = 1:nclass
     posKeep = [0.7, 1 - (it * 0.7 / nclass), 0.1, 0.1]; % min(0.2, 0.4 / nclass)];
     posReject = [0.85, 1 - (it * 0.7 / nclass), 0.1, 0.1]; % min(0.2, 0.4 / nclass)];
     
-    lock = ismember(it, handles.(field).lock);
-    reject = ismember(it, handles.(field).reject);
+    lock = handles.(field).lock(it);
+    reject = handles.(field).reject(it);
     
     % class text
     uicontrol('Parent', fh, 'Style', 'text', 'String', convert_2spaces(cfg{1}{it}), ...
@@ -1735,6 +1749,9 @@ uicontrol('Style', 'pushbutton', 'String', 'Apply Current Default',...
 p = get(fh, 'Position');
 set(fh, 'Position', p .* [1 1 1.2 1])
 
+% save figure handle to handles
+handles.externalFigures.autoICClass = fh;
+guidata(hObject, handles)
 
     function str = convert_2spaces(str)
         str(strfind(str, '_')) = ' ';
@@ -1801,7 +1818,14 @@ set(fh, 'Position', p .* [1 1 1.2 1])
             reject_class(buttonReject(it2), event, it2, hObject)
         end
     end
-        
+
+    % remove figure info when closing window
+    function close_figure(varargin)
+        handles2 = guidata(handles.figure1);
+        handles2.externalFigures = rmfield(handles2.externalFigures, 'autoICClass');
+        guidata(handles.figure1, handles2)
+    end
+
 end
 
 
@@ -1812,4 +1836,61 @@ function togglebuttonAutoClassify_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of togglebuttonAutoClassify
+
+if get(hObject, 'Value')
+    start(handles.icclassTimer)
+else
+    stop(handles.icclassTimer)
+    
+end
+end
+
+function automatic_icclass(~, ~, hfigure)
+% load variables
+handles = guidata(hfigure);
+persistent icnum
+if isempty(icnum)
+    icnum = 1;
+else
+    icnum = mod(icnum, handles.nic) + 1;
+end
+
+% find which classifier is active
+if handles.eyeCatch.active
+    field = 'eyeCatch';
+    if ~isfield(handles.eyeCatch, 'classifications')
+        handles.eyeCatch.classification = zeros(handles.nic, 1); end
+    
+    % load ICA matrices
+    W = evalin('base','pipeline.state.icaweights');
+    sphere = evalin('base','pipeline.state.icasphere');
+    Winv = sphere\W';
+    
+    % run eyeCatch
+    map = zeros(handles.topoNPixel, 1);
+    map(~handles.topoNaNMask) = handles.topoMat * Winv(:, icnum);
+    map(handles.topoNaNMask) = NaN;
+    map = reshape(map,sqrt(handles.topoNPixel),[]);
+    [class] = runEyeCatch(handles.eyeCatch.lib,map, handles.eyeCatch.thres);
+    class = ~class + 1;
+    
+    % save results
+    handles.eyeCatch.classification(icnum) = class;
+    guidata(hfigure, handles)
+    
+    % apply result
+    if handles.eyeCatch.reject(class) && ~ismember(icnum, handles.reject)
+        rejectIC([], [], icnum, hfigure)
+    elseif ~handles.eyeCatch.reject(class) && ismember(icnum, handles.reject)
+        rejectIC([], [], icnum, hfigure)
+    end
+    if handles.eyeCatch.lock(class) && ~ismember(icnum, handles.lock)
+        lockIC([], [], icnum, hfigure)
+    elseif ~handles.eyeCatch.lock(class) && ismember(icnum, handles.lock)
+        lockIC([], [], icnum, hfigure)
+    end
+    
+elseif handles.ICMARC.active;
+    field = 'ICMARC';
+end
 end
