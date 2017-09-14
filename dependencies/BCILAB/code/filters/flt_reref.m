@@ -84,9 +84,9 @@ if ~isempty(exclude_chn)
 
 switch ref_type
     case 'mean'
-        ref_signal = mean(signal.data(ref_chns,:));
+        ref_signal = mean(signal.data(ref_chns,:), 1); % Luca
     case 'median'
-        ref_signal = median(signal.data(ref_chns,:));
+        ref_signal = median(signal.data(ref_chns,:), 1); % Luca
     case 'huber'
         if isempty(huber_cut)
             huber_cut = median(median(abs(bsxfun(@minus,signal.data,median(signal.data,2))),2))*1.4826; end

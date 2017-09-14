@@ -172,11 +172,23 @@ assignin('base',handles.bufferName,buffer);
 
 % Find if channels have been removed
 funsstr = cellfun(@func2str,funs,'uniformoutput',false');
+pipeline = evalin('base','pipeline'); %#ok<NASGU>
+removed = [];
+% from flt_selchans
 if any(strcmp(funsstr,'flt_selchans'))
-    pipeline = evalin('base','pipeline'); %#ok<NASGU>
     numparts = find(flipud(strcmp(funsstr,'flt_selchans')))-1;
-    eval(['removed = pipeline' repmat('.parts{2}',1,numparts) '.parts{4};']);
+    removed = [removed eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}'])];
+end
+% from flt_reref
+if any(strcmp(funsstr,'flt_reref'))
+    numparts = find(flipud(strcmp(funsstr,'flt_reref')))-1;
+    if ~eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{8}']);
+        removed = [removed eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}'])];
+    end
+end
+if ~isempty(removed)
     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
+    
     % adjust chanlocs
     handles.urchanlocs = handles.chanlocs;
     handles.chanlocs(handles.rmchan_index) = [];
