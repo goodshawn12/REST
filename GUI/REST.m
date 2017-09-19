@@ -87,7 +87,7 @@ handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
 handles.classCounter = 0;                   % counter for updating label
-handles.classUpdateFreq = handles.ntopo+1;  % frequency for updating label
+handles.classUpdateFreq = 1 % handles.ntopo+1;  % frequency for updating label
 
 % Set PSD parameters
 sec2samp = 5;
@@ -210,7 +210,7 @@ end
 % Populate scalp maps
 for it = 1:handles.ntopo
     set(handles.figure1, 'CurrentAxes', handles.(['axesIC' int2str(it)]))
-    [~,Zi,~,Xi,Yi,intx,inty] = topoplotFast_LRBF(rand(size(handles.chanlocs)), handles.chanlocs);
+    [~,Zi,~,Xi,Yi,intx,inty] = topoplotFast_LRBF(zeros(size(handles.chanlocs)), handles.chanlocs);
 end
 
 % Generate scalp map interpolation matrix (jerry rigged)
@@ -227,11 +227,11 @@ handles.topoNPixel = size(out,1);
 handles.topoMat(handles.topoNaNMask,:) = [];
 
 % Create scalp map timer
-topoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject}, ...
+topoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@vis_topo,hObject}, ...
     'StartDelay',0.2,'Tag','topoTimer','Name','topoTimer');
 
 % Create data timer (starts as power spectrum)
-infoTimer = timer('Period',round(1/handles.ntopo*1000)/1000,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject}, ...
+infoTimer = timer('Period',1,'ExecutionMode','fixedRate','TimerFcn',{@infoPSD,hObject}, ...
     'StartDelay',0.2,'Tag','infoTimer','Name','infoTimer');
 
 % Set panel and button colors
@@ -1631,9 +1631,11 @@ if flag_sort
     other = setdiff(1:handles.nic,[handles.lock]);
     % sort by residual variance
     meanvar = mean(pinv(W*S).^2).*V';
-    [~,ind_lock] = sort(meanvar(handles.lock),'descend');
     [~,ind_other] = sort(meanvar(other),'descend');
-    handles.ics = [handles.lock(ind_lock) other(ind_other)];
+    handles.ics = [handles.lock other(ind_other)];
+%     [~,ind_lock] = sort(meanvar(handles.lock),'descend');
+%     [~,ind_other] = sort(meanvar(other),'descend');
+%     handles.ics = [handles.lock(ind_lock) other(ind_other)];
 else
     handles.ics = [handles.lock setdiff(1:handles.nic,[handles.lock])];
 end
