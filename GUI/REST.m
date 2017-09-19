@@ -104,7 +104,7 @@ handles.psdLine = cell(1,handles.ntopo);
 % !!! TODO: consolidate all methods into a single field in handles
 % Set eyeCatch parameters
 handles.eyeCatch.lib = [];          % store eyeCatch library
-handles.eyeCatch.thres = 0.9;       % threshold for eye IC detection
+handles.eyeCatch.thres = 0.85;       % threshold for eye IC detection
 handles.eyeCatch.updateFreq = handles.ntopo+1;
 handles.eyeCatch.active = 1;
 

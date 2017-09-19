@@ -10,3 +10,4 @@ dependencies/BCILAB/code/temp/
 data/icclass/*
 !data/icclass/
 !data/icclass/*_original.cfg
+dependencies/BCILAB/dependencies/eeglab13_4_4b/plugins/clean_rawdata0.32/
