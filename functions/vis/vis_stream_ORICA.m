@@ -84,7 +84,7 @@ end
 opts.bufferrange = max(opts.bufferrange,opts.timerange);
 
 % init shared handles
-[fig,ax,lines] = deal([]);
+[fig,ax,lines, prelines] = deal([]);
 
 % streamnames = find_streams;
 % if length(streamnames) == 1
@@ -160,6 +160,8 @@ end
 %                 % append it to the stream buffer
 %                 evalin('base',['[' buffername '.smax,' buffername '.data(:,1+mod(' buffername '.smax:' buffername '.smax+size(' chunkname ',2)-1,' buffername '.pnts))] = deal(' buffername '.smax + size(' chunkname ',2),' chunkname ');']);
                 
+                
+
                 % get the updated stream buffer
                 stream = evalin('base',buffername);
                 
@@ -167,6 +169,16 @@ end
                 samples_to_get = min(stream.pnts, round(stream.srate*stream.opts.timerange));
                 if plot_content<=length(stream.data)
                     stream.data{plot_content} = stream.data{plot_content}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
+                    if plot_content > 1 && plot_content < length(stream.data) && get(handles.checkboxOverplot, 'Value')
+                        stage = evalin('base', ['pipeline' repmat('.parts{2}', 1, length(stream.data) - plot_content)]);
+                        index = find(strcmp(stage.parts, 'processing_delay'));
+                        if ~isempty(index)
+                            delay =  round(stage.parts{index + 1} * handles.srate);
+                        else
+                            delay = 0;
+                        end
+                        stream.data{plot_content - 1} = stream.data{plot_content - 1}(:, 1+mod(stream.smax-samples_to_get-delay:stream.smax-1-delay,stream.pnts));
+                    end
                     [stream.nbchan,stream.pnts,stream.trials] = size(stream.data{plot_content});
                     stream.xmax = stream.smax/stream.srate;
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
@@ -178,11 +190,15 @@ end
                         scale_factor = mean(sqrt(state.Var)) / chanvar;
                         % change datascale (this is not saved)
                         stream.opts.datascale = stream.opts.datascale * scale_factor;
+                    elseif plot_content > 1 && get(handles.checkboxOverplot, 'Value')
+                        preplotdata = stream.data{plot_content - 1}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
                     end
                 else % plot subtracted components
 %                     stream.d= stream.data{plot_content}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
                     stream.data{end} = stream.data{end}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
-                    plotica = stream.data{end}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
+                    if get(handles.checkboxOverplot, 'Value')
+                        stream.data{end-1} = stream.data{end-1}(:, 1+mod(stream.smax-samples_to_get:stream.smax-1,stream.pnts));
+                    end
 %                     variance = evalin('base','pipeline.state.Var');
                     W = evalin('base','pipeline.state.icaweights');
                     sphere = evalin('base','pipeline.state.icasphere');
@@ -191,7 +207,11 @@ end
                     stream.xmax = stream.smax/stream.srate;
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
                     ind = setdiff(1:length(W),handles.reject);
+                    plotica = stream.data{end}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
                     plotdata = Winv(:,ind)*plotica(ind,:);
+                    if get(handles.checkboxOverplot, 'Value')
+                        preplotdata = stream.data{end-1}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
+                    end
                 end
                 
                 % find removed channels stage or pipeline they were removed
@@ -246,7 +266,8 @@ end
                 
                 % re-reference
                 if stream.opts.reref
-                    plotdata = bsxfun(@minus,plotdata,mean(plotdata)); end
+                    plotdata = bsxfun(@minus,plotdata,mean(plotdata));
+                end
                                 
                 % zero-mean
                 plotdata = bsxfun(@minus, plotdata, mean(plotdata,2));
@@ -256,12 +277,26 @@ end
                 plotoffsets = (0:size(plotdata,1)-1)*stream.opts.datascale;
                 plotdata = bsxfun(@plus, plotdata', plotoffsets);
                 
+                % repeat for overplot if required
+                if exist('preplotdata', 'var')
+                    preplotdata = preplotdata(plotchans,:);
+                    if stream.opts.reref
+                        preplotdata = bsxfun(@minus,preplotdata,mean(preplotdata));
+                    end
+                    preplotdata = bsxfun(@minus, preplotdata, mean(preplotdata,2));
+                    preplotoffsets = (0:size(preplotdata,1)-1)*stream.opts.datascale;
+                    preplotdata = bsxfun(@plus, preplotdata', preplotoffsets);
+                end
                 
-                % === actual drawing ===
+                
+                % === actual drawing === TODO: change colors and account
                 
                 % draw the block contents...
                 if ~isempty(plotdata)
-                    if ~exist('lines','var') || isempty(lines)                        
+                    if ~exist('lines','var') || isempty(lines)
+                        prelines = plot(ax,plottime,zeros(size(plotdata)), 'Visible', 'off', ...
+                            'Color', [0.8 0.8 0.8], 'LineWidth', 2);
+                        hold(ax, 'on')
                         lines = plot(ax,plottime,plotdata);
                         title(ax,opts.streamname,'interpreter','none');
                         xlabel(ax,'Time (sec)','FontSize',12);
@@ -276,6 +311,26 @@ end
                                 set(lines(k),'Xdata',plottime);
                             end
                         end
+                    end
+                    
+                    if exist('preplotdata', 'var')
+                        if ~exist('prelines','var') || isempty(prelines)
+                            hold(ax, 'on')
+                            prelines = plot(ax,plottime,preplotdata, ...
+                                'Color', [0.8 0.8 0.8], 'LineWidth', 2);
+                        else
+                            for k=1:length(prelines)
+                                if k <= size(plotdata,2);
+                                    set(prelines(k),'Ydata',preplotdata(:,k),'visible','on','linestyle','-');
+                                    set(prelines(k),'Xdata',plottime);
+                                else
+                                    set(prelines(k),'Ydata',zeros(size(preplotdata(:,1))),'visible','off');
+                                    set(prelines(k),'Xdata',plottime);
+                                end
+                            end
+                        end
+                    elseif ~isempty(prelines) && any(strcmp('on', get(prelines, 'Visible')))
+                        set(prelines, 'Visible', 'off')
                     end
                 
                     % update the axis limit and tickmarks
