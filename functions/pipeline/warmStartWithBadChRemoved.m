@@ -82,10 +82,10 @@ signal.etc.badChLabels = {signal.chanlocs(signal.etc.badChIndex).labels};
 %}
 
 %% Whitening !!! is this being used?
-rowmeans = mean(signal.data(channel_mask, :), 2);
-data = bsxfun(@minus,signal.data(channel_mask, :), rowmeans);
-
-[E,D] = eig ( data * data' / size(data, 2) );
-signal.icasphere = (sqrtm(D)\eye(sum(channel_mask))) * E';
+% rowmeans = mean(signal.data(channel_mask, :), 2);
+% data = bsxfun(@minus,signal.data(channel_mask, :), rowmeans);
+% 
+% [E,D] = eig ( data * data' / size(data, 2) );
+% signal.icasphere = (sqrtm(D)\eye(sum(channel_mask))) * E';
 
 %% 

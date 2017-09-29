@@ -19,7 +19,7 @@ if ~isempty(timer)
 %% define opts structure
 % whether to customize pipeline 
 opts.customize_pipeline = true;
-opts.save_config = true;
+opts.save_config = false;
 
 % % % Emotiv - setting
 % % (optional) define config file name
@@ -33,21 +33,36 @@ opts.save_config = true;
 % opts.calibration_window = [0,60]; % sec
 
 
-% % Quick 20 - setting
+% % % Quick 20 - setting
+% % channel locations
+% load('data/chanlocs/Quick20.mat');
+% opts.chanlocs = chanlocs; 
+% 
+% % (optional) define config file name
+% opts.config = 'Config_ORICA_quick20';
+% 
+% % point to headModel
+% opts.headModel = ['data' filesep 'head_models' filesep 'quick20HeadModel'];
+% 
+% % (optional) path to calibration data and select time window
+% opts.calibration_data = ['data' filesep 'Quick20_Luca_calib_EyeOpen.set'];
+% opts.calibration_window = [0,60]; % sec
 
+
+% % Quick 30 - setting
 % channel locations
-load('data/chanlocs/Quick20.mat');
+load('data/chanlocs/Quick30.mat');
 opts.chanlocs = chanlocs; 
 
 % (optional) define config file name
-opts.config = 'Config_ORICA_quick20';
+opts.config = 'Config_ORICA_quick30';
 
 % point to headModel
-opts.headModel = ['data' filesep 'head_models' filesep 'quick20HeadModel'];
+% opts.headModel = ['data' filesep 'head_models' filesep 'quick20HeadModel'];
 
 % (optional) path to calibration data and select time window
-opts.calibration_data = ['data' filesep 'Quick20_Luca_calib_EyeOpen.set'];
-opts.calibration_window = [0,60]; % sec
+opts.calibration_data = ['data' filesep 'Quick30_Shawn_EyeOpen.set'];
+opts.calibration_window = [0,133]; % sec
 
 
 % (optional) load eyeCatch library

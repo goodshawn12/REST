@@ -77,7 +77,9 @@ if ~exist('state','var') || isempty(state)
     state.bufferIdx          = 0;
 
     if onlineWhitening.arg_selection
-        state.icasphere = eye(nChs);
+        [u,~,~] = svd(rand(nChs));
+        state.icasphere = u; % initialize with a random orthogonal matrix
+%         state.icasphere = eye(nChs);
     end
 
     switch adaptiveFF.arg_selection

@@ -207,8 +207,8 @@ end
                     stream.xmax = stream.smax/stream.srate;
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
                     ind = setdiff(1:length(W),handles.reject);
-                    plotica = stream.data{end}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
-                    plotdata = Winv(:,ind)*plotica(ind,:);
+                    plotdataica = stream.data{end}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
+                    plotdata = Winv(:,ind)*plotdataica(ind,:);
                     if get(handles.checkboxOverplot, 'Value')
                         preplotdata = stream.data{end-1}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
                     end
@@ -259,6 +259,9 @@ end
                 end
                 plotdata = plotdata(plotchans,:);
                 plottime = linspace(stream.xmin,stream.xmax,size(plotdata,2));
+                if exist('preplotdata', 'var')
+                    preplotdata = preplotdata(plotchans,:);
+                end
                 if plot_content>=count
                     channels_remaining = setdiff(1:length(stream.chanlocs),index);
                     plotchans = channels_remaining(plotchans);
@@ -272,14 +275,12 @@ end
                 % zero-mean
                 plotdata = bsxfun(@minus, plotdata, mean(plotdata,2));
                 
-                
                 % arrange for plotting
                 plotoffsets = (0:size(plotdata,1)-1)*stream.opts.datascale;
                 plotdata = bsxfun(@plus, plotdata', plotoffsets);
                 
                 % repeat for overplot if required
                 if exist('preplotdata', 'var')
-                    preplotdata = preplotdata(plotchans,:);
                     if stream.opts.reref
                         preplotdata = bsxfun(@minus,preplotdata,mean(preplotdata));
                     end
@@ -288,14 +289,13 @@ end
                     preplotdata = bsxfun(@plus, preplotdata', preplotoffsets);
                 end
                 
-                
                 % === actual drawing === TODO: change colors and account
                 
                 % draw the block contents...
                 if ~isempty(plotdata)
                     if ~exist('lines','var') || isempty(lines)
                         prelines = plot(ax,plottime,zeros(size(plotdata)), 'Visible', 'off', ...
-                            'Color', [0.8 0.8 0.8], 'LineWidth', 2);
+                            'Color', [0.8 0.8 0.8], 'LineWidth', 1);
                         hold(ax, 'on')
                         lines = plot(ax,plottime,plotdata);
                         title(ax,opts.streamname,'interpreter','none');
@@ -317,7 +317,7 @@ end
                         if ~exist('prelines','var') || isempty(prelines)
                             hold(ax, 'on')
                             prelines = plot(ax,plottime,preplotdata, ...
-                                'Color', [0.8 0.8 0.8], 'LineWidth', 2);
+                                'Color', [0.8 0.8 0.8], 'LineWidth', 1);
                         else
                             for k=1:length(prelines)
                                 if k <= size(plotdata,2);
@@ -362,15 +362,15 @@ end
                 delete(th);
             end
         catch e
-            if isempty(findobj('Tag',['Fig' buffername]))
-                disp('Figure was closed.');
-            else
-                disp('An error occurred during the stream viewer update: ');
-                hlp_handleerror(e);
-            end
-            warning off MATLAB:timer:deleterunning
-            th = timerfindall;
-            delete(th);
+%             if isempty(findobj('Tag',['Fig' buffername]))
+%                 disp('Figure was closed.');
+%             else
+            disp('An error occurred during the stream viewer update: ');
+%                 hlp_handleerror(e);
+%             end
+%             warning off MATLAB:timer:deleterunning
+%             th = timerfindall;
+%             delete(th);
         end
     end
 

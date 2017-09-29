@@ -104,7 +104,7 @@ handles.psdLine = cell(1,handles.ntopo);
 % !!! TODO: consolidate all methods into a single field in handles
 % Set eyeCatch parameters
 handles.eyeCatch.lib = [];          % store eyeCatch library
-handles.eyeCatch.thres = 0.85;       % threshold for eye IC detection
+handles.eyeCatch.thres = 0.89;       % threshold for eye IC detection
 handles.eyeCatch.updateFreq = handles.ntopo+1;
 handles.eyeCatch.active = 1;
 
@@ -523,7 +523,7 @@ if isfield(fltPipCfg,'pselchans')
     end
 end
 
-% save the configuration %!!! maybe disable this?
+% save the configuration
 if config.save_config
     if ~isempty(fltPipCfg)
         if isfield(fltPipCfg,'signal')
@@ -535,9 +535,9 @@ end
 
 % grab calib data from online stream if there is none
 if isempty(calibData)
-disp('Collecting calibration data from online stream... please wait 10 seconds...');
-pause(10-toc); % uh oh!
-calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
+    disp('Collecting calibration data from online stream... please wait 10 seconds...');
+    pause(10-toc);
+    calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
 end
 
 % check for bad channels
