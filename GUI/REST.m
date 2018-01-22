@@ -8,8 +8,16 @@ function varargout = REST(varargin)
 %             calibration_data or in headModel, in which case chanlocs is
 %             not required.
 %           - calibration_data (optional): EEGLAB EEG structure with some
-%             initaial data or a string containing the path to the *.set
-%             file containing the calibration data (optional).
+%             initial data or a string containing the path to the *.set
+%             file containing the calibration data.
+%           - calibration_window (optional): if you do not want to use all
+%             the provided calibration data to initialze the online ICA
+%             pipeline, you may use this option to shorten it. A scalar
+%             will take that many seconds from the recording and throw away
+%             the REST. A vector with two elements defines a start and stop
+%             time (in seconds) to take from the data. This is usefule for
+%             playback as you can have a large playback dataset and a small
+%             calibration dataset.
 %           - headModel (optional): MoBILAB headModel object or path to 
 %             saved headModel file. headModels be made using the included 
 %             function make_headModel. Required to do source localization.
@@ -29,14 +37,10 @@ function varargout = REST(varargin)
 %           - playback (optional): a value of "true" will cause REST to
 %             stream the calibration data (looping) and treat it as a
 %             real-time data stream for testing purposes. (default: false)
-%           - calibration_window (optional): if you do not want to use all
-%             the provided calibration data to initialze the online ICA
-%             pipeline, you may use this option to shorten it. A scalar
-%             will take that many seconds from the recording and throw away
-%             the REST. A vector with two elements defines a start and stop
-%             time (in seconds) to take from the data. This is usefule for
-%             playback as you can have a large playback dataset and a small
-%             calibration dataset.
+%           - playback_data (optional): EEGLAB EEG structure with some
+%             data or a string containing the path to the *.set
+%             file containing the playback data. If none is preset, them 
+%             the calibration data will be played back if present.
 %
 %      REST('Property','Value',...) creates a new REST or raises the
 %      existing singleton*.  Starting from the left, property value pairs are
@@ -79,6 +83,9 @@ function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to REST (see VARARGIN)
 
+% find REST path
+handles.rest_path = fileparts(fileparts(which('REST')));
+
 % Set GUI parameters
 handles.ntopo = 5;
 handles.curIC = 1;
@@ -87,7 +94,7 @@ handles.color_lock = [0.5 1 0.5];
 handles.reject = [];
 handles.color_reject = [1 0.5 0.5];
 handles.classCounter = 0;                   % counter for updating label
-handles.classUpdateFreq = 1 % handles.ntopo+1;  % frequency for updating label
+handles.classUpdateFreq = 1; % handles.ntopo+1;  % frequency for updating label
 
 % Set PSD parameters
 sec2samp = 5;
@@ -108,14 +115,14 @@ handles.eyeCatch.thres = 0.89;       % threshold for eye IC detection
 handles.eyeCatch.updateFreq = handles.ntopo+1;
 handles.eyeCatch.active = 1;
 
-fid = fopen(fullfile('data', 'icclass', 'eyecatch_original.cfg'));
+fid = fopen(fullfile(handles.rest_path, 'data', 'icclass', 'eyecatch_original.cfg'));
 cfg = textscan(fid, '%s %f %f');
 fclose(fid);
 handles.eyeCatch.lock = cfg{2};
 handles.eyeCatch.reject= cfg{3};
-if ~exist(fullfile('data', 'icclass', 'eyecatch.cfg'), 'var')
-    copyfile(fullfile('data', 'icclass', 'eyecatch_original.cfg'), ...
-        fullfile('data', 'icclass', 'eyecatch.cfg'));
+if ~exist(fullfile(handles.rest_path, 'data', 'icclass', 'eyecatch.cfg'), 'var')
+    copyfile(fullfile(handles.rest_path, 'data', 'icclass', 'eyecatch_original.cfg'), ...
+        fullfile(handles.rest_path, 'data', 'icclass', 'eyecatch.cfg'));
 end
 
 % Set IC_MARC parameters
@@ -125,14 +132,14 @@ handles.ICMARC.cdn_m = [];            % store IC_MARC current_density_norm matri
 handles.ICMARC.classLabel = {'blink', 'neural', 'heart', 'lateral', 'muscle', 'mixed'};
 handles.ICMARC.active = 0;
 
-fid = fopen(fullfile('data', 'icclass', 'icmarc_original.cfg'));
+fid = fopen(fullfile(handles.rest_path, 'data', 'icclass', 'icmarc_original.cfg'));
 cfg = textscan(fid, '%s %f %f');
 fclose(fid);
 handles.ICMARC.lock = find(cfg{2});
 handles.ICMARC.reject= find(cfg{3});
-if ~exist(fullfile('data', 'icclass', 'icmarc.cfg'), 'var')
-    copyfile(fullfile('data', 'icclass', 'icmarc_original.cfg'), ...
-        fullfile('data', 'icclass', 'icmarc.cfg'));
+if ~exist(fullfile(handles.rest_path, 'data', 'icclass', 'icmarc.cfg'), 'var')
+    copyfile(fullfile(handles.rest_path, 'data', 'icclass', 'icmarc_original.cfg'), ...
+        fullfile(handles.rest_path, 'data', 'icclass', 'icmarc.cfg'));
 end
 
 % instantiate IC classification time
@@ -140,10 +147,10 @@ handles.icclassTimer = timer('Period', 0.1, 'Name', 'icclassTimer', ...
     'ExecutionMode', 'fixedDelay', 'TimerFcn', {@automatic_icclass, hObject});
 
 % Parse varagin
-[handles,calibData,config] = startup_check_inputs(handles,varargin);
+[handles,calibration_data,config] = startup_check_inputs(handles,varargin);
     
 % Intialize ORICA
-handles = startup_initializeORICA(handles,calibData,config);
+handles = startup_initializeORICA(handles,calibration_data,config);
 
 % Create ORICA timer 
 oricaTimer = timer('Period',.1,'ExecutionMode','fixedSpacing', ...
@@ -269,7 +276,7 @@ funs = [funs;{p.head}];
 end
 
 
-function [handles, calibData, config] = startup_check_inputs(handles,in)
+function [handles, calibration_data, config] = startup_check_inputs(handles,in)
 % !!! need to add appropriate errors and explanations
 
 % check channel locations
@@ -279,18 +286,20 @@ if isfield(in{1},'chanlocs')
 % check calibration data
 if isfield(in{1},'calibration_data')
     if isstruct(in{1}.calibration_data)
-        calibData = in{1}.calibration_data;
+        calibration_data = in{1}.calibration_data;
     elseif ischar(in{1}.calibration_data)
-        calibData = pop_loadset(in{1}.calibration_data);
+        calibration_data = pop_loadset(in{1}.calibration_data);
     end
-    if ~isfield(handles,'chanlocs') && isfield(calibData,'chanlocs') && ~isempty(calibData.chanlocs)
-        handles.chanlocs = calibData.chanlocs; end
+    if ~isfield(handles,'chanlocs') && isfield(calibration_data,'chanlocs') && ~isempty(calibration_data.chanlocs)
+        handles.chanlocs = calibration_data.chanlocs; end
 else
-    calibData = [];
+    calibration_data = [];
 end
 
 % check if playback is requested
 if isfield(in{1},'playback') && in{1}.playback
+    assert(isfield(in{1},'playback_data') || ~isempty(calibration_data), ...
+        'REST: You must provide data to playback.')
     OMIT_MARKERS = true;
     % find existing streams
     lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
@@ -300,8 +309,20 @@ if isfield(in{1},'playback') && in{1}.playback
     while any(strcmp(['REST_playback_data' num2str(ind)], streamnames)) ...
             || any(strcmp(['REST_playback_markers' num2str(ind)], streamnames))
         ind = ind + 1; end
+    % check playback data
+    if isfield(in{1},'playback_data')
+        if isstruct(in{1}.playback_data)
+            playback_data = in{1}.playback_data;
+        elseif ischar(in{1}.playback_data)
+            playback_data = pop_loadset(in{1}.playback_data);
+        end
+        if ~isfield(handles,'chanlocs') && isfield(playback_data,'chanlocs') && ~isempty(playback_data.chanlocs)
+            handles.chanlocs = playback_data.chanlocs; end
+    else
+        playback_data = calibration_data;
+    end
     % create playback stream
-    handles.playbackStream = play_eegset_lsl('Dataset', calibData, ...
+    handles.playbackStream = play_eegset_lsl('Dataset', playback_data, ...
         'DataStreamName', ['REST_playback_data' num2str(ind)], ...
         'EventStreamName', ['REST_playback_markers' num2str(ind)], ...
         'Background', true, 'NoMarkers', OMIT_MARKERS);
@@ -311,9 +332,9 @@ end
 % shorten calibration data if requested
 if isfield(in{1},'calibration_window')
     if isscalar(in{1}.calibration_window)
-        calibData = pop_select(calibData,'time',[0 in{1}.calibration_window]);
+        calibration_data = pop_select(calibration_data,'time',[0 in{1}.calibration_window]);
     else
-        calibData = pop_select(calibData,'time',in{1}.calibration_window);
+        calibration_data = pop_select(calibration_data,'time',in{1}.calibration_window);
     end
 end
 
@@ -354,6 +375,9 @@ if isfield(in{1},'config')
     handles.config = in{1}.config;
 else
     handles.config = 'Config_ORICA';
+end
+if ~strcmp(handles.config(end-3:end), '.mat')
+    handles.config = [handles.config '.mat'];
 end
 
 % check if eyeCatch library exists and import it
@@ -443,7 +467,7 @@ end
 end
 
 
-function handles = startup_initializeORICA(handles,calibData,config)
+function handles = startup_initializeORICA(handles,calibration_data,config)
 
 % load LSL
 if ~exist('env_translatepath','file')
@@ -492,9 +516,8 @@ set(handles.textNumChannel,'string',num2str(handles.nbchan));
 set(handles.textSrate,'string',[num2str(handles.srate) ' Hz']);
 
 % look for pre-existing config file for pipeline
-REST_path = fileparts(fileparts(which('REST')));
-opts.BCILAB_PipelineConfigFile = ...
-    [REST_path filesep 'data' filesep 'config' filesep handles.config '.mat']; % make sure this file doesn't have 'signal' entry
+opts.BCILAB_PipelineConfigFile = fullfile( ...
+    handles.rest_path, 'data', 'config', handles.config); % make sure this file doesn't have 'signal' entry
 
 % define the pipeline configuration
 tic
@@ -518,8 +541,8 @@ if isempty(fltPipCfg)
 end
 
 if isfield(fltPipCfg,'pselchans')
-    if isfield(calibData.etc,'badChLabels')
-        fltPipCfg.pselchans.channels = calibData.etc.badChLabels;
+    if isfield(calibration_data.etc,'badChLabels')
+        fltPipCfg.pselchans.channels = calibration_data.etc.badChLabels;
     end
 end
 
@@ -534,17 +557,17 @@ if config.save_config
 end
 
 % grab calib data from online stream if there is none
-if isempty(calibData)
+if isempty(calibration_data)
     disp('Collecting calibration data from online stream... please wait 10 seconds...');
     pause(10-toc);
-    calibData = onl_peek(opts.lsl.StreamName,10,'seconds');
+    calibration_data = onl_peek(opts.lsl.StreamName,10,'seconds');
 end
 
 % check for bad channels
-calibData = warmStartWithBadChRemoved(calibData, fltPipCfg);
+calibration_data = warmStartWithBadChRemoved(calibration_data, fltPipCfg);
 
 % run pipline on calibration data
-cleaned_data = exp_eval(flt_pipeline('signal',calibData,fltPipCfg));
+cleaned_data = exp_eval(flt_pipeline('signal',calibration_data,fltPipCfg));
 
 % initialize the pipeline for streaming data
 pipeline     = onl_newpipeline(cleaned_data,opts.lsl.StreamName);
@@ -1330,7 +1353,7 @@ elseif handles.ICMARC.active;
 end
 
 % load default settings
-fid = fopen(fullfile('data', 'icclass', cfg_file));
+fid = fopen(fullfile(handles.rest_path, 'data', 'icclass', cfg_file));
 cfg = textscan(fid, '%s %f %f');
 fclose(fid);
 nclass = length(cfg{1});
@@ -1415,7 +1438,7 @@ guidata(hObject, handles)
 
     % save new default file
     function save_new_defaults(hObject2, event)
-        fid2 = fopen(fullfile('data', 'icclass', cfg_file), 'w+');
+        fid2 = fopen(fullfile(handles.rest_path, 'data', 'icclass', cfg_file), 'w+');
         for it2 = 1:nclass
             if it2 > 1
                 fprintf(fid2,'\n'); end
@@ -1429,7 +1452,7 @@ guidata(hObject, handles)
     function apply_rest_defaults(hObject2, event)
         % load default
         [~, filename, ext] = fileparts(cfg_file);
-        fid2 = fopen(fullfile('data', 'icclass', [filename '_original' ext]));
+        fid2 = fopen(fullfile(handles.rest_path, 'data', 'icclass', [filename '_original' ext]));
         cfg2 = textscan(fid2, '%s %f %f');
         fclose(fid2);
         % set GUI to match
@@ -1444,7 +1467,7 @@ guidata(hObject, handles)
     % save new default file
     function apply_defaults(hObject2, event)
         % load default
-        fid2 = fopen(fullfile('data', 'icclass', cfg_file));
+        fid2 = fopen(fullfile(handles.rest_path, 'data', 'icclass', cfg_file));
         cfg2 = textscan(fid2, '%s %f %f');
         fclose(fid2);
         % set GUI to match
