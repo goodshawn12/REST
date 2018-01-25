@@ -1,7 +1,6 @@
 function lslout(button, evnt, hfig, hstream, hname)
 
-persistent smax
-
+% if the 'Start Broadcast' button is pressed
 if strcmp(get(button, 'string'), 'Start Broadcast')
     
     % disable uimenu and edit
@@ -21,13 +20,8 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
 
     % try to calculate a UID for the stream
     try
-        if strcmp(opts.source_id,'model')
-            uid = hlp_cryptohash({rmfield(model,'timestamp'),opts.predict_at,opts.in_stream,opts.out_stream});
-        elseif strcmp(opts.source_id,'input_data')
-            uid = hlp_cryptohash({model.source_data,opts.predict_at,opts.in_stream,opts.out_stream});
-        else
-            error('Unsupported SourceID option: %s',hlp_tostring(opts.source_id));
-        end
+        uid = '';
+%         uid = hlp_cryptohash({button, evnt, hfig, hstream, hname});
     catch e
         disp('Could not generate a unique ID for the predictive model; the BCI stream will not be recovered automatically after the provider system had a crash.');
         hlp_handleerror(e);
@@ -36,7 +30,7 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
 
     % describe the stream
     disp('Creating a new streaminfo...');
-    info = lsl_streaminfo(lib, stream_name, 'EEG',length(handles.chanlocs), 128, 'cf_float32',uid);
+    info = lsl_streaminfo(lib, stream_name, 'EEG',length(handles.chanlocs), handles.srate, 'cf_float32', uid);
 
     % create an outlet
     outlet = lsl_outlet(info);
@@ -46,7 +40,7 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
 
     % create timer
     lsloutTimer = timer('ExecutionMode','fixedRate', 'Name',[stream_name '_timer'], 'Period',1/20, ...
-        'StartDelay', 0, 'TimerFcn', @send_samples);
+        'StartDelay', 0, 'TimerFcn', @send_samples, 'UserData', smax);
     
     % save timer and set delButtonFcn
     set(button, 'UserData', lsloutTimer, 'DeleteFcn', @delButtonFcn);
@@ -60,8 +54,6 @@ else
     stop(lsloutTimer)
     delete(lsloutTimer)
     set(button, 'DeleteFcn', []);
-    
-    % delete outlet?
     
     % reenable uicontrols
     set(hstream, 'enable', 'on')
@@ -81,7 +73,14 @@ end
         % load buffer
         buffer = evalin('base', zhandles.bufferName);
         
-        if buffer.smax > smax
+        % load smax
+        smax_local = get(varargin{1}, 'UserData');
+        
+%         persistent smax_local
+%         if isempty(smax_local)
+%             smax_local = smax;
+%         end
+        if buffer.smax > smax_local
 
             % determine time
             % ???
@@ -91,26 +90,27 @@ end
                 p = evalin('base', 'pipeline');
                 ind = setdiff(1:length(p.state.icaweights), zhandles.reject);
                 Winv = (p.state.icasphere \ p.state.icaweights');
-                chunk =  Winv(:, ind) * buffer.data{end}(ind, mod((smax + 1:buffer.smax) - 1, buffer.pnts) + 1);
+                chunk =  Winv(:, ind) * buffer.data{end}(ind, mod((smax_local + 1:buffer.smax) - 1, buffer.pnts) + 1);
             % otherwise use data directly from buffer
             else
-                chunk = buffer.data{stream_ind}(:, mod((smax + 1:buffer.smax) - 1, buffer.pnts) + 1);
+                chunk = buffer.data{stream_ind}(:, mod((smax_local + 1:buffer.smax) - 1, buffer.pnts) + 1);
             end
 
             % push samples
             outlet.push_chunk(chunk)
 
             % adjust smax
-            smax = buffer.smax;
+            set(varargin{1}, 'UserData', buffer.smax);
         end
     end
     
     % delete timer if figure closes
     function delButtonFcn(button, evnt)
-        % stop and delete timer
+        % stop and delete timer and outlet
         lsloutTimer = get(button, 'UserData');
         stop(lsloutTimer)
         delete(lsloutTimer)
+        delete(outlet)
     end
 
 end

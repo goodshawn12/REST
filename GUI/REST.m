@@ -845,7 +845,7 @@ if ~isfield(handles, 'lslout')
     handles.lslout{1} = fhandle;
     lslout_ind = 1;
 else
-    ind = cellfun(@isempty, handles.lslout);
+    ind = find(cellfun(@isempty, handles.lslout), 1);
     if ~isempty(ind)
         handles.lslout{ind} = fhandle;
         lslout_ind = ind;
@@ -854,6 +854,7 @@ else
         lslout_ind = length(handles.lslout);
     end
 end
+guidata(hObject, handles);
 
 % stream selector
 hstream = uicontrol('style', 'popupmenu', 'string', get(handles.popupmenuEEG,'String'), ...
