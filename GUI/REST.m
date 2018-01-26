@@ -180,68 +180,84 @@ assignin('base',handles.bufferName,buffer);
 % Find if channels have been removed
 funsstr = cellfun(@func2str,funs,'uniformoutput',false');
 pipeline = evalin('base','pipeline'); %#ok<NASGU>
-removed = [];
-% from flt_selchans
-if any(strcmp(funsstr,'flt_selchans'))
-    numparts = find(flipud(strcmp(funsstr,'flt_selchans')))-1;
-    removed = [removed eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}'])];
-end
-% from flt_reref
-if any(strcmp(funsstr,'flt_reref'))
-    numparts = find(flipud(strcmp(funsstr,'flt_reref')))-1;
-    if ~eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{8}']);
-        removed = [removed eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}'])];
-    end
-end
-
-% removed = cell(length(funsstr), 1);
+% removed = [];
 % % from flt_selchans
-% for it = find(strcmp(funsstr,'flt_selchans'))
-%     numparts = length(funsstr) - it;
-%     removed{it} = eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}']);
+% if any(strcmp(funsstr,'flt_selchans'))
+%     numparts = find(flipud(strcmp(funsstr,'flt_selchans')))-1;
+%     removed = [removed eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}'])];
 % end
 % % from flt_reref
-% for it = find(strcmp(funsstr,'flt_reref'))
-%     numparts = length(funsstr) - it;
+% if any(strcmp(funsstr,'flt_reref'))
+%     numparts = find(flipud(strcmp(funsstr,'flt_reref')))-1;
 %     if ~eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{8}']);
-%         removed{it} = eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}']);
+%         removed = [removed eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}'])];
 %     end
 % end
-% 
-% handles.urchanlocs = handles.chanlocs;
-% for it = 1:length(removed)
-%     
-% end
 
-if ~isempty(removed)
-    handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
-    
-    % adjust chanlocs
-    handles.urchanlocs = handles.chanlocs;
-    handles.chanlocs(handles.rmchan_index) = [];
+removed = cell(length(funsstr) - 1, 1);
+% from flt_selchans
+for it = find(strcmp(funsstr,'flt_selchans'))
+    numparts = length(funsstr) - it;
+    removed{it} = eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}']);
+end
+% from flt_reref
+for it = find(strcmp(funsstr,'flt_reref'))
+    numparts = length(funsstr) - it;
+    if ~eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{8}']);
+        removed{it} = eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}']);
+    end
+end
+% readjust chanlocs
+handles.urchanlocs = handles.chanlocs;
+handles.chanlocs = repmat({handles.chanlocs}, length(removed), 1);
+for it = 1:length(removed)
+    if ~isempty(removed{it})
+        rmchan_index = ismember({handles.chanlocs{it}.labels}, removed{it});
+        handles.chanlocs(it:end) = cellfun(@(c) c(~rmchan_index), ...
+            handles.chanlocs(it:end), 'UniformOutput', false);
+    end
+end
+if ~all(cellfun(@isempty, removed))
     handles.nic = length(handles.chanlocs);
     handles.ics = 1:handles.nic;
-    
     if isfield(handles,'headModel')
         % adjust headModel
         handles.urheadModel = handles.headModel;
         rm_ind = ismember(handles.headModel.channelLabel, removed);
         handles.headModel.dropChannels(rm_ind); % !!! had to change the headModel contructor
         handles.K(rm_ind ,:) = [];
-        %     LFM = load(handles.headModel.leadFieldFile);
-        %     LFM.K(handles.rmchan_index,:) = [];
-        %     save(handles.headModel.leadFieldFile,'-struct','LFM')
     end
 end
+
+% if ~isempty(removed)
+%     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
+%     
+%     % adjust chanlocs
+%     handles.urchanlocs = handles.chanlocs;
+%     handles.chanlocs(handles.rmchan_index) = [];
+%     handles.nic = length(handles.chanlocs);
+%     handles.ics = 1:handles.nic;
+%     
+%     if isfield(handles,'headModel')
+%         % adjust headModel
+%         handles.urheadModel = handles.headModel;
+%         rm_ind = ismember(handles.headModel.channelLabel, removed);
+%         handles.headModel.dropChannels(rm_ind); % !!! had to change the headModel contructor
+%         handles.K(rm_ind ,:) = [];
+%         %     LFM = load(handles.headModel.leadFieldFile);
+%         %     LFM.K(handles.rmchan_index,:) = [];
+%         %     save(handles.headModel.leadFieldFile,'-struct','LFM')
+%     end
+% end
 
 % Populate scalp maps
 for it = 1:handles.ntopo
     set(handles.figure1, 'CurrentAxes', handles.(['axesIC' int2str(it)]))
-    [~,Zi,~,Xi,Yi,intx,inty] = topoplotFast_LRBF(zeros(size(handles.chanlocs)), handles.chanlocs);
+    [~,Zi,~,Xi,Yi,intx,inty] = topoplotFast_LRBF(zeros(size(handles.chanlocs{end})), handles.chanlocs{end});
 end
 
 % Generate scalp map interpolation matrix (jerry rigged)
-nChan = length(handles.chanlocs);
+nChan = length(handles.chanlocs{end});
 in = eye(nChan);
 out = zeros(32^2,nChan);
 for it = 1:nChan
@@ -799,7 +815,7 @@ end
 % run IC_MARC if it is selected and its library is loaded
 if ~isempty(handles.ICMARC.model) && handles.ICMARC.active
     if mod(handles.classCounter,handles.classUpdateFreq) == 0
-        [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv(:,handles.ics(it)), handles.chanlocs, handles.ICMARC.virtual_chanlocs, handles.ICMARC.cdn_m);
+        [predclass, predprob] = runIcMarc(handles.ICMARC.model, Winv(:,handles.ics(it)), handles.chanlocs{end}, handles.ICMARC.virtual_chanlocs, handles.ICMARC.cdn_m);
         set(handles.(['textICLabel' int2str(it)]),'String',handles.ICMARC.classLabel{predclass}, ...
             'TooltipString',sprintf(['blink: ' num2str(predprob(1)) '\nneural: ' num2str(predprob(2)) '\nheart: ' num2str(predprob(3)) ...
                                      '\nlateral: ' num2str(predprob(4)) '\nmuscle: ' num2str(predprob(5)) '\nmixed: ' num2str(predprob(6))]));
@@ -1567,7 +1583,7 @@ for it = 1:handles.nic
     h(it) = subaxis(rowcols(1),rowcols(2),it,'MR',.025,'ML',.025,'MT',.025,'MB',.025,'SH',0,'SV',0.02);
     tempPos = get(h(it),'Position');
     set(h(it),'position',get(h(it),'position')*scaleMatTopo)
-    topoplotFast_LRBF(Winv(:,it),handles.chanlocs);
+    topoplotFast_LRBF(Winv(:,it),handles.chanlocs{end});
     title(['IC' int2str(it)])
     
     lock = any(handles.lock==it);

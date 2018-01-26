@@ -35,8 +35,18 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
     disp('Creating a new streaminfo...');
     if stream_ind <= length(buffer.data) + 1
         info = lsl_streaminfo(lib, stream_name, ...
-            'EEG', size(buffer.data{stream_ind}, 1), ...
+            'EEG', size(buffer.data{min(stream_ind, length(buffer.data) - 1)}, 1), ...
             handles.srate, 'cf_float32', uid);
+        if stream_ind ~= length(buffer.data)
+            % channel labels
+            chns = info.desc().append_child('channels');
+            for label = {handles.chanlocs{min(stream_ind, length(buffer.data) - 1)}.labels}
+                ch = chns.append_child('channel');
+                ch.append_child_value('label',label{1});
+                ch.append_child_value('unit','microvolts');
+                ch.append_child_value('type','EEG');
+            end
+        end
     elseif stream_ind <= length(buffer.data) + 3
         info = lsl_streaminfo(lib, stream_name, ...
             'Parameters', size(buffer.data{end}, 1)^2, ...
@@ -45,8 +55,6 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
         info = lsl_streaminfo(lib, stream_name, ...
             'Convergence', 1, handles.srate, 'cf_float32', uid);
     end
-    
-    % TODO: info.desc()
 
     % create an outlet
     outlet = lsl_outlet(info);
