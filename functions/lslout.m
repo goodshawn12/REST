@@ -47,9 +47,9 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
                 ch.append_child_value('type','EEG');
             end
         end
-    elseif stream_ind <= length(buffer.data) + 3
+    elseif stream_ind == length(buffer.data) + 2
         info = lsl_streaminfo(lib, stream_name, ...
-            'Parameters', size(buffer.data{end}, 1)^2, ...
+            'Parameters', 2 * size(buffer.data{end}, 1)^2, ...
             [], 'cf_double64', uid);
     else
         info = lsl_streaminfo(lib, stream_name, ...
@@ -115,17 +115,11 @@ end
                 
             % if icasphere
             elseif stream_ind == size(zbuffer.data, 1) + 2
-%                 if zbuffer.ica.smax > smax_local
-                    chunk = zbuffer.ica.icasphere(:);
-%                 end
-            % if icaweights
-            elseif stream_ind == size(zbuffer.data, 1) + 3
-%                 if zbuffer.ica.smax > smax_local
-                    chunk = zbuffer.ica.icaweights(:);
-%                 end
+                    chunk = [zbuffer.ica.icasphere(:); ...
+                             zbuffer.ica.icaweights(:)];
                 
             % if normRn
-            elseif stream_ind == size(zbuffer.data, 1) + 4
+            elseif stream_ind == size(zbuffer.data, 1) + 3
                 chunk = zbuffer.ica.normRn(:, mod((smax_local + 1:zbuffer.smax) - 1, zbuffer.pnts) + 1);
                 
             % otherwise use data directly from buffer

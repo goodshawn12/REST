@@ -893,7 +893,7 @@ end
 guidata(hObject, handles);
 
 % stream selector
-options = [get(handles.popupmenuEEG,'String'); 'ICA Sphere'; 'ICA Weights'; 'Nonstationary Index'];
+options = [get(handles.popupmenuEEG,'String'); 'ICA Parameters'; 'Nonstationary Index'];
 hstream = uicontrol('style', 'popupmenu', 'string', options, ...
     'units', 'normalized', 'Position', [0.05 0.5 .4 .2]);
 % stream selector label
