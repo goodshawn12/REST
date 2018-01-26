@@ -193,6 +193,26 @@ if any(strcmp(funsstr,'flt_reref'))
         removed = [removed eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}'])];
     end
 end
+
+% removed = cell(length(funsstr), 1);
+% % from flt_selchans
+% for it = find(strcmp(funsstr,'flt_selchans'))
+%     numparts = length(funsstr) - it;
+%     removed{it} = eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}']);
+% end
+% % from flt_reref
+% for it = find(strcmp(funsstr,'flt_reref'))
+%     numparts = length(funsstr) - it;
+%     if ~eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{8}']);
+%         removed{it} = eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}']);
+%     end
+% end
+% 
+% handles.urchanlocs = handles.chanlocs;
+% for it = 1:length(removed)
+%     
+% end
+
 if ~isempty(removed)
     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
     
@@ -857,7 +877,8 @@ end
 guidata(hObject, handles);
 
 % stream selector
-hstream = uicontrol('style', 'popupmenu', 'string', get(handles.popupmenuEEG,'String'), ...
+options = [get(handles.popupmenuEEG,'String'); 'ICA Sphere'; 'ICA Weights'; 'Nonstationary Index'];
+hstream = uicontrol('style', 'popupmenu', 'string', options, ...
     'units', 'normalized', 'Position', [0.05 0.5 .4 .2]);
 % stream selector label
 uicontrol('style', 'text', 'string', {'Select data stream';'to broadcast'}, 'BackgroundColor', handles.color_bg, ...

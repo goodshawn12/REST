@@ -20,27 +20,40 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
 
     % try to calculate a UID for the stream
     try
-        uid = '';
+        uid = ['lsl_REST_' num2str(stream_ind) '_' stream_name];
 %         uid = hlp_cryptohash({button, evnt, hfig, hstream, hname});
     catch e
         disp('Could not generate a unique ID for the predictive model; the BCI stream will not be recovered automatically after the provider system had a crash.');
         hlp_handleerror(e);
         uid = '';
     end
+    
+    % load buffer
+    buffer = evalin('base', handles.bufferName);
 
     % describe the stream
     disp('Creating a new streaminfo...');
-    info = lsl_streaminfo(lib, stream_name, 'EEG',length(handles.chanlocs), handles.srate, 'cf_float32', uid);
+    if stream_ind <= length(buffer.data) + 1
+        info = lsl_streaminfo(lib, stream_name, ...
+            'EEG', size(buffer.data{stream_ind}, 1), ...
+            handles.srate, 'cf_float32', uid);
+    elseif stream_ind <= length(buffer.data) + 3
+        info = lsl_streaminfo(lib, stream_name, ...
+            'Parameters', size(buffer.data{end}, 1)^2, ...
+            [], 'cf_double64', uid);
+    else
+        info = lsl_streaminfo(lib, stream_name, ...
+            'Convergence', 1, handles.srate, 'cf_float32', uid);
+    end
+    
+    % TODO: info.desc()
 
     % create an outlet
     outlet = lsl_outlet(info);
 
-    % sample after which data will be transmitted
-    smax = evalin('base', [handles.bufferName '.smax']);
-
     % create timer
     lsloutTimer = timer('ExecutionMode','fixedRate', 'Name',[stream_name '_timer'], 'Period',1/20, ...
-        'StartDelay', 0, 'TimerFcn', @send_samples, 'UserData', smax);
+        'StartDelay', 0, 'TimerFcn', @send_samples, 'UserData', buffer.smax);
     
     % save timer and set delButtonFcn
     set(button, 'UserData', lsloutTimer, 'DeleteFcn', @delButtonFcn);
@@ -71,7 +84,7 @@ end
         zhandles = guidata(hfig);
         
         % load buffer
-        buffer = evalin('base', zhandles.bufferName);
+        zbuffer = evalin('base', zhandles.bufferName);
         
         % load smax
         smax_local = get(varargin{1}, 'UserData');
@@ -80,27 +93,43 @@ end
 %         if isempty(smax_local)
 %             smax_local = smax;
 %         end
-        if buffer.smax > smax_local
+        if zbuffer.smax > smax_local
 
-            % determine time
+            % determine time labels for output stream
             % ???
 
             % if ica_cleaned, generate data from ica buffer
-            if stream_ind > size(buffer.data, 1)
+            if stream_ind == size(zbuffer.data, 1) + 1
                 p = evalin('base', 'pipeline');
                 ind = setdiff(1:length(p.state.icaweights), zhandles.reject);
                 Winv = (p.state.icasphere \ p.state.icaweights');
-                chunk =  Winv(:, ind) * buffer.data{end}(ind, mod((smax_local + 1:buffer.smax) - 1, buffer.pnts) + 1);
+                chunk =  Winv(:, ind) * zbuffer.data{end}(ind, mod((smax_local + 1:zbuffer.smax) - 1, zbuffer.pnts) + 1);
+                
+            % if icasphere
+            elseif stream_ind == size(zbuffer.data, 1) + 2
+%                 if zbuffer.ica.smax > smax_local
+                    chunk = zbuffer.ica.icasphere(:);
+%                 end
+            % if icaweights
+            elseif stream_ind == size(zbuffer.data, 1) + 3
+%                 if zbuffer.ica.smax > smax_local
+                    chunk = zbuffer.ica.icaweights(:);
+%                 end
+                
+            % if normRn
+            elseif stream_ind == size(zbuffer.data, 1) + 4
+                chunk = zbuffer.ica.normRn(:, mod((smax_local + 1:zbuffer.smax) - 1, zbuffer.pnts) + 1);
+                
             % otherwise use data directly from buffer
             else
-                chunk = buffer.data{stream_ind}(:, mod((smax_local + 1:buffer.smax) - 1, buffer.pnts) + 1);
+                chunk = zbuffer.data{stream_ind}(:, mod((smax_local + 1:zbuffer.smax) - 1, zbuffer.pnts) + 1);
             end
 
             % push samples
             outlet.push_chunk(chunk)
 
             % adjust smax
-            set(varargin{1}, 'UserData', buffer.smax);
+            set(varargin{1}, 'UserData', zbuffer.smax);
         end
     end
     

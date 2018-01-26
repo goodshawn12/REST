@@ -220,7 +220,7 @@ end
                 count = length(stream.data);
                 index = [];
                 while true
-                    if ~isequal(pipeline.head,@flt_clean_channels) && ~isequal(pipeline.head,@flt_selchans)
+                    if ~isequal(pipeline.head,@flt_clean_channels) && ~isequal(pipeline.head, @flt_selchans)
                         try
                             pipeline = pipeline.parts{2}; % !!! make this more general
                             count = count-1;

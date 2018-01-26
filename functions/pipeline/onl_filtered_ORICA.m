@@ -79,23 +79,39 @@ if ~isvarname(stream_name), stream_name = stream_name(~isspace(stream_name)); en
 buffername = ['lsl_' stream_name '_stream'];
 buffer = evalin('base',buffername);
 try
-    % save data to buffer
-    strin = '] = deal(buffer.smax + size(p.out,2),';
-    strout = '[buffer.smax,';
-    [strin,strout] = build_command(p,0,[],strin,strout,'buffer',false);
-    eval([strout(1:end-1) strin(1:end-1) ');']);
-catch e
-    % reformat buffer: !!! this won't work if we're adding back in channels or if channles are removed later on
-    [strin,strout] = build_command(p,0,[],'] = deal(','[','buffer',true);
-    eval([strout(1:end-1) strin(1:end-1) ');']);
-    for it = 1:length(t)
-        buffer.data{it}(t(it)+1:end,:) = []; end
+    % ica parameters
+    buffer.ica.icasphere = p.state.icasphere;
+    buffer.ica.icaweights = p.state.icaweights;
+    buffer.ica.normRn(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)) = p.state.normRn;
     
     % save data to buffer
     strin = '] = deal(buffer.smax + size(p.out,2),';
     strout = '[buffer.smax,';
     [strin,strout] = build_command(p,0,[],strin,strout,'buffer',false);
     eval([strout(1:end-1) strin(1:end-1) ');']);
+    
+catch e
+    
+    % reformat buffer: !!! this won't work if we're adding back in channels or if channles are removed later on
+    [strin,strout] = build_command(p,0,[],'] = deal(','[','buffer',true);
+    eval([strout(1:end-1) strin(1:end-1) ');']);
+    for it = 1:length(t)
+        buffer.data{it}(t(it)+1:end,:) = []; end
+    
+    % create ica buffer
+    buffer.ica.normRn = zeros(1, size(buffer.data{1}, 2));
+    
+    % save ica data to buffer
+    buffer.ica.icasphere = p.state.icasphere;
+    buffer.ica.icaweights = p.state.icaweights;
+    buffer.ica.normRn(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)) = p.state.normRn;
+    
+    % save data to buffer
+    strin = '] = deal(buffer.smax + size(p.out,2),';
+    strout = '[buffer.smax,';
+    [strin,strout] = build_command(p,0,[],strin,strout,'buffer',false);
+    eval([strout(1:end-1) strin(1:end-1) ');']);
+    
 end
 
 % save buffer
