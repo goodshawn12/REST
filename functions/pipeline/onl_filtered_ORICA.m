@@ -78,6 +78,10 @@ end
 if ~isvarname(stream_name), stream_name = stream_name(~isspace(stream_name)); end
 buffername = ['lsl_' stream_name '_stream'];
 buffer = evalin('base',buffername);
+
+% time
+buffer.timestamp = lsl_local_clock(buffer.lsllib);
+
 try
     % ica parameters
     buffer.ica.icasphere = p.state.icasphere;
@@ -91,7 +95,6 @@ try
     eval([strout(1:end-1) strin(1:end-1) ');']);
     
 catch e
-    
     % reformat buffer: !!! this won't work if we're adding back in channels or if channles are removed later on
     [strin,strout] = build_command(p,0,[],'] = deal(','[','buffer',true);
     eval([strout(1:end-1) strin(1:end-1) ');']);

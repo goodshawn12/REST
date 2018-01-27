@@ -108,6 +108,9 @@ handles.ffts = cell(1,handles.ntopo);
 handles.psdInds = cell(1,handles.ntopo);
 handles.psdLine = cell(1,handles.ntopo);
 
+% load lsl library
+handles.lsllib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
+
 % !!! TODO: consolidate all methods into a single field in handles
 % Set eyeCatch parameters
 handles.eyeCatch.lib = [];          % store eyeCatch library
@@ -173,8 +176,11 @@ for it = 2:length(funs)
         funnames{it-1} = funnames{it-1}{1}; end
 end
 set(handles.popupmenuEEG,'String',['Raw Data'; funnames; 'ICA Cleaned'])
+
+% update buffer
 buffer = evalin('base',handles.bufferName);
 buffer.funs = funs;
+buffer.lsllib = handles.lsllib;
 assignin('base',handles.bufferName,buffer);
 
 % Find if channels have been removed
@@ -338,8 +344,7 @@ if isfield(in{1},'playback') && in{1}.playback
         'REST: You must provide data to playback.')
     OMIT_MARKERS = true;
     % find existing streams
-    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
-    streams = lsl_resolve_all(lib,0.1);
+    streams = lsl_resolve_all(handles.lsllib,0.1);
     streamnames = cellfun(@(s)s.name(),streams ,'UniformOutput',false)';
     ind = 1;
     while any(strcmp(['REST_playback_data' num2str(ind)], streamnames)) ...
@@ -505,18 +510,9 @@ end
 
 function handles = startup_initializeORICA(handles,calibration_data,config)
 
-% load LSL
-if ~exist('env_translatepath','file')
-    % standalone case
-    lib = lsl_loadlib();
-else
-    % if we're within BCILAB we want to make sure that the library is also found if the toolbox is compiled
-    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
-end
-
 % find streams
 if ~isfield(handles, 'streamName')
-    streams = lsl_resolve_all(lib,0.1);
+    streams = lsl_resolve_all(handles.lsllib,0.1);
     streamnames = cellfun(@(s)s.name(),streams ,'UniformOutput',false);
     if isempty(streamnames)
         error('There is no stream visible on the network.');

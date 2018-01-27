@@ -1,10 +1,7 @@
 % largely drawn from run_readlsl of BCILAB
 function lslin(handles)
-% load lsl
-lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
-
 % find stream
-result = lsl_resolve_bypred(lib, ['name=''' handles.streamName '''']);
+result = lsl_resolve_bypred(handles.lsllib, ['name=''' handles.streamName '''']);
 
 % open inlet 
 inlet = lsl_inlet(result{1});
