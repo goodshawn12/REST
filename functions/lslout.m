@@ -14,9 +14,6 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
     handles = guidata(hfig);
     stream_name = get(hname, 'string');
     stream_ind = get(hstream, 'value');
-    
-    % load lsl library
-    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
 
     % try to calculate a UID for the stream
     try
@@ -34,7 +31,7 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
     % describe the stream
     disp('Creating a new streaminfo...');
     if stream_ind <= length(buffer.data) + 1
-        info = lsl_streaminfo(lib, stream_name, ...
+        info = lsl_streaminfo(handles.lsllib, stream_name, ...
             'EEG', size(buffer.data{min(stream_ind, length(buffer.data) - 1)}, 1), ...
             handles.srate, 'cf_float32', uid);
         if stream_ind ~= length(buffer.data)
@@ -48,11 +45,11 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
             end
         end
     elseif stream_ind == length(buffer.data) + 2
-        info = lsl_streaminfo(lib, stream_name, ...
+        info = lsl_streaminfo(handles.lsllib, stream_name, ...
             'Parameters', 2 * size(buffer.data{end}, 1)^2, ...
             [], 'cf_double64', uid);
     else
-        info = lsl_streaminfo(lib, stream_name, ...
+        info = lsl_streaminfo(handles.lsllib, stream_name, ...
             'Convergence', 1, handles.srate, 'cf_float32', uid);
     end
 
@@ -128,7 +125,7 @@ end
             end
 
             % push samples
-            outlet.push_chunk(chunk)
+            outlet.push_chunk(chunk, zbuffer.timestamp)
 
             % adjust smax
             set(varargin{1}, 'UserData', zbuffer.smax);
