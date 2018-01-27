@@ -218,7 +218,7 @@ for it = 1:length(removed)
     end
 end
 if ~all(cellfun(@isempty, removed))
-    handles.nic = length(handles.chanlocs);
+    handles.nic = length(handles.chanlocs{end});
     handles.ics = 1:handles.nic;
     if isfield(handles,'headModel')
         % adjust headModel
@@ -1384,7 +1384,7 @@ if handles.eyeCatch.active
     cfg_file = 'eyecatch.cfg';
     name = 'EyeCatch';
     field = 'eyeCatch';
-elseif handles.ICMARC.active;
+elseif handles.ICMARC.active
     cfg_file = 'icmarc.cfg';
     name = 'IC_MARC';
     field = 'ICMARC';
