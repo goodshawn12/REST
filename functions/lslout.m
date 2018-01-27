@@ -12,8 +12,10 @@ if strcmp(get(button, 'string'), 'Start Broadcast')
     
     % set values
     handles = guidata(hfig);
-    stream_name = get(hname, 'string');
     stream_ind = get(hstream, 'value');
+    stream_name = get(hname, 'string');
+    if isempty(stream_name)
+        stream_name = ['REST_stream_' num2str(stream_ind)]; end
 
     % try to calculate a UID for the stream
     try
