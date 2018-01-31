@@ -593,6 +593,8 @@ if isempty(calibration_data)
     disp('Collecting calibration data from online stream... please wait 10 seconds...');
     pause(10-toc);
     calibration_data = onl_peek(opts.lsl.StreamName,10,'seconds');
+else
+    flush = true;
 end
 
 % check for bad channels
@@ -603,6 +605,11 @@ cleaned_data = exp_eval(flt_pipeline('signal',calibration_data,fltPipCfg));
 
 % initialize the pipeline for streaming data
 pipeline     = onl_newpipeline(cleaned_data,opts.lsl.StreamName);
+if flush
+    [~, pipeline] = onl_filtered(pipeline, 6);
+    pipeline.state.icasphere = cleaned_data.icasphere;
+    pipeline.state.icaweights = cleaned_data.icaweights;
+end
 assignin('base','pipeline',pipeline);
 end
 

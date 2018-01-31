@@ -186,7 +186,7 @@ end
                     if plot_content==length(stream.data) % plotting ORICA results
                         % find scaling factor to match average channel and component stds
                         state = evalin('base','pipeline.state');
-                        chanvar = mean(sqrt(diag(state.icasphere \ diag(state.Var) / state.icasphere')));
+                        chanvar = median(sqrt(svd(state.icasphere \ diag(state.Var) / state.icasphere')));
                         scale_factor = mean(sqrt(state.Var)) / chanvar;
                         % change datascale (this is not saved)
                         stream.opts.datascale = stream.opts.datascale * scale_factor;
