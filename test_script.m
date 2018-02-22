@@ -1,6 +1,6 @@
 %% Test REST (go to 'REST' folder)
 %% set path and initialize bcilab
-rest_path = '/data/projects/Luca/REST/REST';
+rest_path = './';
 bcilab_path = which('bcilab.m');
 if isempty(bcilab_path)
     current_path = pwd;
