@@ -141,7 +141,7 @@ warning(w);
 netStruct = load(fullfile(handles.rest_path, 'dependencies', 'ICL', 'netICL.mat'));
 handles.ICLabel.net = dagnn.DagNN.loadobj(netStruct);
 clear netStruct;
-handles.ICLabel.classLabel = {'Brain', 'Muscle', 'Eye', 'heart', 'Line Noise', 'Channel Noise', 'Other'};
+handles.ICLabel.classLabel = {'Brain', 'Muscle', 'Eye', 'Heart', 'Line Noise', 'Chan Noise', 'Other'};
 handles.ICLabel.active = 0;
 
 fid = fopen(fullfile(handles.rest_path, 'data', 'icclass', 'iclabel_original.cfg'));
@@ -2005,17 +2005,17 @@ if isempty(icnum)
 else
     icnum = mod(icnum, handles.nic) + 1;
 end
+    
+% load ICA matrices
+W = evalin('base','pipeline.state.icaweights');
+sphere = evalin('base','pipeline.state.icasphere');
+Winv = sphere\W';
 
 % find which classifier is active
 if handles.eyeCatch.active
     field = 'eyeCatch';
-    if ~isfield(handles.eyeCatch, 'classifications')
-        handles.eyeCatch.classification = zeros(handles.nic, 1); end
-    
-    % load ICA matrices
-    W = evalin('base','pipeline.state.icaweights');
-    sphere = evalin('base','pipeline.state.icasphere');
-    Winv = sphere\W';
+%     if ~isfield(handles.eyeCatch, 'classifications')
+%         handles.eyeCatch.classification = zeros(handles.nic, 1); end
     
     % run eyeCatch
     map = zeros(handles.topoNPixel, 1);
@@ -2025,25 +2025,61 @@ if handles.eyeCatch.active
     [class] = runEyeCatch(handles.eyeCatch.lib,map, handles.eyeCatch.thres);
     class = ~class + 1;
     
-    % save results
-    handles.eyeCatch.classification(icnum) = class;
-    guidata(hfigure, handles)
-    
-    % apply result
-    if handles.eyeCatch.reject(class) && ~ismember(icnum, handles.reject)
-        rejectIC([], [], icnum, hfigure)
-    elseif ~handles.eyeCatch.reject(class) && ismember(icnum, handles.reject)
-        rejectIC([], [], icnum, hfigure)
-    end
-    if handles.eyeCatch.lock(class) && ~ismember(icnum, handles.lock)
-        lockIC([], [], icnum, hfigure)
-    elseif ~handles.eyeCatch.lock(class) && ismember(icnum, handles.lock)
-        lockIC([], [], icnum, hfigure)
-    end
-    
 elseif handles.ICMARC.active;
     field = 'ICMARC';
+    class = runIcMarc(handles.ICMARC.model, Winv(:,icnum), ...
+        handles.chanlocs{end}, handles.ICMARC.virtual_chanlocs, handles.ICMARC.cdn_m);
+
+elseif handles.ICLabel.active;
+    field = 'ICLabel';
+    
+%     if ~isfield(handles.ICLabel, 'classifications')
+%         handles.ICLabel.classification = zeros(handles.nic, 1); end
+    
+    % scalp maps
+    map = zeros(handles.topoNPixel, 1);
+    map(~handles.topoNaNMask) = handles.topoMat * Winv(:, icnum);
+    map = reshape(map, sqrt(handles.topoNPixel),[]);
+    images = 0.99 * map / max(abs(vec(map)));
+    images(isnan(images)) = 0;
+    
+    % psds
+    handles = updatePSD(handles, icnum);
+    psds = mean(db(abs(handles.psd.ffts{icnum})), 2);
+    nfreq = size(psds, 1);
+    if nfreq > 100
+        psds(101:end) = [];
+    elseif nfreq < 100
+        psds = [psds; repmat(psds(end), 100 - nfreq, 1)];
+    end
+    psds = 0.99 * psds' / max(abs(psds));
+    
+    % labels
+    handles.ICLabel.net.eval({
+            'in_image', single(images), ...
+            'in_psdmed', single(psds)
+    });
+    predprob = handles.ICLabel.net.getVar(handles.ICLabel.net.getOutputs()).value;
+    [~, class] = max(predprob);
+    
 end
+
+% save results
+handles.(field).classification(icnum) = class;
+guidata(hfigure, handles)
+
+% apply result
+if handles.(field).reject(class) && ~ismember(icnum, handles.reject)
+    rejectIC([], [], icnum, hfigure)
+elseif ~handles.(field).reject(class) && ismember(icnum, handles.reject)
+    rejectIC([], [], icnum, hfigure)
+end
+if handles.(field).lock(class) && ~ismember(icnum, handles.lock)
+    lockIC([], [], icnum, hfigure)
+elseif ~handles.(field).lock(class) && ismember(icnum, handles.lock)
+    lockIC([], [], icnum, hfigure)
+end
+
 end
 
 
