@@ -96,18 +96,6 @@ handles.color_reject = [1 0.5 0.5];
 handles.classCounter = 0;                   % counter for updating label
 handles.classUpdateFreq = 1; % handles.ntopo+1;  % frequency for updating label
 
-% Set PSD parameters
-sec2samp = 5;
-sec4fft = 0.5;
-overlap = 0.5;
-fmax = 45;
-nwindows = floor((sec2samp / sec4fft - 1) / (1 - overlap)) + 1;
-handles.psd = struct('curIC', 1:handles.ntopo, 'nwindows', nwindows, ...
-    'sec2samp', sec2samp, 'sec4fft', sec4fft, 'overlap', overlap, 'fmax', fmax);
-handles.ffts = cell(1,handles.ntopo);
-handles.psdInds = cell(1,handles.ntopo);
-handles.psdLine = cell(1,handles.ntopo);
-
 % load lsl library
 handles.lsllib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
 
@@ -138,11 +126,32 @@ handles.ICMARC.active = 0;
 fid = fopen(fullfile(handles.rest_path, 'data', 'icclass', 'icmarc_original.cfg'));
 cfg = textscan(fid, '%s %f %f');
 fclose(fid);
-handles.ICMARC.lock = find(cfg{2});
-handles.ICMARC.reject= find(cfg{3});
+handles.ICMARC.lock = cfg{2};
+handles.ICMARC.reject = cfg{3};
 if ~exist(fullfile(handles.rest_path, 'data', 'icclass', 'icmarc.cfg'), 'var')
     copyfile(fullfile(handles.rest_path, 'data', 'icclass', 'icmarc_original.cfg'), ...
         fullfile(handles.rest_path, 'data', 'icclass', 'icmarc.cfg'));
+end
+
+% ICLabel parameters
+w = warning;
+warning('off', 'all');
+vl_setupnn
+warning(w);
+netStruct = load(fullfile(handles.rest_path, 'dependencies', 'ICL', 'netICL.mat'));
+handles.ICLabel.net = dagnn.DagNN.loadobj(netStruct);
+clear netStruct;
+handles.ICLabel.classLabel = {'Brain', 'Muscle', 'Eye', 'heart', 'Line Noise', 'Channel Noise', 'Other'};
+handles.ICLabel.active = 0;
+
+fid = fopen(fullfile(handles.rest_path, 'data', 'icclass', 'iclabel_original.cfg'));
+cfg = textscan(fid, '%s %f %f');
+fclose(fid);
+handles.ICLabel.lock = cfg{2};
+handles.ICLabel.reject = cfg{3};
+if ~exist(fullfile(handles.rest_path, 'data', 'icclass', 'iclabel.cfg'), 'var')
+    copyfile(fullfile(handles.rest_path, 'data', 'icclass', 'iclabel_original.cfg'), ...
+        fullfile(handles.rest_path, 'data', 'icclass', 'iclabel.cfg'));
 end
 
 % instantiate IC classification time
@@ -235,26 +244,18 @@ if ~all(cellfun(@isempty, removed))
     end
 end
 
-% if ~isempty(removed)
-%     handles.rmchan_index = ismember({handles.chanlocs.labels},removed);
-%     
-%     % adjust chanlocs
-%     handles.urchanlocs = handles.chanlocs;
-%     handles.chanlocs(handles.rmchan_index) = [];
-%     handles.nic = length(handles.chanlocs);
-%     handles.ics = 1:handles.nic;
-%     
-%     if isfield(handles,'headModel')
-%         % adjust headModel
-%         handles.urheadModel = handles.headModel;
-%         rm_ind = ismember(handles.headModel.channelLabel, removed);
-%         handles.headModel.dropChannels(rm_ind); % !!! had to change the headModel contructor
-%         handles.K(rm_ind ,:) = [];
-%         %     LFM = load(handles.headModel.leadFieldFile);
-%         %     LFM.K(handles.rmchan_index,:) = [];
-%         %     save(handles.headModel.leadFieldFile,'-struct','LFM')
-%     end
-% end
+% Set PSD parameters
+sec2samp = 5;
+sec4fft = 0.5;
+overlap = 0.5;
+fmax = 45;
+nwindows = floor((sec2samp / sec4fft - 1) / (1 - overlap)) + 1;
+winlen = round(handles.srate * sec4fft);
+handles.psd = struct('nwindows', nwindows, 'sec2samp', sec2samp, ...
+    'sec4fft', sec4fft, 'overlap', overlap, 'fmax', fmax, ...
+    'winlen', winlen, 'window', hanning(winlen), ...
+    'ffts', {cell(1,handles.nic)}, 'winds', {cell(1,handles.nic)}, ...
+    'lines', {cell(1,handles.ntopo)});
 
 % Populate scalp maps
 for it = 1:handles.ntopo
@@ -446,6 +447,8 @@ if isfield(in{1},'modIcMarc')
     handles.ICMARC.model = in{1}.modIcMarc;
     listClassifier{end+1} = 'IC_MARC';
 end
+
+listClassifier{end+1} = 'ICLabel';
 
 % set popupmenu list 
 set(handles.popupmenuICclassifier,'String',listClassifier);
@@ -663,37 +666,63 @@ try %#ok<*TRYNC>
 % load handles
 handles = guidata(varargin{3});
 
+% update index
+it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
+ic = handles.ics(it);
+hstr = ['axisInfo' int2str(it)];
+
+% update psd estimate
+handles = updatePSD(handles, ic);
+psd = db(mean(handles.psd.ffts{ic}, 2));
+nfreq = size(psd, 1);
+if nfreq > handles.psd.fmax
+    psd(handles.psd.fmax + 1:end) = [];
+elseif nfreq < handles.psd.fmax
+    psd = [psd; repmat(psd(end), handles.psd.fmax - nfreq, 1)];
+end
+
+% update plot
+if isempty(handles.psd.lines{it}) || ~isgraphics(handles.psd.lines{it})
+    handles.psd.lines{it} = plot(handles.(hstr), ...
+        1:handles.psd.fmax, psd);
+    grid(handles.(hstr),'on');
+    xlabel(handles.(hstr),'Frequency (Hz)')
+    ylabel(handles.(hstr),'Power/Frequency (dB/Hz)')
+    axis(handles.(hstr),'tight')
+    set(handles.(hstr),'XTick',[0 10:10:handles.psd.fmax])
+    set(handles.(hstr),'fontsize',7);
+else
+    set(handles.psd.lines{it}, 'YData', psd)
+    axis(handles.(hstr),'tight')
+    set(handles.(hstr),'XTick',[0 10:10:handles.psd.fmax])
+end
+
+% save handles
+guidata(varargin{3}, handles)
+end
+end
+
+
+function handles = updatePSD(handles, ic)
 % load buffer
 buffer = evalin('base',handles.bufferName);
 
-% update index
-it = mod(get(varargin{1},'TasksExecuted')-1,handles.ntopo)+1;
-hstr = ['axisInfo' int2str(it)];
-
 % clear old or invalid fft estimates
-% !!! compute whenever the order is switched, could be optimized
-if handles.ics(it) ~= handles.psd.curIC(it)
-    handles.ffts{it} = [];
-    handles.psdInds{it} = [];
-    handles.psd.curIC(it) = handles.ics(it);
-else
-    delete_ind = handles.psdInds{it} < buffer.smax - handles.psd.sec2samp * buffer.srate;
-    if ~isempty(handles.ffts{it}) && ~isempty(handles.psdInds{it})
-        handles.ffts{it}(:, delete_ind) = [];
-        handles.psdInds{it}(:, delete_ind) = [];
-    end
+delete_ind = handles.psd.winds{ic} < buffer.smax - handles.psd.sec2samp * buffer.srate;
+if ~isempty(handles.psd.ffts{ic}) && ~isempty(handles.psd.winds{ic})
+    handles.psd.ffts{ic}(:, delete_ind) = [];
+    handles.psd.winds{ic}(:, delete_ind) = [];
 end
 
 % get indices for data windows
-winlen = round(buffer.srate * handles.psd.sec4fft);
 winspacing = round(buffer.srate * handles.psd.sec4fft * (1 - handles.psd.overlap));
-if isempty(handles.psdInds{it})
+if isempty(handles.psd.winds{ic})
     % calculate all fft windows starting at current time
-    ind =  max(1, buffer.smax - buffer.srate * handles.psd.sec2samp + 1):winspacing:max(1, buffer.smax + 1 - winlen);
+    ind =  max(1, buffer.smax - buffer.srate * handles.psd.sec2samp + 1):winspacing:max(1, buffer.smax + 1 - handles.psd.winlen);
 else
     % calculate missing windows
-    lastind = max(handles.psdInds{it});
-    ind = lastind + winspacing:winspacing:buffer.smax - winlen + 1;
+    lastind = max(handles.psd.winds{ic});
+    ind = lastind + winspacing:winspacing:buffer.smax - handles.psd.winlen + 1;
 end
 
 if ~isempty(ind)
@@ -702,34 +731,14 @@ if ~isempty(ind)
     sphere = evalin('base','pipeline.state.icasphere');
     
     % calculate ffts
-    window = hanning(winlen);
-    fftest = arrayfun(@(val) (W(handles.psd.curIC(it),:) * sphere * buffer.data{end}(:, mod((val:val + winlen - 1) - 1, buffer.pnts) + 1)), ...
+    fftest = arrayfun(@(val) (W(ic,:) * sphere * buffer.data{end}(:, mod((val:val + handles.psd.winlen - 1) - 1, buffer.pnts) + 1)), ...
         ind, 'uniformoutput', 0);
-    fftest = fft(bsxfun(@times, cat(1, fftest{:})', window), buffer.srate);
-    fftest = abs(fftest(2:min(ceil((buffer.srate + 1) / 2), handles.psd.fmax + 1), :));
+    fftest = fft(bsxfun(@times, cat(1, fftest{:})', handles.psd.window), buffer.srate);
+    fftest = abs(fftest(2:buffer.srate / 2 + 1, :));
 
-    handles.ffts{it} = [handles.ffts{it} fftest];
-    handles.psdInds{it} = [handles.psdInds{it} ind];
-    
-    % update plot
-    if isempty(handles.psdLine{it}) || ~isgraphics(handles.psdLine{it})
-        handles.psdLine{it} = plot(handles.(hstr), ...
-            1:size(handles.ffts{it}, 1), db(mean(handles.ffts{it}, 2)));
-        grid(handles.(hstr),'on');
-        xlabel(handles.(hstr),'Frequency (Hz)')
-        ylabel(handles.(hstr),'Power/Frequency (dB/Hz)')
-        axis(handles.(hstr),'tight')
-        set(handles.(hstr),'XTick',[0 10:10:size(handles.ffts{it}, 1)])
-        set(handles.(hstr),'fontsize',7);
-    else
-        set(handles.psdLine{it}, 'YData', db(mean(handles.ffts{it}, 2)))
-        axis(handles.(hstr),'tight')
-        set(handles.(hstr),'XTick',[0 10:10:size(handles.ffts{it}, 1)])
-    end
-    
-    % save handles
-    guidata(varargin{3}, handles)
-end
+    % save to handles
+    handles.psd.ffts{ic} = [handles.psd.ffts{ic} fftest];
+    handles.psd.winds{ic} = [handles.psd.winds{ic} ind];
 end
 end
 
@@ -827,6 +836,47 @@ if ~isempty(handles.ICMARC.model) && handles.ICMARC.active
         handles.classCounter = handles.classCounter+1;
     end
 end
+
+% run ICLabel if it is selected and its library is loaded
+if ~isempty(handles.ICLabel.net) && handles.ICLabel.active
+    if mod(handles.classCounter,handles.classUpdateFreq) == 0
+        % scalp maps
+        images = 0.99 * map / max(abs(vec(map)));
+        images(isnan(images)) = 0;
+        % psds
+        handles = updatePSD(handles, handles.ics(it));
+        psds = mean(db(abs(handles.psd.ffts{handles.ics(it)})), 2);
+        nfreq = size(psds, 1);
+        if nfreq > 100
+            psds(101:end) = [];
+        elseif nfreq < 100
+            psds = [psds; repmat(psds(end), 100 - nfreq, 1)];
+        end
+        psds = 0.99 * psds' / max(abs(psds));
+        % labels
+        handles.ICLabel.net.eval({
+                'in_image', single(images), ...
+                'in_psdmed', single(psds)
+        });
+    
+        predprob = handles.ICLabel.net.getVar(handles.ICLabel.net.getOutputs()).value;
+        [~, predclass] = max(predprob);
+        label = handles.ICLabel.classLabel{predclass};
+    
+        set(handles.(['textICLabel' int2str(it)]),'String', label, ...
+            'TooltipString',sprintf(['Brain: ' num2str(predprob(1)) ...
+                                     '\nMuscle: ' num2str(predprob(2)) ...
+                                     '\nEye: ' num2str(predprob(3)) ...
+                                     '\nHeart: ' num2str(predprob(4)) ...
+                                     '\nLine Noise: ' num2str(predprob(5)) ...
+                                     '\nChannel Noise: ' num2str(predprob(6)) ...
+                                     '\nOther: ' num2str(predprob(7))]));
+        handles.classCounter = 1;
+    else
+        handles.classCounter = handles.classCounter+1;
+    end
+end
+% TODO: calculate all psds instead of just 5 active, feed 
 
 % save handles
 guidata(varargin{3}, handles)
@@ -1350,9 +1400,15 @@ switch str{val}
     case 'EyeCatch'
         handles.eyeCatch.active = 1;
         handles.ICMARC.active = 0;
+        handles.ICLabel.active = 0;
     case 'IC_MARC'
         handles.eyeCatch.active = 0;
         handles.ICMARC.active = 1;
+        handles.ICLabel.active = 0;
+    case 'ICLabel'
+        handles.eyeCatch.active = 0;
+        handles.ICMARC.active = 0;
+        handles.ICLabel.active = 1;
 end
 
 % save handles
@@ -1391,6 +1447,10 @@ elseif handles.ICMARC.active
     cfg_file = 'icmarc.cfg';
     name = 'IC_MARC';
     field = 'ICMARC';
+elseif handles.ICLabel.active
+    cfg_file = 'iclabel.cfg';
+    name = 'ICLabel';
+    field = 'ICLabel';
 end
 
 % load default settings
