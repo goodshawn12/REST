@@ -16,7 +16,8 @@ REST provides an easy-to-use and interactive platform to perform source-space an
 
 
 ### Video Tutorials
-There are some video primers on how to use REST available on YouTube. The (first video)[https://www.youtube.com/watch?v=W5mAAS0xxio] is an overview of the layout and basic features of REST. The (second video)[https://www.youtube.com/watch?v=Ud2XNQy1FkE] is an example of how to use REST for real-time eye-component rejection. More videos may come.
+New Video of REST(2.0) for Real-time Automatic Artifact Rejection! [https://www.youtube.com/watch?v=N3N-rHWexIs].
+Previous demo videos: The (first video)[https://www.youtube.com/watch?v=W5mAAS0xxio] is an overview of the layout and basic features of REST. The (second video)[https://www.youtube.com/watch?v=Ud2XNQy1FkE] is an example of how to use REST for real-time eye-component rejection.
 
 
 ### Files description:
@@ -37,8 +38,10 @@ There are some video primers on how to use REST available on YouTube. The (first
 
 
 ### References
-[1] L. Pion-Tonachini, S.-H. Hsu, S. Makeig, T.-P. Jung, G. Cauwenberghs, "Real-Time EEG Source-Mapping Toolbox (REST): Online ICA and Source Localization," in *IEEE EMBS*, 2015.
+[1] L. Pion-Tonachini, S.-H. Hsu, C.-Y. Chang, T.-P. Jung, S. Makeig, "Automatic Artifact Rejection using the Real-time EEG Source-mapping Toolbox (REST)," in *IEEE EMBS*, 2018.
 
-[2] S.-H. Hsu, T. R. Mullen, T.-P. Jung and G. Cauwenberghs, "Real-time adaptive EEG source separation using online recursive independent component analysis," *IEEE transactions on neural systems and rehabilitation engineering*, 24(3), pp.309-319, 2016.
+[2] L. Pion-Tonachini, S.-H. Hsu, S. Makeig, T.-P. Jung, G. Cauwenberghs, "Real-Time EEG Source-Mapping Toolbox (REST): Online ICA and Source Localization," in *IEEE EMBS*, 2015.
+
+[3] S.-H. Hsu, T. R. Mullen, T.-P. Jung and G. Cauwenberghs, "Real-time adaptive EEG source separation using online recursive independent component analysis," *IEEE transactions on neural systems and rehabilitation engineering*, 24(3), pp.309-319, 2016.
 
 2017/07/06 Luca Pion-Tonachini / Sheng-Hsiou Hsu @ SCCN, UCSD
