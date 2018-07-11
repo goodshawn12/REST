@@ -202,12 +202,12 @@ pipeline = evalin('base','pipeline'); %#ok<NASGU>
 
 removed = cell(length(funsstr) - 1, 1);
 % from flt_selchans
-for it = find(strcmp(funsstr,'flt_selchans'))
+for it = find(strcmp(funsstr','flt_selchans'))
     numparts = length(funsstr) - it;
     removed{it} = eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}']);
 end
 % from flt_reref
-for it = find(strcmp(funsstr,'flt_reref'))
+for it = find(strcmp(funsstr','flt_reref'))
     numparts = length(funsstr) - it;
     if ~eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{8}']);
         removed{it} = eval(['pipeline' repmat('.parts{2}',1,numparts) '.parts{4}']);
@@ -261,6 +261,11 @@ for it = 1:handles.ntopo
     set(handles.figure1, 'CurrentAxes', handles.(['axesIC' int2str(it)]))
     [~,Zi,~,Xi,Yi,intx,inty] = topoplotFast_LRBF(zeros(size(handles.chanlocs{end})), handles.chanlocs{end});
 end
+assert(length(handles.chanlocs{end}) == length(intx), ...
+    ['Some channels are missing locations. Either the chanlocs structure ' ...
+    'needs to be updated with location information or flt_selchans ' ...
+    '(Channel Selection) should be added to the pipeline to remove those ' ...
+    'channels.'])
 
 % Generate scalp map interpolation matrix (jerry rigged)
 nChan = length(handles.chanlocs{end});
