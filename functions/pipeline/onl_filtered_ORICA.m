@@ -63,10 +63,12 @@ end
 assignin('base','pipeline',p);
 
 % save convergence info in base workspace % !!! clean for output
-learning_rate = evalin('base','learning_rate');
-if isfield(chunk,'lambda_k')
-    len = length(chunk.lambda_k);
-    assignin('base','learning_rate',[learning_rate(len+1:end) db(chunk.lambda_k)]);
+try
+    learning_rate = evalin('base','learning_rate');
+    if isfield(chunk,'lambda_k')
+        len = length(chunk.lambda_k);
+        assignin('base','learning_rate',[learning_rate(len+1:end) db(chunk.lambda_k)]);
+    end
 end
 
 % raw data: p.parts{2}.parts{2}.out
@@ -84,15 +86,23 @@ buffer.timestamp = lsl_local_clock(buffer.lsllib);
 
 try
     % ica parameters
-    buffer.ica.icasphere = p.state.icasphere;
-    buffer.ica.icaweights = p.state.icaweights;
-    buffer.ica.normRn(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)) = p.state.normRn;
+    tempp = p;
+    while ~isfield(tempp, 'state') || ~isfield(tempp.state, 'icasphere')
+        tempp = tempp.parts{2}; end
+    buffer.ica.icasphere = tempp.state.icasphere;
+    buffer.ica.icaweights = tempp.state.icaweights;
+    buffer.ica.normRn(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)) ...
+        = tempp.state.normRn;
     
-    % save data to buffer
-    strin = '] = deal(buffer.smax + size(p.out,2),';
-    strout = '[buffer.smax,';
-    [strin,strout] = build_command(p,0,[],strin,strout,'buffer',false);
-    eval([strout(1:end-1) strin(1:end-1) ');']);
+    % save data to buffer TODO: figure out why this block is so slow.
+    % likely to due to evalin?
+    tempp = p;
+    index = 1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts);
+    for it = length(buffer.data):-1:1
+        buffer.data{it}(:, index) = tempp.out;
+        tempp = tempp.parts{2};
+    end
+    buffer.smax = buffer.smax + size(p.out,2);
     
 catch e
     % reformat buffer: !!! this won't work if we're adding back in channels or if channles are removed later on
@@ -105,15 +115,22 @@ catch e
     buffer.ica.normRn = zeros(1, size(buffer.data{1}, 2));
     
     % save ica data to buffer
-    buffer.ica.icasphere = p.state.icasphere;
-    buffer.ica.icaweights = p.state.icaweights;
-    buffer.ica.normRn(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)) = p.state.normRn;
+    tempp = p;
+    while ~isfield(tempp, 'state') || ~isfield(tempp.state, 'icasphere')
+        tempp = tempp.parts{2}; end
+    buffer.ica.icasphere = tempp.state.icasphere;
+    buffer.ica.icaweights = tempp.state.icaweights;
+    buffer.ica.normRn(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)) ...
+        = tempp.state.normRn;
     
     % save data to buffer
-    strin = '] = deal(buffer.smax + size(p.out,2),';
-    strout = '[buffer.smax,';
-    [strin,strout] = build_command(p,0,[],strin,strout,'buffer',false);
-    eval([strout(1:end-1) strin(1:end-1) ');']);
+    tempp = p;
+    index = 1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts);
+    for it = length(buffer.data):-1:1
+        buffer.data{it}(:, index) = tempp.out;
+        tempp = tempp.parts{2};
+    end
+    buffer.smax = buffer.smax + size(p.out,2);
     
 end
 

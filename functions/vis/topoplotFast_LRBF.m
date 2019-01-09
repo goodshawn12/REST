@@ -568,8 +568,10 @@ if strcmpi(whitebk, 'on')
     BACKCOLOR = [ 1 1 1 ];
 end;
 
-cmap = colormap;
-cmaplen = size(cmap,1);
+if ~strcmpi(noplot, 'on')
+    cmap = colormap;
+    cmaplen = size(cmap,1);
+end
 
 ELECTRODES = 'off';
 GRID_SCALE = 32;
