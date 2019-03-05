@@ -182,7 +182,7 @@ end
                     [stream.nbchan,stream.pnts,stream.trials] = size(stream.data{plot_content});
                     stream.xmax = stream.smax/stream.srate;
                     stream.xmin = stream.xmax - (stream.pnts-1)/stream.srate;
-                    plotdata = stream.data{plot_content}(:, round(1 : stream.srate/stream.opts.samplingrate : end));
+                    plotdata = stream.data{plot_content}(:, round(1 : stream.srate/stream.opts.samplingrate : size(stream.data{plot_content}, 2)));
                     if plot_content==length(stream.data) % plotting ORICA results
                         % find scaling factor to match average channel and component stds
                         state = evalin('base','pipeline.state');
@@ -219,7 +219,7 @@ end
                 pipeline = evalin('base','pipeline');
                 count = length(stream.data);
                 index = [];
-                while true
+                while isstruct(pipeline)
                     if ~isequal(pipeline.head,@flt_clean_channels) && ~isequal(pipeline.head, @flt_selchans)
                         try
                             pipeline = pipeline.parts{2}; % !!! make this more general

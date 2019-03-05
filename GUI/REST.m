@@ -397,9 +397,12 @@ if ~isfield(handles,'chanlocs') && isfield(handles,'headModel')
     handles.chanlocs = convertlocs(handles.chanlocs);
 end
 
-% if still no chanlocs, error
+% if still no chanlocs, error. otherswise get some more info
 if ~isfield(handles,'chanlocs')
     error('REST: No channel location information provided!')
+else
+    handles.nic = length(handles.chanlocs);
+    handles.ics = 1:handles.nic;
 end
 
 % check whether to open pipeline arg_guipanel
