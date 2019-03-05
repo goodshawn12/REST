@@ -1,0 +1,3 @@
+[submodule "dependencies/ICLabel"]
+	path = dependencies/ICLabel
+	url = https://github.com/lucapton/ICLabel

@@ -39,7 +39,8 @@ if strcmp(projmat,'.icawinv')
         subchans = signal.icachansind;
         projmat = signal.icawinv;
     elseif isfield(signal,'icaweights') && ~isempty(signal.icaweights)
-        signal.icawinv = pinv(signal.icaweights * signal.icasphere);
+        icaproj = signal.icaweights * signal.icasphere;
+        signal.icawinv = pinv(icaproj);
         subchans = signal.icachansind;
         projmat = signal.icawinv;
     else
@@ -70,7 +71,11 @@ if size(projmat,2) ~= C
     error('The given projection matrix needs to have the same number of rows as the data has channels (%i), but had: %i',C,size(projmat,2)); end
 if isempty(signal.icaact)
     temp = reshape(signal.data,C,[]);
-    signal.icaact = reshape(signal.icaweights * temp,[],S,T);
+    if exist('icaproj', 'var')
+        signal.icaact = reshape(icaproj * temp,[],S,T);
+    else
+        signal.icaact = reshape((signal.icaweights * signal.icasphere) * temp,[],S,T);
+    end
 end
 temp = reshape(signal.icaact,C,[]);
 signal.data = reshape(projmat(:, subcomps) * temp(subcomps, :),[],S,T);

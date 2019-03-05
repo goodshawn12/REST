@@ -28,18 +28,17 @@
 % Example using default pipeline:
 %   eegstr = 'data/Quick30_Shawn_EyeOpen.set';
 %   calib = {eegstr, 'channels', 1:30, 'timerange', [0 30]};
-%   REST_offline(EEG, calib)
+%   REST_offline(eegstr, calib)
 % 
 % TODO:
 %   * save more information about ic classifications across time
 %   * save more information about ica decompositions across time
 %   * figure out why saving to the buffer is so slow in onl_filtered_ORICA
-%   * add ic_marc and iclabel
 %   * automatically setup paths
 
 
 
-function buffer = REST_offline(dataset, calibrationset, pipeline_desc)
+function buffer = REST_offline(dataset, calibrationset, pipeline_desc, rest_path)
 
 % check inputs
 assert(ischar(dataset) || isstruct(dataset), ...
@@ -48,13 +47,18 @@ assert(ischar(calibrationset) || iscell(calibrationset) || isstruct(calibrations
     'calibrationset must be either a path to a *.set file, a cell array of inputs for io_loadset, or the output of io_loadset.')
 assert(~exist('pipeline_desc', 'var') || isempty(pipeline_desc) || iscell(pipeline_desc) || isstruct(pipeline_desc), ...
     'pipeline_desc must be either a cell array or structure of the format expected by flt_pipeline or left empty or excluded from the function call if the default REST pipeline is desired.')
+assert(~exist('rest_path', 'var') || ischar(rest_path), ...
+    'rest_path must be a path to the root folder of REST')
 
 % setup environment
 bcilab_path = which('bcilab.m');
+if ~exist('rest_path', 'var')
+    rest_path = '.'; end
 if isempty(bcilab_path)
     current_path = pwd;
     addpath(fullfile(rest_path, 'dependencies', 'BCILAB'));
     bcilab
+    close
     cd(current_path);
     addpath(genpath(rest_path));
 end
@@ -68,14 +72,10 @@ elseif isstruct(calibrationset)
     calibration = calibrationset;
 end
 if ischar(dataset)
-    EEG = pop_loadset('data/Quick30_Shawn_EyeOpen.set');
+    EEG = pop_loadset(dataset);
 elseif isstruct(dataset);
     EEG = dataset;
 end
-% calibration = io_loadset(calibrationset, ...
-%     'channels', 1:30, 'timerange', [0 30]);
-% EEG = pop_loadset('data/Quick30_Shawn_EyeOpen.set');
-% EEG = pop_select(EEG, 'channel', 1:30);
 
 % settings
 block_size = EEG.srate / 10;

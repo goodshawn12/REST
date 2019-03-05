@@ -93,7 +93,6 @@ end
 % interpolate
 map = zeros(state.interp.topoNPixel, 1);
 map(~state.interp.topoNaNMask) = state.interp.topoMat * Winv(:, state.next_ic);
-map(state.interp.topoNaNMask) = 0;
 
 end
 
