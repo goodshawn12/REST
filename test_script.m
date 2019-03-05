@@ -22,7 +22,7 @@ end
 
 %% define opts structure
 % whether to customize pipeline 
-opts.customize_pipeline = true;
+opts.customize_pipeline = false;
 opts.save_config = false;
 
 % % % Emotiv - setting
@@ -53,16 +53,38 @@ opts.save_config = false;
 % opts.calibration_window = [0,60]; % sec
 
 
-% % Quick 30 - setting
+% % % Quick 30 - setting
+% % channel locations
+% load(fullfile(rest_path, 'data/chanlocs/Quick30.mat'));
+% opts.chanlocs = chanlocs; 
+% 
+% % (optional) define config file name
+% opts.config = 'Config_ORICA_quick30';
+% 
+% % (optional) path to calibration data and select time window
+% opts.calibration_data = fullfile(rest_path, 'data', 'Quick30_Shawn_EyeOpen.set');
+% opts.calibration_window = [0,133]; % sec
+% 
+% % (optional) load eyeCatch library
+% opts.libEyeCatch = load(fullfile(rest_path, 'dependencies', 'eyeCatch', 'libEyeCatch.mat'));
+% 
+% % (optional) load IC_MARC model
+% opts.modIcMarc = load(fullfile(rest_path, 'dependencies', 'IC_MARC', 'spatial2.mat'));
+% 
+% % use playback data
+% opts.playback = 1;
+
+
+% % Smarting - setting
 % channel locations
-load(fullfile(rest_path, 'data/chanlocs/Quick30.mat'));
+load(fullfile(rest_path, 'data/chanlocs/Smarting24.mat'));
 opts.chanlocs = chanlocs; 
 
 % (optional) define config file name
-opts.config = 'Config_ORICA_quick30';
+opts.config = 'Config_ORICA_smarting24';
 
 % (optional) path to calibration data and select time window
-opts.calibration_data = fullfile(rest_path, 'data', 'Quick30_Shawn_EyeOpen.set');
+opts.calibration_data = fullfile(rest_path, 'data', 'Smarting_220219_1311.set');
 opts.calibration_window = [0,133]; % sec
 
 % (optional) load eyeCatch library
