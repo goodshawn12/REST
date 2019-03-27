@@ -174,10 +174,10 @@ if p.subnodes
     else
         chunk = p.head(inputs{:});
     end
-    if isempty(chunk.icaact)
-        p.out = chunk.data(:,end-n+1:end);
-    else
+    if p.stateful && isfield(p.state, 'icaweights')
         p.out = chunk.icaact(:,end-n+1:end);
+    else
+        p.out = chunk.data(:,end-n+1:end);
     end
 else
     % get the most recent samples since our buffer's smax from a raw stream: 

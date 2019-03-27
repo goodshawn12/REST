@@ -100,7 +100,7 @@ if ~exist('pipeline_desc', 'var') || isempty(pipeline_desc)
         'repair_bursts', {'stddev_cutoff', 20, 'window_len', 0.5}, ... 
         'orica', {'onlineWhitening', {'blockSize', 16}, ... % does this need a simulated online switch to save ica matrices and times when they applied?
             'options', {'blockSize', 16}, 'evalConvergence', 0.01} ...
-        'ic_marc', 'on', ...
+        'eyecatch', 'on', ...
         'ica_reproject', {'ProjectionMatrix', '.icawinv', 'ComponentSubset', '.reject'}, ...
         };
     pipeline_desc = [{'FilterOrdering', strcat('flt_', pipeline_desc(1:2:end))}, pipeline_desc];
@@ -119,7 +119,7 @@ assignin('base', 'pipeline', pipeline)
 % iterate over entire dataset
 disp(sprintf('Processing dataset in chunks of %d points...', block_size))
 start = 1;
-while start < 1000%EEG.pnts
+while start < EEG.pnts
     
     % update indicies
     inds = start:min(start + block_size - 1, EEG.pnts);

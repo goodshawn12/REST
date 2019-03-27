@@ -77,8 +77,8 @@ end
 % update signal
 if ~isempty(Winv)
     signal.icawinv = Winv;
-    signal.reject = ismember(state.cls, state.reject);
 end
+signal.reject = ismember(state.cls, state.reject);
 
 exp_endfun;
 
