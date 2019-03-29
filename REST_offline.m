@@ -141,6 +141,7 @@ evalin('base', sprintf('clear temp pipeline %s %s_chunk_clr %s_range lsl_%s_stre
 
     function stream = create_streambuffer(pipeline_desc)
         stream.stream_name = stream_name;
+        stream.block_size = block_size;
         stream.srate = EEG.srate;                                    
         stream.pnts = EEG.pnts;                                            % number of data points in the buffer
         stream.nbchan = EEG.nbchan;                                 % number of channels in the buffer
@@ -177,9 +178,10 @@ evalin('base', sprintf('clear temp pipeline %s %s_chunk_clr %s_range lsl_%s_stre
             % create ica stream buffer
             if strcmp('orica', pipeline_desc{it * 2 - 1})
                 c = size(stream.data{it + 1});
-                stream.ica.normRn = zeros(1, c(2));
-                stream.ica.icasphere = zeros([c(1) c(1) c(2)]);
-                stream.ica.icaweights = zeros([c(1) c(1) c(2)]);
+                len = ceil(c(2) / block_size);
+                stream.ica.normRn = zeros(1, len);
+                stream.ica.icasphere = zeros([c(1) c(1) len]);
+                stream.ica.icaweights = zeros([c(1) c(1) len]);
             end
         end
         

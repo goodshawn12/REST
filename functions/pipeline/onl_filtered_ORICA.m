@@ -89,9 +89,10 @@ try
     tempp = p;
     while ~isfield(tempp, 'state') || ~isfield(tempp.state, 'icasphere')
         tempp = tempp.parts{2}; end
-    ind = 1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts);
-    buffer.ica.icasphere(:, :, ind) = repmat(tempp.state.icasphere, 1, 1, numel(ind));
-    buffer.ica.icaweights(:, :, ind) = repmat(tempp.state.icaweights, 1, 1, numel(ind));
+%     ind = 1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts);
+    ind = floor(buffer.smax / buffer.block_size) + 1;
+    buffer.ica.icasphere(:, :, ind) = tempp.state.icasphere;
+    buffer.ica.icaweights(:, :, ind) = tempp.state.icaweights;
     buffer.ica.normRn(:, ind) = tempp.state.normRn;
     
     % save data to buffer TODO: figure out why this block is so slow.
@@ -112,17 +113,18 @@ catch e
         buffer.data{it}(t(it)+1:end,:) = []; end
     
     % create ica buffer
-    buffer.ica.normRn = zeros(1, size(buffer.data{1}, 2));
-    buffer.ica.icasphere = zeros([size(tempp.state.icasphere) size(buffer.data{1}, 2)]);
-    buffer.ica.icaweights = zeros([size(tempp.state.icasphere) size(buffer.data{1}, 2)]);
+    len = ceil(size(stream.data{1}, 2) / block_size);
+    buffer.ica.normRn = zeros(1, len);
+    buffer.ica.icasphere = zeros([size(tempp.state.icasphere) len]);
+    buffer.ica.icaweights = zeros([size(tempp.state.icasphere) len]);
     
     % save ica data to buffer
     tempp = p;
     while ~isfield(tempp, 'state') || ~isfield(tempp.state, 'icasphere')
         tempp = tempp.parts{2}; end
-    ind = 1+mod(buffer.smax:buffer.smax+size(p.out,2)-1, buffer.pnts);
-    buffer.ica.icasphere(:, :, ind) = repmat(tempp.state.icasphere, 1, 1, numel(ind));
-    buffer.ica.icaweights(:, :, ind) = repmat(tempp.state.icaweights, 1, 1, numel(ind));
+    ind = floor(buffer.smax / buffer.block_size) + 1;
+    buffer.ica.icasphere(:, :, ind) = tempp.state.icasphere;
+    buffer.ica.icaweights(:, :, ind) = tempp.state.icaweights;
     buffer.ica.normRn(:, ind) = tempp.state.normRn;
     
     % save data to buffer
