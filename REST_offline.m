@@ -174,6 +174,13 @@ evalin('base', sprintf('clear temp pipeline %s %s_chunk_clr %s_range lsl_%s_stre
                 stream.data{it + 1}(1:sum(ind_chan_select), :) = [];
                 stream.chanlocs{it + 1}(ind_chan_select) = [];
             end
+            % create ica stream buffer
+            if strcmp('orica', pipeline_desc{it * 2 - 1})
+                c = size(stream.data{it + 1});
+                stream.ica.normRn = zeros(1, c(2));
+                stream.ica.icasphere = zeros([c(1) c(1) c(2)]);
+                stream.ica.icaweights = zeros([c(1) c(1) c(2)]);
+            end
         end
         
         assignin('base', ['lsl_' stream_name '_stream'], stream);

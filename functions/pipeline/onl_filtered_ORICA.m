@@ -89,10 +89,10 @@ try
     tempp = p;
     while ~isfield(tempp, 'state') || ~isfield(tempp.state, 'icasphere')
         tempp = tempp.parts{2}; end
-    buffer.ica.icasphere = tempp.state.icasphere;
-    buffer.ica.icaweights = tempp.state.icaweights;
-    buffer.ica.normRn(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)) ...
-        = tempp.state.normRn;
+    ind = 1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts);
+    buffer.ica.icasphere(:, :, ind) = repmat(tempp.state.icasphere, 1, 1, numel(ind));
+    buffer.ica.icaweights(:, :, ind) = repmat(tempp.state.icaweights, 1, 1, numel(ind));
+    buffer.ica.normRn(:, ind) = tempp.state.normRn;
     
     % save data to buffer TODO: figure out why this block is so slow.
     % likely to due to evalin?
@@ -113,15 +113,17 @@ catch e
     
     % create ica buffer
     buffer.ica.normRn = zeros(1, size(buffer.data{1}, 2));
+    buffer.ica.icasphere = zeros([size(tempp.state.icasphere) size(buffer.data{1}, 2)]);
+    buffer.ica.icaweights = zeros([size(tempp.state.icasphere) size(buffer.data{1}, 2)]);
     
     % save ica data to buffer
     tempp = p;
     while ~isfield(tempp, 'state') || ~isfield(tempp.state, 'icasphere')
         tempp = tempp.parts{2}; end
-    buffer.ica.icasphere = tempp.state.icasphere;
-    buffer.ica.icaweights = tempp.state.icaweights;
-    buffer.ica.normRn(:,1+mod(buffer.smax:buffer.smax+size(p.out,2)-1,buffer.pnts)) ...
-        = tempp.state.normRn;
+    ind = 1+mod(buffer.smax:buffer.smax+size(p.out,2)-1, buffer.pnts);
+    buffer.ica.icasphere(:, :, ind) = repmat(tempp.state.icasphere, 1, 1, numel(ind));
+    buffer.ica.icaweights(:, :, ind) = repmat(tempp.state.icaweights, 1, 1, numel(ind));
+    buffer.ica.normRn(:, ind) = tempp.state.normRn;
     
     % save data to buffer
     tempp = p;
