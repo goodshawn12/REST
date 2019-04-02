@@ -122,8 +122,13 @@ start = 1;
 while start < EEG.pnts
     
     % update indicies
-    inds = start:min(start + block_size - 1, EEG.pnts);
-    start = start + block_size;
+    if start + 2 * block_size - 1 < EEG.pnts
+        inds = start:EEG.pnts;
+        start = EEG.pnts + 1;
+    else
+        inds = start:start + block_size - 1;
+        start = start + block_size;
+    end
     
     % update pipeline
     onl_append(stream_name, EEG.data(:, inds));
