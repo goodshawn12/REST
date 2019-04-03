@@ -184,9 +184,9 @@ evalin('base', sprintf('clear temp pipeline %s %s_chunk_clr %s_range lsl_%s_stre
             if strcmp('orica', pipeline_desc{it * 2 - 1})
                 c = size(stream.data{it + 1});
                 len = ceil(c(2) / block_size);
-                stream.ica.normRn = zeros(1, len);
-                stream.ica.icasphere = zeros([c(1) c(1) len]);
-                stream.ica.icaweights = zeros([c(1) c(1) len]);
+                stream.ica.normRn = nan(1, len);
+                stream.ica.icasphere = nan([c(1) c(1) len]);
+                stream.ica.icaweights = nan([c(1) c(1) len]);
             end
         end
         
