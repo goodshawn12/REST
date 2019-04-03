@@ -122,7 +122,7 @@ start = 1;
 while start < EEG.pnts
     
     % update indicies
-    if start + 2 * block_size - 1 < EEG.pnts
+    if start + 2 * block_size - 1 > EEG.pnts
         inds = start:EEG.pnts;
         start = EEG.pnts + 1;
     else
