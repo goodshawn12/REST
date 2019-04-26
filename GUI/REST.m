@@ -83,6 +83,9 @@ function REST_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to REST (see VARARGIN)
 
+% hide warning
+warning('off', 'MATLAB:hg:uicontrol:StringMustBeNonEmpty')
+
 % find REST path
 handles.rest_path = fileparts(fileparts(which('REST')));
 
@@ -229,7 +232,7 @@ if ~all(cellfun(@isempty, removed))
     if isfield(handles,'headModel')
         % adjust headModel
         handles.urheadModel = handles.headModel;
-        rm_ind = ismember(handles.headModel.channelLabel, removed);
+        rm_ind = ~ismember(handles.headModel.channelLabel, {handles.chanlocs{end}.labels});
         handles.headModel.dropChannels(rm_ind); % !!! had to change the headModel contructor
         handles.K(rm_ind ,:) = [];
     end
