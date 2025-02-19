@@ -1187,7 +1187,8 @@ if ~strcmpi(STYLE,'blank') % if draw interpolated scalp map
   %
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Set color axis  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   %
-  caxis([amin amax]); % set coloraxis
+  %caxis([amin amax]); % set coloraxis
+  caxis auto
 
 else % if STYLE 'blank'
 %
