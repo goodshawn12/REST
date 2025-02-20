@@ -6,6 +6,10 @@ REST provides an easy-to-use and interactive platform to perform source-space an
 
 ### To use REST
 
+* To run the code correctly in matlab, the users are supposed to install other ToolBoxs in advance.
+  Signal Processing Toolbox 
+  Statistics and Machine Learning Toolbox 
+
 * Run the test_script.m to see if REST can be correctly set up in your environment. The script will run REST in playback mode with the demo dataset. If a pipeline designer GUI pops up, just close it so that REST can continue. In the end, you will see the REST visualization GUI pop up that shows the playback data stream, online decomposed independent components, etc. See the Video Tutorials section below for instruction of how to interact with REST interface.
 
 * To work with your own data stream, create a Lab Streaming Layer (LSL) stream for the data you wish REST to work with. To do this, look at the lab streaming layer github at https://github.com/sccn/labstreaminglayer to find how to interface with your data recording setup.
