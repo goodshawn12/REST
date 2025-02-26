@@ -6,17 +6,15 @@ REST provides an easy-to-use and interactive platform to perform source-space an
 
 ### To use REST
 
-* To run the code correctly in matlab, the users are supposed to install other ToolBoxs in advance.
-  Signal Processing Toolbox 
-  Statistics and Machine Learning Toolbox 
+* For Matlab version 2024b or later, the users are advised to install the following toolboxes for compatibility: Signal Processing Toolbox, Statistics and Machine Learning Toolbox 
 
-* Run the test_script.m to see if REST can be correctly set up in your environment. The script will run REST in playback mode with the demo dataset. If a pipeline designer GUI pops up, just close it so that REST can continue. In the end, you will see the REST visualization GUI pop up that shows the playback data stream, online decomposed independent components, etc. See the Video Tutorials section below for instruction of how to interact with REST interface.
+* Run the test_script.m to see if REST can be correctly set up in your environment. The script will run REST in playback mode with the demo dataset. If a pipeline designer GUI pops up, just close it so that REST can continue. In the end, you will see the REST visualization GUI pop-up that shows the playback data stream, online decomposed independent components, etc. See the Video Tutorials section below for instructions on how to interact with the REST interface.
 
-* To work with your own data stream, create a Lab Streaming Layer (LSL) stream for the data you wish REST to work with. To do this, look at the lab streaming layer github at https://github.com/sccn/labstreaminglayer to find how to interface with your data recording setup.
+* To work with your own data stream, create a Lab Streaming Layer (LSL) stream for the data you wish REST to work with. To do this, look at the lab streaming layer GitHub at https://github.com/sccn/labstreaminglayer to find out how to interface with your data recording setup.
 
-* Open test_script.m to see the example script. Set opts.playback to 0 (false) to enable online streaming mode. If calibration data is defined, the pipeline will be initialized with the data. Otherwise, the pipeline will be initialized with data (default 10-sec) collected on-line. If a headModel is defined, "localize" option in REST will be enable. Type `` help REST`` for more details.
+* Open test_script.m to see the example script. Set `opts.playback` to 0 (false) to enable online streaming mode. If calibration data is defined, the pipeline will be initialized with the data. Otherwise, the pipeline will be initialized with data (default 10-sec) collected online. If a headModel is defined, the "localize" option in REST will be enabled. Type ` help REST` for more details.
 
-* REST is still in beta version. If you encounter any problem using REST or have any suggestion, please contact us at shh078 at ucsd dot edu.
+* REST is still in the beta version. If you encounter any problem using REST or have any suggestions, please submit an issue or contact us at shhsu at uscd dot edu.
 
 
 ### Video Tutorials
